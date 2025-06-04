@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RCC>
+    <qresource prefix="/icons">
+        <file>folder.png</file>
+        <file>image.png</file>
+        <file>video.png</file>
+        <file>audio.png</file>
+        <file>document.png</file>
+        <file>spreadsheet.png</file>
+        <file>presentation.png</file>
+        <file>pdf.png</file>
+        <file>book.png</file>
+        <file>application.png</file>
+        <file>archive.png</file>
+        <file>code.png</file>
+        <file>file.png</file>
+        <file>app_icon.png</file>
+    </qresource>
+</RCC> 
