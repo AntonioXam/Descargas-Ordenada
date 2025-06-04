@@ -17,7 +17,8 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
         QPushButton, QLabel, QCheckBox, QListWidget, QListWidgetItem,
         QProgressBar, QFileDialog, QColorDialog, QMessageBox, QMenu,
-        QSystemTrayIcon, QToolBar, QStatusBar, QSplitter, QFrame
+        QSystemTrayIcon, QToolBar, QStatusBar, QSplitter, QFrame,
+        QComboBox
     )
 except ImportError as e:
     logging.error(f"Error al importar PySide6: {e}")
@@ -34,19 +35,22 @@ class TareaOrganizacion(QThread):
     """Hilo para ejecutar la organización de archivos en segundo plano."""
     
     # Señales
-    progreso = Signal(str, str)  # archivo, categoría
+    progreso = Signal(str, str, str)  # archivo, categoría, subcategoría
     completado = Signal(dict, list)  # resultados, errores
     error = Signal(str)  # mensaje de error
     
-    def __init__(self, organizador: OrganizadorArchivos):
+    def __init__(self, organizador: OrganizadorArchivos, organizar_subcarpetas: bool = False):
         super().__init__()
         self.organizador = organizador
+        self.organizar_subcarpetas = organizar_subcarpetas
     
     def run(self):
         """Ejecuta la tarea de organización en segundo plano."""
         try:
             resultados, errores = self.organizador.organizar(
-                callback=lambda archivo, categoria: self.progreso.emit(archivo, categoria)
+                callback=lambda archivo, categoria, subcategoria: 
+                    self.progreso.emit(archivo, categoria, subcategoria),
+                organizar_subcarpetas=self.organizar_subcarpetas
             )
             self.completado.emit(resultados, errores)
         except Exception as e:
@@ -57,12 +61,17 @@ class TareaOrganizacion(QThread):
 class ItemArchivo(QListWidgetItem):
     """Item personalizado para mostrar archivos en la lista."""
     
-    def __init__(self, nombre: str, categoria: str, parent=None):
+    def __init__(self, nombre: str, categoria: str, subcategoria: str = None, parent=None):
         super().__init__(nombre, parent)
         self.categoria = categoria
+        self.subcategoria = subcategoria or "General"
         self.setIcon(self._obtener_icono(categoria))
         self.timestamp = datetime.now().strftime("%H:%M:%S")
-        self.setText(f"[{self.timestamp}] {nombre} → {categoria}")
+        
+        if subcategoria and subcategoria != "General":
+            self.setText(f"[{self.timestamp}] {nombre} → {categoria}/{subcategoria}")
+        else:
+            self.setText(f"[{self.timestamp}] {nombre} → {categoria}")
         
     def _obtener_icono(self, categoria: str) -> QIcon:
         """Obtiene el icono correspondiente a la categoría."""
@@ -80,6 +89,8 @@ class ItemArchivo(QListWidgetItem):
             'Comprimidos': 'archive',
             'Código': 'code',
             'Carpetas': 'folder',
+            'Descargas P2P': 'network-wired',
+            'Archivos 3D': '3d',
             'Otros': 'file'
         }
         
@@ -95,7 +106,7 @@ class OrganizadorApp(QMainWindow):
         super().__init__()
         
         # Inicializar componentes
-        self.organizador = OrganizadorArchivos()
+        self.organizador = OrganizadorArchivos(usar_subcarpetas=True)
         self.gestor_autoarranque = GestorAutoarranque()
         self._cerrar_completamente = False
         
@@ -138,6 +149,20 @@ class OrganizadorApp(QMainWindow):
         # Checkbox de autoarranque
         self.chk_autoarranque = QCheckBox("Auto-iniciar al arrancar el sistema")
         toolbar.addWidget(self.chk_autoarranque)
+        
+        toolbar.addSeparator()
+        
+        # Selector de modo de organización
+        self.chk_usar_subcarpetas = QCheckBox("Usar subcarpetas")
+        self.chk_usar_subcarpetas.setChecked(self.organizador.usar_subcarpetas)
+        toolbar.addWidget(self.chk_usar_subcarpetas)
+        
+        toolbar.addSeparator()
+        
+        # Checkbox para organizar dentro de subcarpetas
+        self.chk_organizar_subcarpetas = QCheckBox("Organizar dentro de carpetas")
+        self.chk_organizar_subcarpetas.setToolTip("Buscar archivos para organizar también dentro de subcarpetas")
+        toolbar.addWidget(self.chk_organizar_subcarpetas)
         
         # Información de la carpeta de descargas
         self.lbl_carpeta = QLabel(f"Carpeta: {self.organizador.carpeta_descargas}")
@@ -205,6 +230,12 @@ class OrganizadorApp(QMainWindow):
         # Checkbox de autoarranque
         self.chk_autoarranque.stateChanged.connect(self._toggle_autoarranque)
         
+        # Selector de modo de organización
+        self.chk_usar_subcarpetas.stateChanged.connect(self._toggle_usar_subcarpetas)
+        
+        # Checkbox para organizar dentro de subcarpetas
+        self.chk_organizar_subcarpetas.stateChanged.connect(self._toggle_organizar_subcarpetas)
+        
         # Lista de archivos (menú contextual)
         self.list_archivos.customContextMenuRequested.connect(self._mostrar_menu_contextual)
     
@@ -224,6 +255,17 @@ class OrganizadorApp(QMainWindow):
             QMessageBox.warning(self, "Error de autoarranque", mensaje)
             # Revertir el estado del checkbox
             self.chk_autoarranque.setChecked(not activar)
+    
+    def _toggle_usar_subcarpetas(self, estado):
+        """Activa o desactiva el uso de subcarpetas según el estado del checkbox."""
+        activar = estado == Qt.CheckState.Checked.value
+        self.organizador.usar_subcarpetas = activar
+        self.status_bar.showMessage("Modo de organización actualizado", 5000)
+    
+    def _toggle_organizar_subcarpetas(self, estado):
+        """Activa o desactiva la organización de subcarpetas según el estado del checkbox."""
+        activar = estado == Qt.CheckState.Checked.value
+        self.status_bar.showMessage("Modo de organización actualizado", 5000)
     
     def _mostrar_menu_contextual(self, posicion):
         """Muestra el menú contextual para la lista de archivos."""
@@ -248,6 +290,10 @@ class OrganizadorApp(QMainWindow):
     @Slot()
     def iniciar_organizacion(self):
         """Inicia el proceso de organización de archivos en segundo plano."""
+        # Actualizar configuración de subcarpetas
+        self.organizador.usar_subcarpetas = self.chk_usar_subcarpetas.isChecked()
+        organizar_subcarpetas = self.chk_organizar_subcarpetas.isChecked()
+        
         # Deshabilitar botón
         self.btn_organizar.setEnabled(False)
         self.status_bar.showMessage("Organizando archivos...")
@@ -257,7 +303,7 @@ class OrganizadorApp(QMainWindow):
         self.barra_progreso.setRange(0, 0)  # Modo indeterminado
         
         # Crear y configurar el hilo de organización
-        self.tarea = TareaOrganizacion(self.organizador)
+        self.tarea = TareaOrganizacion(self.organizador, organizar_subcarpetas)
         self.tarea.progreso.connect(self._actualizar_progreso)
         self.tarea.completado.connect(self._organizacion_completada)
         self.tarea.error.connect(self._organizacion_error)
@@ -265,11 +311,11 @@ class OrganizadorApp(QMainWindow):
         # Iniciar el hilo
         self.tarea.start()
     
-    @Slot(str, str)
-    def _actualizar_progreso(self, archivo, categoria):
+    @Slot(str, str, str)
+    def _actualizar_progreso(self, archivo, categoria, subcategoria):
         """Actualiza el progreso de la organización."""
         # Añadir archivo a la lista
-        item = ItemArchivo(archivo, categoria)
+        item = ItemArchivo(archivo, categoria, subcategoria)
         self.list_archivos.addItem(item)
         
         # Desplazar al final
@@ -284,8 +330,11 @@ class OrganizadorApp(QMainWindow):
         # Habilitar botón
         self.btn_organizar.setEnabled(True)
         
-        # Mostrar resultados
-        total_archivos = sum(len(archivos) for archivos in resultados.values())
+        # Contar el total de archivos organizados
+        total_archivos = 0
+        for categoria, subcategorias in resultados.items():
+            for subcategoria, archivos in subcategorias.items():
+                total_archivos += len(archivos)
         
         if total_archivos > 0:
             mensaje = f"Organización completada: {total_archivos} archivos organizados"
