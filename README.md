@@ -1,4 +1,4 @@
-# DescargasOrdenadas
+# DescargasOrdenadas by x4mp0
 
 Organizador de carpeta de descargas multiplataforma con interfaz gráfica para Windows, macOS y Linux.
 
