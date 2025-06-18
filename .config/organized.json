@@ -1,0 +1,19 @@
+{
+  "linux": "Carpetas\\linux",
+  "macos": "Carpetas\\macos",
+  "organizer": "Carpetas\\organizer",
+  "resources": "Carpetas\\resources",
+  "utils": "Carpetas\\utils",
+  "windows": "Carpetas\\windows",
+  "BANDEJA_SISTEMA.md": "Documentos\\BANDEJA_SISTEMA.md",
+  "COMO_USAR.md": "Documentos\\COMO_USAR.md",
+  "CREAR_PORTABLES.md": "Documentos\\CREAR_PORTABLES.md",
+  "EJECUTAR.py": "Código Fuente\\EJECUTAR.py",
+  "INSTRUCCIONES_PORTABLE.md": "Documentos\\INSTRUCCIONES_PORTABLE.md",
+  "LEEME_PRIMERO.md": "Documentos\\LEEME_PRIMERO.md",
+  "LICENSE": "Otros\\LICENSE",
+  "main.py": "Código Fuente\\main.py",
+  "README.md": "Documentos\\README.md",
+  "requirements.txt": "Documentos\\requirements.txt",
+  "test_bandeja.py": "Código Fuente\\test_bandeja.py"
+}

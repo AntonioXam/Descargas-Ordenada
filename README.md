@@ -1,150 +1,308 @@
-# DescargasOrdenadas by x4mp0
+# 🍄 DescargasOrdenadas v3.0
 
-Organizador de carpeta de descargas multiplataforma con interfaz gráfica para Windows, macOS y Linux.
+**Organizador inteligente de archivos descargados con detección automática de tipos, clasificación por fecha y monitoreo en tiempo real.**
 
-## Características
+[![Versión](https://img.shields.io/badge/versión-3.0-brightgreen.svg)](https://github.com/tu-usuario/DescargasOrdenadas)
+[![Licencia](https://img.shields.io/badge/licencia-MIT-blue.svg)](LICENSE)
+[![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#)
+[![Python](https://img.shields.io/badge/python-3.7%2B-blue.svg)](https://python.org)
 
-- **Organización inteligente**: Clasifica automáticamente los archivos por tipo (imágenes, vídeos, documentos, etc.)
-- **Interfaz gráfica amigable**: Fácil de usar con botón "Organizar ahora" y feedback visual
-- **Arranque automático**: Opción para iniciar al arrancar el sistema
-- **Soporte multiplataforma**: Funciona en Windows, macOS y Linux
-- **Instalación sencilla**: Detecta e instala dependencias automáticamente
+---
 
-## Requisitos
+## 🚀 Inicio Rápido
 
-- Python 3.10 o superior
-- Conexión a internet (para la primera instalación de dependencias)
-
-## Instalación
-
-### Opción 1: Desde el código fuente
-
-1. Clona este repositorio:
-   ```bash
-   git clone https://github.com/tu-usuario/DescargasOrdenadas.git
-   cd DescargasOrdenadas
-   ```
-
-2. Ejecuta el programa:
-   ```bash
-   python main.py
-   ```
-
-   La primera vez que se ejecute, se instalarán automáticamente las dependencias necesarias (PySide6 y requests).
-
-### Opción 2: Usando binarios precompilados
-
-Descarga los binarios precompilados desde la sección [Releases](https://github.com/tu-usuario/DescargasOrdenadas/releases) para tu sistema operativo:
-
-- Windows: `DescargasOrdenadas.exe`
-- macOS: `DescargasOrdenadas.app`
-- Linux: `DescargasOrdenadas.AppImage`
-
-## Uso
-
-1. **Ejecución**: Haz doble clic en el ejecutable `DescargasOrdenadas.exe` (Windows), `DescargasOrdenadas.app` (macOS) o `DescargasOrdenadas.AppImage` (Linux).
-
-2. **Organizar archivos**: Haz clic en el botón "Organizar ahora" para clasificar y mover los archivos de tu carpeta de descargas.
-
-3. **Auto-arranque**: Activa la opción "Auto-iniciar al arrancar el sistema" para que el programa se inicie automáticamente al encender el ordenador.
-
-4. **Bandeja del sistema**: 
-   - Al cerrar la ventana principal, la aplicación se minimiza a la bandeja del sistema.
-   - Haz clic derecho en el icono de la bandeja para mostrar el menú con opciones.
-   - Selecciona "Salir" para cerrar completamente la aplicación.
-
-5. **Resultados**: La aplicación muestra un registro de los archivos procesados y te notifica cuando finaliza la organización.
-
-## Estructura de carpetas
-
-La aplicación organiza los archivos en una amplia variedad de carpetas según el tipo:
-
-- **Imágenes**: jpg, png, gif, bmp, tiff, webp, svg, ico, psd, etc.
-- **Vídeos**: mp4, avi, mkv, mov, wmv, webm, etc.
-- **Audio**: mp3, wav, ogg, flac, aac, etc.
-- **Documentos**: doc, docx, odt, rtf, txt, md, etc.
-- **Hojas de cálculo**: xls, xlsx, ods, csv, etc.
-- **Presentaciones**: ppt, pptx, odp, key, etc.
-- **PDFs**: pdf
-- **Ebooks**: epub, mobi, azw, etc.
-- **Archivos 3D**: obj, fbx, 3ds, blend, stl, etc.
-- **CAD**: dwg, dxf, step, iges, etc.
-- **Código Fuente**: py, js, java, c, cpp, etc.
-- **Web**: html, css, js, php, etc.
-- **Datos**: json, xml, yaml, csv, sql, etc.
-- **Imágenes de Disco**: iso, img, vhd, etc.
-- **Fuentes**: ttf, otf, woff, etc.
-- **Configuración**: ini, cfg, conf, json, etc.
-- **Vectoriales**: svg, ai, eps, etc.
-- **Subtítulos**: srt, sub, vtt, etc.
-- **Backups**: bak, old, tmp, etc.
-- **Ejecutables**: exe, msi, app, etc.
-- **Comprimidos**: zip, rar, 7z, tar, etc.
-- **Otros**: Extensiones no reconocidas
-- **Carpetas**: Subdirectorios encontrados en la carpeta de descargas
-
-## Desarrollo
-
-### Configuración del entorno de desarrollo
-
-1. Clona el repositorio y crea un entorno virtual:
-   ```bash
-   git clone https://github.com/tu-usuario/DescargasOrdenadas.git
-   cd DescargasOrdenadas
-   python -m venv venv
-   source venv/bin/activate  # En Windows: venv\Scripts\activate
-   ```
-
-2. Instala las dependencias de desarrollo:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Estructura del proyecto
-
-- `main.py`: Punto de entrada de la aplicación
-- `organizer/`: Módulo principal
-  - `__init__.py`: Definición del paquete
-  - `file_organizer.py`: Lógica de organización de archivos
-  - `gui.py`: Interfaz gráfica con PySide6
-  - `autostart.py`: Gestión del autoarranque
-- `resources/`: Iconos y recursos
-- `tests/`: Pruebas automatizadas
-- `build.py`: Script para construir binarios
-
-### Pruebas
-
-Ejecuta las pruebas automatizadas con:
-
+### ⚡ Opción 1: Con Python (Recomendado)
 ```bash
-pytest
+# Desde cualquier sistema:
+python EJECUTAR.py
 ```
 
-### Empaquetado
+### 🔧 Opción 2: Sin Python
+Dirígete a la carpeta de tu sistema y ejecuta el launcher:
+- **Windows:** `windows/INICIAR.bat`
+- **macOS:** `macos/INICIAR.sh`
+- **Linux:** `linux/INICIAR.sh`
 
-Usa el script `build.py` para crear binarios ejecutables para diferentes plataformas:
+¡Los launchers instalan Python automáticamente si no lo tienes!
 
-```bash
-# Construir para la plataforma actual
-python build.py
+---
 
-# Construir para una plataforma específica
-python build.py --platform win  # Opciones: win, mac, linux
+## 📁 Estructura del Proyecto
 
-# Limpiar archivos de build anteriores
-python build.py --clean
+```
+DescargasOrdenadas/
+├── 🚀 EJECUTAR.py              # ← LAUNCHER PRINCIPAL (Detecta tu sistema)
+├── 📄 main.py                  # Aplicación principal
+├── 📋 requirements.txt         # Dependencias Python
+├── 📖 README.md               # Este archivo
+├── 🪟 windows/                # Todo para Windows
+│   ├── INICIAR.bat           # Launcher principal (NO requiere Python)
+│   ├── DescargasOrdenadas.bat # Launcher básico (requiere Python)
+│   ├── INSTRUCCIONES.md      # Guía específica Windows
+│   └── scripts/              # Scripts específicos Windows
+├── 🍎 macos/                 # Todo para macOS
+│   ├── INICIAR.sh            # Launcher principal (NO requiere Python)
+│   ├── DescargasOrdenadas.command  # Launcher básico (requiere Python)
+│   ├── INSTRUCCIONES.md      # Guía específica macOS
+│   └── scripts/              # Scripts específicos macOS
+├── 🐧 linux/                 # Todo para Linux
+│   ├── INICIAR.sh            # Launcher principal (NO requiere Python)
+│   ├── DescargasOrdenadas.sh # Launcher básico (requiere Python)
+│   ├── INSTRUCCIONES.md      # Guía específica Linux
+│   └── scripts/              # Scripts específicos Linux
+├── 🛠️ utils/                 # Utilidades generales
+│   ├── hacer_ejecutables.py  # Configura permisos Unix
+│   └── Configurar_TareaProgramada.py  # Config. tareas programadas
+└── 📦 organizer/             # Módulos principales de la aplicación
+    └── resources/            # Recursos (iconos, etc.)
 ```
 
-#### Requisitos para empaquetado
+---
 
-- **Windows**: PyInstaller
-- **macOS**: PyInstaller y py2app
-- **Linux**: PyInstaller y appimagetool
+## ✨ Características Principales
 
-## Licencia
+### 🔍 **Detección Inteligente**
+- Identifica automáticamente tipos de archivo
+- Clasifica por categorías (Documentos, Imágenes, Videos, etc.)
+- Detecta duplicados y archivos similares
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+### 📅 **Organización Automática**
+- Crea carpetas por fecha y tipo
+- Estructura personalizable
+- Mantiene historial de cambios
 
-## Contribuir
+### 🖥️ **Interfaz Dual**
+- **GUI:** Interfaz gráfica moderna con bandeja del sistema
+- **CLI:** Modo consola para servidores y automatización
 
-Las contribuciones son bienvenidas. Para cambios importantes, por favor abre primero un issue para discutir lo que te gustaría cambiar. 
+### 🔄 **Monitoreo en Tiempo Real**
+- Vigila carpeta de Descargas continuamente
+- Organiza archivos automáticamente al llegar
+- Notificaciones del sistema
+
+### 🛡️ **Seguridad**
+- No modifica archivos originales
+- Copias de seguridad automáticas
+- Logs detallados de todas las operaciones
+
+---
+
+## 🎯 Uso por Sistema
+
+### 🪟 Windows
+```batch
+# Método 1: Launcher principal
+python EJECUTAR.py
+
+# Método 2: Launcher Windows (sin Python)
+cd windows
+INICIAR.bat
+
+# Método 3: Con Python instalado
+cd windows
+DescargasOrdenadas.bat
+```
+
+### 🍎 macOS
+```bash
+# Método 1: Launcher principal
+python EJECUTAR.py
+
+# Método 2: Launcher macOS (sin Python)
+cd macos
+./INICIAR.sh
+
+# Método 3: Con Python instalado
+cd macos
+./DescargasOrdenadas.command
+```
+
+### 🐧 Linux
+```bash
+# Método 1: Launcher principal
+python EJECUTAR.py
+
+# Método 2: Launcher Linux (sin Python)
+cd linux
+./INICIAR.sh
+
+# Método 3: Con Python instalado
+cd linux
+./DescargasOrdenadas.sh
+```
+
+---
+
+## 🔧 Instalación y Configuración
+
+### 📥 Descarga
+```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/DescargasOrdenadas.git
+cd DescargasOrdenadas
+
+# O descargar ZIP y extraer
+```
+
+### ⚙️ Configuración Inicial
+```bash
+# Ejecutar configurador automático
+python EJECUTAR.py
+
+# O manualmente por sistema:
+# Windows: windows/INICIAR.bat
+# macOS:   macos/INICIAR.sh
+# Linux:   linux/INICIAR.sh
+```
+
+### 🔐 Permisos (Unix)
+```bash
+# Hacer ejecutables los scripts
+python utils/hacer_ejecutables.py
+
+# O manualmente:
+chmod +x macos/INICIAR.sh
+chmod +x linux/INICIAR.sh
+```
+
+---
+
+## 📋 Tareas Programadas
+
+### 🚀 Configuración Automática
+```bash
+# Usar configurador universal
+python utils/Configurar_TareaProgramada.py
+
+# O por sistema:
+# Windows: windows/scripts/tarea_windows.bat
+# macOS:   macos/scripts/tarea_macos.sh
+# Linux:   linux/scripts/tarea_linux.sh
+```
+
+### ⏰ Opciones Disponibles
+- **Inicio del sistema:** Al arrancar el PC
+- **Inicio de sesión:** Al iniciar sesión de usuario
+- **Programada:** Cada hora, diariamente, etc.
+- **Personalizada:** Horarios específicos
+
+---
+
+## 📖 Documentación Específica
+
+### 📚 Guías Detalladas
+- **Windows:** [`windows/INSTRUCCIONES.md`](windows/INSTRUCCIONES.md)
+- **macOS:** [`macos/INSTRUCCIONES.md`](macos/INSTRUCCIONES.md)
+- **Linux:** [`linux/INSTRUCCIONES.md`](linux/INSTRUCCIONES.md)
+
+### 🛠️ Documentación Técnica
+- **Bandeja del Sistema:** [`BANDEJA_SISTEMA.md`](BANDEJA_SISTEMA.md)
+- **Crear Portables:** [`CREAR_PORTABLES.md`](CREAR_PORTABLES.md)
+- **Leeme Primero:** [`LEEME_PRIMERO.md`](LEEME_PRIMERO.md)
+
+---
+
+## 💡 Casos de Uso
+
+### 🏠 **Uso Personal**
+- Organizar descargas automáticamente
+- Mantener carpetas limpias
+- Encontrar archivos rápidamente
+
+### 🏢 **Uso Empresarial**
+- Servidores de archivos organizados
+- Flujos de trabajo automatizados
+- Gestión de documentos
+
+### 🖥️ **Administradores de Sistema**
+- Despliegue masivo sin Python
+- Configuración automatizada
+- Monitoreo de directorios
+
+---
+
+## 🛠️ Requisitos Técnicos
+
+### 📋 **Sistemas Soportados**
+- **Windows:** 7, 8, 10, 11 (32/64-bit)
+- **macOS:** 10.9+ (Intel y Apple Silicon)
+- **Linux:** Todas las distribuciones principales
+
+### 🐍 **Python (Opcional)**
+- **Versión:** 3.7 o superior
+- **Instalación:** Los launchers lo instalan automáticamente
+- **Dependencias:** Se instalan automáticamente
+
+### 📦 **Dependencias**
+```txt
+PySide6>=6.0.0        # Interfaz gráfica
+Pillow>=8.0.0         # Procesamiento de imágenes
+watchdog>=2.0.0       # Monitoreo de archivos
+pywin32>=300          # Específico Windows
+```
+
+---
+
+## 🚀 Desarrollo y Contribución
+
+### 🔧 **Estructura del Código**
+```
+organizer/
+├── core/              # Lógica principal
+├── gui/               # Interfaz gráfica
+├── utils/             # Utilidades
+├── resources/         # Recursos
+└── tests/             # Pruebas
+```
+
+### 📝 **Contribuir**
+1. Fork del proyecto
+2. Crear rama de características
+3. Commit y push
+4. Crear Pull Request
+
+### 🐛 **Reportar Bugs**
+- Usar GitHub Issues
+- Incluir logs y capturas
+- Especificar sistema operativo
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver [`LICENSE`](LICENSE) para más detalles.
+
+---
+
+## 🙏 Agradecimientos
+
+- **Comunidad Python** por las herramientas
+- **Contribuidores** del proyecto
+- **Usuarios** que reportan bugs y sugieren mejoras
+
+---
+
+## 📞 Soporte
+
+### 🆘 **Obtener Ayuda**
+```bash
+# Mostrar ayuda
+python EJECUTAR.py --help
+
+# Revisar documentación específica
+# Windows: windows/INSTRUCCIONES.md
+# macOS:   macos/INSTRUCCIONES.md
+# Linux:   linux/INSTRUCCIONES.md
+```
+
+### 🔍 **Solución de Problemas**
+1. **Ejecutar launcher principal:** `python EJECUTAR.py`
+2. **Usar launcher del sistema:** `windows/INICIAR.bat` (Windows)
+3. **Revisar logs:** En la carpeta del proyecto
+4. **Consultar documentación:** Carpeta del sistema correspondiente
+
+---
+
+**🍄 Creado por Champi - DescargasOrdenadas v3.0**
+
+*¡Mantén tus descargas organizadas automáticamente en cualquier sistema!*

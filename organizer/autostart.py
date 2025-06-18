@@ -61,10 +61,10 @@ class GestorAutoarranque:
                 key = winreg.CreateKey(registro, key_path)
             
             if activar:
-                # Añadir al registro
-                winreg.SetValueEx(key, self.nombre_app, 0, winreg.REG_SZ, f'"{self.ruta_ejecutable}"')
+                # Añadir al registro con parámetro para organización automática
+                winreg.SetValueEx(key, self.nombre_app, 0, winreg.REG_SZ, f'"{self.ruta_ejecutable}" --auto-organizar')
                 winreg.CloseKey(key)
-                return True, "Autoarranque configurado correctamente en Windows mediante registro."
+                return True, "Autoarranque con organización automática configurado correctamente en Windows."
             else:
                 # Eliminar del registro
                 try:
@@ -107,6 +107,7 @@ class GestorAutoarranque:
     <key>ProgramArguments</key>
     <array>
         <string>{self.ruta_ejecutable}</string>
+        <string>--auto-organizar</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -121,7 +122,7 @@ class GestorAutoarranque:
                 
                 # Cargar servicio
                 subprocess.check_call(['launchctl', 'load', '-w', str(ruta_plist)])
-                return True, "Autoarranque configurado correctamente en macOS."
+                return True, "Autoarranque con organización automática configurado correctamente en macOS."
             else:
                 # Descargar servicio si existe
                 if ruta_plist.exists():
@@ -158,7 +159,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart={self.ruta_ejecutable}
+ExecStart={self.ruta_ejecutable} --auto-organizar
 Restart=no
 
 [Install]
@@ -171,7 +172,7 @@ WantedBy=graphical-session.target
                 # Habilitar y arrancar servicio
                 subprocess.check_call(['systemctl', '--user', 'enable', ruta_service.name])
                 subprocess.check_call(['systemctl', '--user', 'start', ruta_service.name])
-                return True, "Autoarranque configurado correctamente en Linux."
+                return True, "Autoarranque con organización automática configurado correctamente en Linux."
             else:
                 # Deshabilitar y detener servicio si existe
                 if ruta_service.exists():
