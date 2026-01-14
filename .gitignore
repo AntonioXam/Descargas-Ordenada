@@ -4,22 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
 # Virtual Environment
 venv/
@@ -39,26 +23,31 @@ env/
 Thumbs.db
 desktop.ini
 
-# Backups
-*.backup
-*.backup_*
-*.bak
-
 # Logs
 *.log
 error_*.txt
-
-# Config (preservar pero no subir)
-.config/
-config.json
+descargasordenadas_logs_*.txt
 
 # Temporal
 .temp_*
 temp/
 tmp/
 
-# Específico del proyecto
+# Backups de código
+*.backup
+*.backup_*
+*.bak
+organizer/*.backup
+organizer/*.backup_*
+
+# Configuración del usuario (se genera automáticamente)
+.config/
+config.json
+
+# Base de datos
+*.db
+organizador.db
+
+# Archivos específicos temporales
 error_sin_consola.log
 error_no_python.txt
-organizador.db
-descargasordenadas_logs_*.txt

@@ -1090,7 +1090,7 @@ class OrganizadorAvanzado(QMainWindow):
         botones_group = QGroupBox("🚀 Organización")
         botones_layout = QHBoxLayout(botones_group)
         
-        btn_organizar = QPushButton("🚀 Organizar Nuevos")
+        btn_organizar = QPushButton("✨  Organizar archivos nuevos")
         btn_organizar.setStyleSheet("""
             QPushButton {
                 padding: 12px; 
@@ -1113,7 +1113,7 @@ class OrganizadorAvanzado(QMainWindow):
         btn_organizar.clicked.connect(self._organizar)
         botones_layout.addWidget(btn_organizar)
         
-        btn_reorganizar = QPushButton("🔄 Reorganizar TODO")
+        btn_reorganizar = QPushButton("🔄  Reorganizar TODOS los archivos")
         btn_reorganizar.setStyleSheet("""
             QPushButton {
                 padding: 12px; 
@@ -1137,7 +1137,7 @@ class OrganizadorAvanzado(QMainWindow):
         botones_layout.addWidget(btn_reorganizar)
         
         # Botón deshacer todo
-        btn_deshacer = QPushButton("↩️ DESHACER TODO")
+        btn_deshacer = QPushButton("↩️  Deshacer cambios")
         btn_deshacer.setStyleSheet("""
             QPushButton {
                 padding: 12px; 
@@ -1173,7 +1173,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.lbl_carpeta_actual.setStyleSheet("font-weight: bold; color: #4CAF50;")
         carpeta_layout.addWidget(self.lbl_carpeta_actual)
         
-        btn_seleccionar_carpeta = QPushButton("📂 Cambiar Carpeta")
+        btn_seleccionar_carpeta = QPushButton("📂  Seleccionar otra carpeta")
         btn_seleccionar_carpeta.setStyleSheet("""
             QPushButton {
                 padding: 8px 16px; 
@@ -1229,48 +1229,48 @@ class OrganizadorAvanzado(QMainWindow):
         autostart_layout.addWidget(QLabel("🚀 Inicio con Windows:"))
         
         # Botón para crear acceso directo en startup
-        btn_crear_acceso_startup = QPushButton("➕ Añadir al Startup")
+        btn_crear_acceso_startup = QPushButton("✅  Activar inicio automático")
         btn_crear_acceso_startup.setStyleSheet("""
             QPushButton {
-                padding: 10px 16px; 
+                padding: 12px 20px; 
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #4CAF50, stop:1 #45a049);
                 color: white; 
-                font-size: 12px; 
+                font-size: 13px; 
                 font-weight: bold;
                 border-radius: 6px;
                 border: none;
-                min-width: 140px;
+                min-width: 160px;
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #66BB6A, stop:1 #4CAF50);
             }
         """)
-        btn_crear_acceso_startup.setToolTip("Crea un acceso directo en la carpeta de inicio de Windows")
+        btn_crear_acceso_startup.setToolTip("La aplicación se iniciará automáticamente al encender Windows")
         btn_crear_acceso_startup.clicked.connect(self._crear_acceso_directo_startup)
         autostart_layout.addWidget(btn_crear_acceso_startup)
         
         # Botón para quitar acceso directo del startup
-        btn_quitar_acceso_startup = QPushButton("➖ Quitar del Startup")
+        btn_quitar_acceso_startup = QPushButton("❌  Desactivar inicio automático")
         btn_quitar_acceso_startup.setStyleSheet("""
             QPushButton {
-                padding: 10px 16px; 
+                padding: 12px 20px; 
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #f44336, stop:1 #d32f2f);
                 color: white; 
-                font-size: 12px; 
+                font-size: 13px; 
                 font-weight: bold;
                 border-radius: 6px;
                 border: none;
-                min-width: 140px;
+                min-width: 160px;
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #EF5350, stop:1 #f44336);
             }
         """)
-        btn_quitar_acceso_startup.setToolTip("Elimina el acceso directo de la carpeta de inicio de Windows")
+        btn_quitar_acceso_startup.setToolTip("La aplicación NO se iniciará automáticamente con Windows")
         btn_quitar_acceso_startup.clicked.connect(self._quitar_acceso_directo_startup)
         autostart_layout.addWidget(btn_quitar_acceso_startup)
         
@@ -1284,18 +1284,18 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Selector de intervalo de tiempo
         tiempo_layout = QHBoxLayout()
-        tiempo_layout.addWidget(QLabel("⏱️ Intervalo:"))
+        tiempo_layout.addWidget(QLabel("⏱️  Revisar cada:"))
         
         self.combo_intervalo_auto = QComboBox()
-        self.combo_intervalo_auto.addItem("30 segundos", 30)
-        self.combo_intervalo_auto.addItem("1 minuto", 60)
-        self.combo_intervalo_auto.addItem("5 minutos", 300)
-        self.combo_intervalo_auto.addItem("10 minutos", 600)
-        self.combo_intervalo_auto.addItem("30 minutos", 1800)
-        self.combo_intervalo_auto.addItem("1 hora", 3600)
-        self.combo_intervalo_auto.addItem("6 horas", 21600)
-        self.combo_intervalo_auto.addItem("12 horas", 43200)
-        self.combo_intervalo_auto.addItem("1 día", 86400)
+        self.combo_intervalo_auto.addItem("⚡ 30 segundos", 30)
+        self.combo_intervalo_auto.addItem("⚡ 1 minuto", 60)
+        self.combo_intervalo_auto.addItem("🕐 5 minutos", 300)
+        self.combo_intervalo_auto.addItem("🕐 10 minutos", 600)
+        self.combo_intervalo_auto.addItem("🕐 30 minutos", 1800)
+        self.combo_intervalo_auto.addItem("🕒 1 hora", 3600)
+        self.combo_intervalo_auto.addItem("🕕 6 horas", 21600)
+        self.combo_intervalo_auto.addItem("🕘 12 horas", 43200)
+        self.combo_intervalo_auto.addItem("📅 1 día", 86400)
         self.combo_intervalo_auto.setCurrentIndex(0)  # 30 segundos por defecto
         self.combo_intervalo_auto.currentIndexChanged.connect(self._cambiar_intervalo_auto)
         self.combo_intervalo_auto.setStyleSheet("""
@@ -1314,13 +1314,13 @@ class OrganizadorAvanzado(QMainWindow):
         tiempo_layout.addStretch()
         auto_layout.addLayout(tiempo_layout)
         
-        self.chk_auto_basico = QCheckBox("📁 Auto-organizar BÁSICO (solo carpetas principales)")
-        self.chk_auto_basico.setToolTip("Excel → Hojas de cálculo\nPNG → Imágenes\nZIP → Comprimidos")
+        self.chk_auto_basico = QCheckBox("📁  Modo BÁSICO - Solo carpetas principales")
+        self.chk_auto_basico.setToolTip("Organiza en carpetas generales:\n\n📄 Documentos\n🖼️ Imágenes\n🎬 Videos\n🎵 Música\n📦 Comprimidos")
         self.chk_auto_basico.toggled.connect(lambda checked: self._toggle_auto_organizacion_basico(checked))
         auto_layout.addWidget(self.chk_auto_basico)
         
-        self.chk_auto_detallado = QCheckBox("🔧 Auto-organizar DETALLADO (con subcarpetas específicas)")
-        self.chk_auto_detallado.setToolTip("Excel → Hojas de cálculo/Excel\nPNG → Imágenes/PNG\nZIP → Comprimidos/Comunes")
+        self.chk_auto_detallado = QCheckBox("🔧  Modo DETALLADO - Con subcarpetas específicas")
+        self.chk_auto_detallado.setToolTip("Organiza con subcarpetas por tipo:\n\n📊 Excel → Hojas de cálculo/Excel\n🖼️ PNG → Imágenes/PNG\n📦 ZIP → Comprimidos/ZIP")
         self.chk_auto_detallado.toggled.connect(lambda checked: self._toggle_auto_organizacion_detallado(checked))
         auto_layout.addWidget(self.chk_auto_detallado)
         

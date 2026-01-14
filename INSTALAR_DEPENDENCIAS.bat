@@ -10,7 +10,7 @@ title 🍄 DescargasOrdenadas - Instalador de Dependencias
 color 0A
 echo.
 echo ═══════════════════════════════════════════════════════════════
-echo    🍄 DESCARGAS ORDENADAS v3.1
+echo    🍄 DESCARGAS ORDENADAS v3.2
 echo    Instalador Automático de Dependencias
 echo ═══════════════════════════════════════════════════════════════
 echo.
@@ -134,11 +134,11 @@ echo ═════════════════════════
 echo.
 echo    🚀 Para iniciar la aplicación:
 echo.
-echo       1. Doble clic en: INICIAR_SIN_CONSOLA.bat
-echo       2. O ejecuta: python INICIAR.py --gui
+echo       • Doble clic en: INICIAR.bat
 echo.
 echo    📋 Para verificar que todo funciona:
-echo       python PRUEBAS_v3.1.py
+echo       • cd scripts
+echo       • python PRUEBAS_v3.1.py
 echo.
 echo ═══════════════════════════════════════════════════════════════
 echo.
