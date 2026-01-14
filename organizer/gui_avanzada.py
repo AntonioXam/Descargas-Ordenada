@@ -2228,20 +2228,21 @@ class OrganizadorAvanzado(QMainWindow):
             progress.close()
             
             if exito_instalacion:
-                respuesta = QMessageBox.information(
+                # Mostrar mensaje de éxito
+                QMessageBox.information(
                     self,
-                    "Actualización Instalada",
-                    f"{mensaje}\n\n¿Deseas reiniciar la aplicación ahora?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
+                    "✅ Actualización Completada",
+                    f"{mensaje}\n\n🔄 La aplicación se reiniciará automáticamente en 3 segundos..."
                 )
                 
-                if respuesta == QMessageBox.Yes:
-                    self._agregar_log("🔄 Reiniciando aplicación...")
-                    # Reiniciar aplicación
-                    import subprocess
-                    subprocess.Popen([sys.executable] + sys.argv)
-                    QApplication.quit()
+                self._agregar_log("✅ Actualización completada - Reiniciando...")
+                
+                # Reiniciar automáticamente
+                QApplication.processEvents()
+                import time
+                time.sleep(1)
+                
+                self.gestor_actualizaciones.reiniciar_aplicacion()
             else:
                 QMessageBox.critical(
                     self,

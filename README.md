@@ -60,7 +60,7 @@ Si necesitas instalar en un PC sin internet:
 - 🎨 **5 Temas** - Azul, Verde, Púrpura, Naranja, Gris
 - 💾 **100% Portable** - Copia y funciona en cualquier PC
 - 🖱️ **Menú Contextual** - Click derecho en carpetas
-- 🔄 **Actualizaciones** - Busca y descarga nuevas versiones
+- 🔄 **Actualizaciones Automáticas** - Se descarga e instala sola desde GitHub (sin necesidad de cuenta)
 
 ### ⚡ Características Base
 - 📁 **Organización Automática** - Cada X tiempo o manual
@@ -162,14 +162,37 @@ python PRUEBAS_v3.1.py
 
 ---
 
+## 🔄 Sistema de Actualizaciones Automáticas
+
+### ¿Cómo funciona?
+
+1. **Verificación Automática** - Al abrir la app, revisa si hay nuevas versiones en GitHub
+2. **Descarga con 1 Click** - Pulsa "⬇️ Descargar e Instalar" y listo
+3. **Instalación Automática** - Se descomprime en la misma carpeta, preservando tu configuración
+4. **Reinicio Automático** - La app se cierra y se abre sola con la nueva versión
+
+### Sin Necesidad de Cuenta
+
+- ✅ **GitHub Público** - No necesitas tener cuenta ni permisos
+- ✅ **Sin Tokens** - Funciona sin configuración
+- ✅ **Comprobación de Versión** - Solo descarga si hay una versión más nueva
+- ✅ **Backup Automático** - Crea respaldo antes de actualizar
+
+### Buscar Actualizaciones Manualmente
+
+Click en el botón **"🔍 Buscar Actualizaciones"** en la pestaña de Configuración.
+
+---
+
 ## 📚 Documentación Completa
 
 Toda la documentación está en la carpeta **`docs/`**:
 
-- 📖 **GUIA_RAPIDA_v3.2.txt** - Guía visual rápida
-- 📖 **INSTRUCCIONES_FINALES.txt** - Instrucciones paso a paso
-- 📖 **GUIA_COMPLETA_v3.1.txt** - Documentación técnica completa
-- 📖 **ESTADO_FINAL_v3.2.txt** - Estado del proyecto
+- 📖 **COMO_USAR.md** - Guía de uso
+- 📖 **BANDEJA_SISTEMA.md** - Cómo usar la bandeja del sistema
+- 📖 **CREAR_PORTABLES.md** - Crear versión portable
+- 📖 **INSTRUCCIONES_PORTABLE.md** - Modo portable
+- 📖 **MEJORAS_IMPLEMENTADAS.md** - Historial de cambios
 
 ---
 

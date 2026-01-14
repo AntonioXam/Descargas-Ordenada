@@ -10,6 +10,8 @@ import logging
 import json
 import zipfile
 import shutil
+import subprocess
+import os
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
@@ -26,9 +28,10 @@ except ImportError:
 class GestorActualizacionesMejorado:
     """Gestor de actualizaciones con descarga automática desde GitHub."""
     
-    VERSION_ACTUAL = "3.1.0"
-    GITHUB_USER = "tu-usuario"  # Cambiar por tu usuario de GitHub
-    GITHUB_REPO = "Descargas-Ordenada"  # Cambiar por tu repositorio
+    VERSION_ACTUAL = "3.2.0"
+    # Repositorio público - no requiere autenticación
+    GITHUB_USER = "AntonioIbanez1"
+    GITHUB_REPO = "Descargas-Ordenada"
     API_URL = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
     
     def __init__(self):
@@ -292,6 +295,41 @@ class GestorActualizacionesMejorado:
     def obtener_info_actualizacion(self) -> Optional[Dict]:
         """Obtiene información de actualización disponible."""
         return self.nueva_version_disponible
+    
+    def reiniciar_aplicacion(self):
+        """Reinicia la aplicación después de actualizar."""
+        try:
+            if getattr(sys, 'frozen', False):
+                # Si es ejecutable
+                exe_path = sys.executable
+                subprocess.Popen([exe_path], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                # Si es script Python, buscar INICIAR.bat
+                base_dir = Path(__file__).parent.parent
+                iniciar_bat = base_dir / "INICIAR.bat"
+                
+                if iniciar_bat.exists():
+                    # Crear un script temporal que espere y reinicie
+                    temp_script = base_dir / ".temp_restart.bat"
+                    with open(temp_script, 'w') as f:
+                        f.write('@echo off\n')
+                        f.write('timeout /t 2 /nobreak >nul\n')
+                        f.write(f'cd /d "{base_dir}"\n')
+                        f.write('start "" "INICIAR.bat"\n')
+                        f.write('del "%~f0"\n')
+                    
+                    # Ejecutar script temporal
+                    subprocess.Popen([str(temp_script)], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                    logger.error("No se encontró INICIAR.bat")
+                    return False
+            
+            # Salir de la aplicación actual
+            sys.exit(0)
+            
+        except Exception as e:
+            logger.error(f"Error reiniciando aplicación: {e}")
+            return False
     
     def abrir_pagina_descarga(self):
         """Abre la página de descarga en el navegador."""
