@@ -10,12 +10,19 @@ Punto de entrada único para la aplicación de organización automática de arch
 
 import sys
 import os
+from pathlib import Path
+
+# Asegurar que el directorio padre está en el path para importar organizer
+SCRIPT_DIR = Path(__file__).parent.absolute()
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import argparse
 import logging
 import importlib.util
 import subprocess
 import time
-from pathlib import Path
 
 def instalar_dependencia(package_name):
     """Instala una dependencia automáticamente."""

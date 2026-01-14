@@ -14,6 +14,7 @@
 ```bash
 INSTALAR_DEPENDENCIAS.bat
 ```
+**Nota:** Si no tienes internet, coloca la carpeta `dependencias/` con los archivos .whl y se instalarán desde ahí.
 
 ### 2️⃣ Iniciar la aplicación
 ```bash
@@ -22,6 +23,27 @@ INICIAR.bat
 
 ### 3️⃣ ¡Listo! 🎉
 La aplicación se abre sin consola y aparece en la bandeja del sistema.
+
+---
+
+## 📦 Instalación Sin Internet
+
+Si necesitas instalar en un PC sin internet:
+
+1. **En un PC con internet:**
+   ```bash
+   cd scripts
+   DESCARGAR_DEPENDENCIAS.bat
+   ```
+   Esto creará una carpeta `dependencias/` con todos los archivos .whl
+
+2. **Copia toda la carpeta del proyecto** (incluyendo `dependencias/`) al PC sin internet
+
+3. **En el PC sin internet:**
+   ```bash
+   INSTALAR_DEPENDENCIAS.bat
+   ```
+   Detectará automáticamente la carpeta `dependencias/` y instalará desde ahí
 
 ---
 

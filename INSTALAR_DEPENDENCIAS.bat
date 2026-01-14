@@ -54,9 +54,19 @@ python --version
 echo ✅ Python encontrado
 
 echo.
+echo 🔍 Verificando si hay dependencias locales...
+if exist dependencias (
+    echo ✅ Se encontró carpeta "dependencias" - Instalando desde ahí
+    set INSTALL_FROM=--find-links=dependencias --no-index
+) else (
+    echo ℹ️  Instalando desde internet
+    set INSTALL_FROM=
+)
+
+echo.
 echo [2/6] 📦 Instalando PySide6 (Interfaz gráfica)...
 echo ════════════════════════════════════════════════════════════════
-python -m pip install --upgrade PySide6
+python -m pip install %INSTALL_FROM% --upgrade PySide6
 if %errorlevel% neq 0 (
     echo ⚠️  Error instalando PySide6
 ) else (
@@ -66,7 +76,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [3/6] 📦 Instalando Pillow (Procesamiento de imágenes)...
 echo ════════════════════════════════════════════════════════════════
-python -m pip install --upgrade Pillow
+python -m pip install %INSTALL_FROM% --upgrade Pillow
 if %errorlevel% neq 0 (
     echo ⚠️  Error instalando Pillow
 ) else (
@@ -76,7 +86,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [4/6] 📦 Instalando watchdog (Monitor de archivos)...
 echo ════════════════════════════════════════════════════════════════
-python -m pip install --upgrade watchdog
+python -m pip install %INSTALL_FROM% --upgrade watchdog
 if %errorlevel% neq 0 (
     echo ⚠️  Error instalando watchdog
 ) else (
@@ -86,7 +96,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [5/6] 📦 Instalando pywin32 (Windows APIs)...
 echo ════════════════════════════════════════════════════════════════
-python -m pip install --upgrade pywin32
+python -m pip install %INSTALL_FROM% --upgrade pywin32
 if %errorlevel% neq 0 (
     echo ⚠️  Error instalando pywin32
 ) else (
@@ -98,7 +108,7 @@ echo [6/6] 📦 Instalando dependencias v3.1...
 echo ════════════════════════════════════════════════════════════════
 
 echo   • requests (actualizaciones automáticas)...
-python -m pip install --upgrade requests
+python -m pip install %INSTALL_FROM% --upgrade requests
 if %errorlevel% neq 0 (
     echo   ⚠️  Error instalando requests
 ) else (
@@ -106,7 +116,7 @@ if %errorlevel% neq 0 (
 )
 
 echo   • plyer (notificaciones nativas)...
-python -m pip install --upgrade plyer
+python -m pip install %INSTALL_FROM% --upgrade plyer
 if %errorlevel% neq 0 (
     echo   ⚠️  Error instalando plyer
 ) else (
@@ -119,13 +129,25 @@ echo    📊 VERIFICACIÓN FINAL
 echo ═══════════════════════════════════════════════════════════════
 echo.
 
-python -c "import sys; print('🐍 Python:', sys.version.split()[0])"
-python -c "try: import PySide6; print('✅ PySide6:', PySide6.__version__)\nexcept: print('❌ PySide6: No instalado')"
-python -c "try: import PIL; print('✅ Pillow:', PIL.__version__)\nexcept: print('❌ Pillow: No instalado')"
-python -c "try: import watchdog; print('✅ watchdog:', watchdog.__version__)\nexcept: print('❌ watchdog: No instalado')"
-python -c "try: import win32com.client; print('✅ pywin32: Instalado')\nexcept: print('❌ pywin32: No instalado')"
-python -c "try: import requests; print('✅ requests:', requests.__version__)\nexcept: print('❌ requests: No instalado')"
-python -c "try: import plyer; print('✅ plyer:', plyer.__version__)\nexcept: print('❌ plyer: No instalado')"
+python -c "import sys; print('Python:', sys.version.split()[0])"
+
+echo Verificando PySide6...
+python -c "import PySide6; print('  PySide6:', PySide6.__version__)" 2>nul || echo   PySide6: No instalado
+
+echo Verificando Pillow...
+python -c "import PIL; print('  Pillow:', PIL.__version__)" 2>nul || echo   Pillow: No instalado
+
+echo Verificando watchdog...
+python -c "import watchdog; print('  watchdog:', watchdog.__version__)" 2>nul || echo   watchdog: No instalado
+
+echo Verificando pywin32...
+python -c "import win32com.client; print('  pywin32: Instalado')" 2>nul || echo   pywin32: No instalado
+
+echo Verificando requests...
+python -c "import requests; print('  requests:', requests.__version__)" 2>nul || echo   requests: No instalado
+
+echo Verificando plyer...
+python -c "import plyer; print('  plyer:', plyer.__version__)" 2>nul || echo   plyer: No instalado
 
 echo.
 echo ═══════════════════════════════════════════════════════════════

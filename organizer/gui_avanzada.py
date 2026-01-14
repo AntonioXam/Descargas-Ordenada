@@ -128,8 +128,9 @@ class OrganizadorAvanzado(QMainWindow):
         self._sincronizando_controles = False
         
         # Configuración ventana
-        self.setWindowTitle("🍄 DescargasOrdenadas v3.0 - Funcionalidades Completas")
-        self.setMinimumSize(1000, 700)
+        self.setWindowTitle("🍄 DescargasOrdenadas - Organizador Automático")
+        self.setMinimumSize(1100, 800)
+        self.resize(1200, 850)
         
         self._setup_ui()
         self._aplicar_tema()  # Aplicar tema (reemplaza _aplicar_estilos_modernos)
@@ -417,7 +418,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.tray_icon.activated.connect(self._tray_icon_activated)
         
         # Mostrar tooltip
-        self.tray_icon.setToolTip("🍄 DescargasOrdenadas v3.0 - Organizador Activo")
+        self.tray_icon.setToolTip("🍄 DescargasOrdenadas - Organizador Activo")
         
         # Mostrar icono
         self.tray_icon.show()
@@ -654,16 +655,18 @@ class OrganizadorAvanzado(QMainWindow):
                     self.timer_auto.timeout.connect(self._organizar_automatico)
                 
                 # Obtener intervalo del selector
-                intervalo_ms = self.combo_intervalo_auto.currentData() * 1000
+                intervalo_segundos = self.combo_intervalo_auto.currentData()
+                intervalo_ms = intervalo_segundos * 1000
+                intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
-                self._agregar_log("⚡ Auto-organización BÁSICA ACTIVADA (cada 30 segundos)")
+                self._agregar_log(f"⚡ Auto-organización BÁSICA ACTIVADA ({intervalo_texto})")
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
-                    self.tray_icon.setToolTip("🍄 DescargasOrdenadas - Auto BÁSICA ACTIVA")
+                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Auto BÁSICA ({intervalo_texto})")
                     
                 # Actualizar estado visual
-                self.lbl_estado.setText("📁 Auto-organización BÁSICA: ACTIVADA (cada 30 seg)")
+                self.lbl_estado.setText(f"📁 Auto-organización BÁSICA: ACTIVADA ({intervalo_texto})")
                 self.lbl_estado.setStyleSheet("""
                     font-weight: bold; 
                     padding: 10px; 
@@ -697,16 +700,18 @@ class OrganizadorAvanzado(QMainWindow):
                     self.timer_auto.timeout.connect(self._organizar_automatico)
                 
                 # Obtener intervalo del selector
-                intervalo_ms = self.combo_intervalo_auto.currentData() * 1000
+                intervalo_segundos = self.combo_intervalo_auto.currentData()
+                intervalo_ms = intervalo_segundos * 1000
+                intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
-                self._agregar_log("⚡ Auto-organización DETALLADA ACTIVADA (cada 30 segundos)")
+                self._agregar_log(f"⚡ Auto-organización DETALLADA ACTIVADA ({intervalo_texto})")
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
-                    self.tray_icon.setToolTip("🍄 DescargasOrdenadas - Auto DETALLADA ACTIVA")
+                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Auto DETALLADA ({intervalo_texto})")
                     
                 # Actualizar estado visual
-                self.lbl_estado.setText("🔧 Auto-organización DETALLADA: ACTIVADA (cada 30 seg)")
+                self.lbl_estado.setText(f"🔧 Auto-organización DETALLADA: ACTIVADA ({intervalo_texto})")
                 self.lbl_estado.setStyleSheet("""
                     font-weight: bold; 
                     padding: 10px; 
@@ -1050,7 +1055,7 @@ class OrganizadorAvanzado(QMainWindow):
         layout = QVBoxLayout(central_widget)
         
         # Header
-        self.header = QLabel(f"🍄 DescargasOrdenadas v3.0 | 📁 {self.organizador.carpeta_descargas}")
+        self.header = QLabel(f"🍄 DescargasOrdenadas | 📁 {self.organizador.carpeta_descargas}")
         self.header.setStyleSheet("""
             font-weight: bold; 
             font-size: 14px; 
@@ -1066,6 +1071,16 @@ class OrganizadorAvanzado(QMainWindow):
         # Pestañas
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
+        
+        # Footer con versión
+        footer = QLabel("v3.2.0")
+        footer.setAlignment(Qt.AlignRight)
+        footer.setStyleSheet("""
+            color: #888;
+            font-size: 10px;
+            padding: 5px 10px;
+        """)
+        layout.addWidget(footer)
         
         self._crear_tab_principal()
         self._crear_tab_ia()
@@ -1841,7 +1856,7 @@ class OrganizadorAvanzado(QMainWindow):
                 padding: 5px;
             }
         """)
-        self.text_logs.setPlainText("🍄 DescargasOrdenadas v3.0 - Sistema de Logs Interno\n" + "="*60 + "\n")
+        self.text_logs.setPlainText("🍄 DescargasOrdenadas - Sistema de Logs\n" + "="*60 + "\n")
         layout.addWidget(self.text_logs)
         
         self.tabs.addTab(tab, "📋 Logs")
@@ -1898,7 +1913,7 @@ class OrganizadorAvanzado(QMainWindow):
     def _limpiar_logs(self):
         """Limpia el área de logs."""
         self.text_logs.clear()
-        self.text_logs.setPlainText("🍄 DescargasOrdenadas v3.0 - Sistema de Logs Interno\n" + "="*60 + "\n")
+        self.text_logs.setPlainText("🍄 DescargasOrdenadas - Sistema de Logs\n" + "="*60 + "\n")
     
     def _exportar_logs(self):
         """Exporta los logs a un archivo."""
@@ -2734,7 +2749,7 @@ class OrganizadorAvanzado(QMainWindow):
             
             # Actualizar el header
             if hasattr(self, 'header'):
-                self.header.setText(f"🍄 DescargasOrdenadas v3.0 | 📁 {nueva_carpeta}")
+                self.header.setText(f"🍄 DescargasOrdenadas | 📁 {nueva_carpeta}")
             
             # Reinitializar módulos avanzados con la nueva carpeta
             self._inicializar_modulos()
@@ -2763,7 +2778,7 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Actualizar el header
         if hasattr(self, 'header'):
-            self.header.setText(f"🍄 DescargasOrdenadas v3.0 | 📁 {carpeta_predeterminada}")
+            self.header.setText(f"🍄 DescargasOrdenadas | 📁 {carpeta_predeterminada}")
         
         # Reinitializar módulos avanzados
         self._inicializar_modulos()

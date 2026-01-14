@@ -33,6 +33,10 @@ descargasordenadas_logs_*.txt
 temp/
 tmp/
 
+# Dependencias locales (archivos .whl grandes)
+dependencias/
+*.whl
+
 # Backups de código
 *.backup
 *.backup_*

@@ -1,30 +1,36 @@
 @echo off
 REM ===================================================================
-REM 🍄 DescargasOrdenadas v3.2 - Launcher SIN CONSOLA
+REM 🍄 DescargasOrdenadas v3.2 - Launcher
 REM Creado por Champi 🍄
-REM Este archivo inicia la aplicación sin ventana de consola
 REM ===================================================================
 
 REM Cambiar al directorio del script
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
-REM Verificar si pythonw.exe está disponible
+REM Verificar si pythonw.exe está disponible (para ejecutar sin consola)
 where pythonw.exe > nul 2>&1
 if %errorlevel% equ 0 (
     REM Usar pythonw.exe para ejecutar sin consola
-    start "" pythonw.exe "%SCRIPT_DIR%INICIAR_SIN_CONSOLA.pyw" %*
+    start "" pythonw.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
 ) else (
-    REM Si no existe pythonw, intentar con python.exe ocultando consola
+    REM Si no existe pythonw, usar python.exe normal
     where python.exe > nul 2>&1
     if %errorlevel% equ 0 (
-        start "" /MIN python.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
+        start "" python.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
     ) else (
-        REM Crear archivo de error si Python no está instalado
-        echo Python no está instalado > error_no_python.txt
+        REM Mostrar error si Python no está instalado
+        echo ❌ ERROR: Python no está instalado
+        echo.
+        echo Por favor instala Python desde:
+        echo https://www.python.org/downloads/
+        echo.
+        echo Asegúrate de marcar "Add Python to PATH"
+        echo.
+        pause
         exit /b 1
     )
 )
 
-REM Salir inmediatamente sin mostrar mensajes
+REM Salir inmediatamente
 exit /b 0
