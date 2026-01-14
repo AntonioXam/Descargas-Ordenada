@@ -1,0 +1,349 @@
+═══════════════════════════════════════════════════════════════════════════════
+   🍄 DESCARGASORDENADAS v3.1 - GUÍA COMPLETA PORTABLE 🍄
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ TODO IMPLEMENTADO Y FUNCIONANDO AL 100%
+
+═══════════════════════════════════════════════════════════════════════════════
+                    📦 INSTALACIÓN EN NUEVOS ORDENADORES
+═══════════════════════════════════════════════════════════════════════════════
+
+OPCIÓN 1: INSTALADOR AUTOMÁTICO .BAT (MÁS SIMPLE)
+────────────────────────────────────────────────────────────────────
+1. Doble clic en: INSTALAR_DEPENDENCIAS.bat
+2. El script instalará automáticamente TODAS las dependencias
+3. ¡Listo! Ya puedes usar la aplicación
+
+OPCIÓN 2: INSTALADOR PYTHON (MÁS COMPLETO)
+────────────────────────────────────────────────────────────────────
+1. python INSTALAR.py
+2. El instalador:
+   ✅ Verifica Python
+   ✅ Comprueba la estructura del proyecto
+   ✅ Detecta dependencias faltantes
+   ✅ Instala solo lo necesario
+   ✅ Muestra resumen final con colores
+
+OPCIÓN 3: MANUAL (SI LAS ANTERIORES FALLAN)
+────────────────────────────────────────────────────────────────────
+Ejecutar en orden:
+
+pip install PySide6
+pip install Pillow
+pip install watchdog
+pip install pywin32
+pip install requests
+pip install plyer
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🚀 INICIAR LA APLICACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+✨ MÉTODO RECOMENDADO (SIN CONSOLA):
+────────────────────────────────────────────────────────────────────
+Doble clic en: INICIAR_SIN_CONSOLA.bat
+
+✅ No muestra ventana de consola
+✅ Inicia limpiamente en bandeja del sistema
+✅ Perfecto para uso diario
+
+📋 MÉTODO CON LOGS (DEPURACIÓN):
+────────────────────────────────────────────────────────────────────
+Doble clic en: INICIAR.bat
+
+✅ Muestra logs en tiempo real
+✅ Útil para detectar errores
+✅ Recomendado solo si hay problemas
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🆕 NUEVAS CARACTERÍSTICAS v3.1
+═══════════════════════════════════════════════════════════════════════════════
+
+AHORA SÍ TODAS LAS OPCIONES ESTÁN VISIBLES EN LA GUI
+
+Pestaña Principal → Sección "Configuración" → Verás:
+
+1️⃣  🔔 NOTIFICACIONES NATIVAS
+────────────────────────────────────────────────────────────────────
+☑ 🔔 Notificaciones nativas del sistema
+
+✅ Checkbox para activar/desactivar
+✅ Notificaciones cuando se organizan archivos
+✅ Notificaciones de duplicados eliminados
+✅ Aparecen en el Centro de Notificaciones de Windows
+
+Requiere: pip install plyer
+
+────────────────────────────────────────────────────────────────────
+
+2️⃣  🎨 SELECTOR DE TEMAS
+────────────────────────────────────────────────────────────────────
+🎨 Tema visual: [Desplegable con 5 opciones]
+
+Temas disponibles:
+• 🔵 Azul Oscuro (por defecto)
+• 🟢 Verde Oscuro
+• 🟣 Púrpura
+• 🟠 Naranja
+• ⚫ Gris
+
+✅ Cambio instantáneo
+✅ Se guarda automáticamente
+✅ Todos los componentes cambian de color
+
+────────────────────────────────────────────────────────────────────
+
+3️⃣  🖱️ MENÚ CONTEXTUAL
+────────────────────────────────────────────────────────────────────
+☑ 🖱️ Menú contextual (Click derecho)
+
+✅ Añade opción al menú de Windows
+✅ Click derecho en cualquier carpeta
+✅ Opción "🍄 Organizar con DescargasOrdenadas"
+✅ Organiza esa carpeta directamente
+
+⚠️  Solo Windows
+⚠️  Puede pedir permisos de administrador
+
+────────────────────────────────────────────────────────────────────
+
+4️⃣  🔄 ACTUALIZACIONES AUTOMÁTICAS
+────────────────────────────────────────────────────────────────────
+[🔄 Buscar Actualizaciones]
+
+✅ Botón para verificar actualizaciones
+✅ Comprueba nuevas versiones en GitHub
+✅ Muestra diálogo con novedades
+✅ Abre navegador para descargar
+
+Requiere: pip install requests (ya instalado)
+
+────────────────────────────────────────────────────────────────────
+
+5️⃣  💾 CONFIGURACIÓN PORTABLE
+────────────────────────────────────────────────────────────────────
+Automático - No requiere configuración
+
+✅ Guarda todo en .config/descargasordenadas_config.json
+✅ Tema seleccionado
+✅ Notificaciones activadas/desactivadas
+✅ Tamaño de ventana
+✅ Última carpeta usada
+✅ Configuración de IA
+
+Para migrar a otro PC:
+   1. Copia toda la carpeta del proyecto
+   2. Ejecuta INSTALAR_DEPENDENCIAS.bat
+   3. ¡Tu configuración se mantiene!
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🧪 VERIFICAR QUE TODO FUNCIONA
+═══════════════════════════════════════════════════════════════════════════════
+
+python PRUEBAS_v3.1.py
+
+Debe mostrar:
+✅ 11/11 pruebas exitosas
+✅ Todos los módulos funcionando
+✅ Todas las dependencias instaladas
+
+═══════════════════════════════════════════════════════════════════════════════
+                    📋 ESTRUCTURA PORTABLE DEL PROYECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Descargas-Ordenada/
+│
+├── INICIAR.py                          ← Script principal
+├── INICIAR.bat                         ← Launcher con consola
+├── INICIAR_SIN_CONSOLA.bat             ← Launcher SIN consola (recomendado)
+├── INICIAR_SIN_CONSOLA.pyw             ← Launcher Python sin consola
+│
+├── INSTALAR.py                         ← Instalador inteligente
+├── INSTALAR_DEPENDENCIAS.bat           ← Instalador automático
+├── PRUEBAS_v3.1.py                     ← Script de pruebas
+│
+├── organizer/
+│   ├── __init__.py
+│   ├── file_organizer.py               ← Organizador principal
+│   ├── gui_avanzada.py                 ← GUI con v3.1 ✨
+│   ├── autostart.py                    ← Inicio automático
+│   │
+│   ├── native_notifications.py         ← 🆕 v3.1
+│   ├── portable_config.py              ← 🆕 v3.1
+│   ├── temas.py                        ← 🆕 v3.1
+│   ├── context_menu.py                 ← 🆕 v3.1
+│   └── actualizaciones.py              ← 🆕 v3.1
+│
+├── .config/                            ← 💾 Configuración portable
+│   ├── descargasordenadas_config.json
+│   └── actualizaciones.json
+│
+├── requirements.txt                     ← Lista de dependencias
+├── README.md
+├── COMO_USAR_v3.1.txt
+├── GUIA_COMPLETA_v3.1.txt              ← Este archivo
+└── RESUMEN_REGENERACION_v3.1.txt
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🎯 PASOS PARA USAR EN MÚLTIPLES PCs
+═══════════════════════════════════════════════════════════════════════════════
+
+EN EL PRIMER PC (DONDE YA FUNCIONA):
+────────────────────────────────────────────────────────────────────
+1. Configura la aplicación como quieras:
+   • Selecciona tu tema favorito
+   • Activa/desactiva notificaciones
+   • Ajusta configuraciones
+   
+2. La configuración se guarda automáticamente en:
+   .config/descargasordenadas_config.json
+
+EN UN PC NUEVO:
+────────────────────────────────────────────────────────────────────
+1. Copia TODA la carpeta del proyecto
+
+2. Ejecuta: INSTALAR_DEPENDENCIAS.bat
+   (O si prefieres: python INSTALAR.py)
+
+3. Ejecuta: INICIAR_SIN_CONSOLA.bat
+
+4. ¡TU CONFIGURACIÓN SE MANTIENE!
+   • El tema que seleccionaste
+   • Las notificaciones activadas/desactivadas
+   • Todas tus preferencias
+
+═══════════════════════════════════════════════════════════════════════════════
+                    ⚡ PRUEBA RÁPIDA DE v3.1
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Inicia: INICIAR_SIN_CONSOLA.bat
+   ✅ No debe aparecer consola
+
+2. Ve a: Pestaña Principal → Sección "Configuración"
+
+3. Debes ver:
+   ☑ 🔔 Notificaciones nativas del sistema
+   🎨 Tema visual: [Azul Oscuro ▼]
+   ☑ 🖱️ Menú contextual (Click derecho)
+   [🔄 Buscar Actualizaciones]
+
+4. Prueba cambiar el tema:
+   • Selecciona "Verde Oscuro" o "Púrpura"
+   • Toda la interfaz cambia inmediatamente
+   • Cierra y vuelve a abrir → El tema se mantiene
+
+5. Prueba las notificaciones:
+   • Marca el checkbox "🔔 Notificaciones nativas"
+   • Organiza algunos archivos
+   • Debe aparecer notificación en Windows
+
+6. Prueba el menú contextual:
+   • Marca el checkbox "🖱️ Menú contextual"
+   • Abre el Explorador de Windows
+   • Click derecho en cualquier carpeta
+   • Debes ver "🍄 Organizar con DescargasOrdenadas"
+
+7. Prueba actualizaciones:
+   • Click en botón "🔄 Buscar Actualizaciones"
+   • Debe decir "Estás en la última versión"
+
+═══════════════════════════════════════════════════════════════════════════════
+                    ⚠️ SOLUCIÓN DE PROBLEMAS
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: No veo las nuevas opciones v3.1
+────────────────────────────────────────────────────────────────────
+SOLUCIÓN:
+1. Cierra completamente la aplicación
+2. Ejecuta: python FORZAR_INTEGRACION_GUI.py
+3. Ejecuta: python PRUEBAS_v3.1.py
+4. Si todo está ✅, reinicia con INICIAR_SIN_CONSOLA.bat
+
+PROBLEMA: Error al importar módulos v3.1
+────────────────────────────────────────────────────────────────────
+SOLUCIÓN:
+1. Ejecuta: python PRUEBAS_v3.1.py
+2. Verás qué módulo falla
+3. Verifica que los archivos existan en organizer/
+
+PROBLEMA: Las dependencias no se instalan
+────────────────────────────────────────────────────────────────────
+SOLUCIÓN:
+1. Verifica Python: python --version
+2. Actualiza pip: python -m pip install --upgrade pip
+3. Instala manualmente: pip install PySide6 Pillow watchdog pywin32 requests plyer
+
+PROBLEMA: El tema no cambia
+────────────────────────────────────────────────────────────────────
+SOLUCIÓN:
+1. Verifica que temas.py exista
+2. Ejecuta: python -c "from organizer.temas import obtener_gestor_temas; print('OK')"
+3. Si falla, el archivo puede estar corrupto
+4. Copia temas.py desde un backup
+
+PROBLEMA: Las notificaciones no aparecen
+────────────────────────────────────────────────────────────────────
+SOLUCIÓN:
+1. Verifica: python -c "import plyer; print(plyer.__version__)"
+2. Si falla: pip install plyer
+3. Reinicia la aplicación
+4. Marca el checkbox "🔔 Notificaciones nativas"
+
+═══════════════════════════════════════════════════════════════════════════════
+                    📊 RESUMEN FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ TODOS LOS MÓDULOS v3.1 INSTALADOS
+✅ TODOS LOS CONTROLES VISIBLES EN LA GUI
+✅ INSTALADORES AUTOMÁTICOS CREADOS
+✅ CONFIGURACIÓN 100% PORTABLE
+✅ FUNCIONA EN MÚLTIPLES PCs SIN RECONFIGURAR
+
+NUEVAS CARACTERÍSTICAS:
+✅ 1. Notificaciones nativas (con plyer)
+✅ 2. Configuración portable (JSON en .config/)
+✅ 3. 5 temas personalizables (cambio instantáneo)
+✅ 4. Menú contextual Windows (click derecho)
+✅ 5. Sistema de actualizaciones (GitHub)
+
+CARACTERÍSTICAS ANTERIORES:
+✅ Sin ventana de consola
+✅ Inicio automático con Windows
+✅ Auto-organización cada 30 segundos
+✅ Organización por fechas
+✅ Detector de duplicados
+✅ Categorización con IA
+✅ Estadísticas de uso
+✅ Bandeja del sistema
+
+ARCHIVOS CLAVE:
+📄 INSTALAR_DEPENDENCIAS.bat   ← Instalar en PC nuevo
+📄 INICIAR_SIN_CONSOLA.bat     ← Iniciar aplicación
+📄 PRUEBAS_v3.1.py             ← Verificar todo funciona
+📄 GUIA_COMPLETA_v3.1.txt      ← Esta guía
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🎉 ¡TODO LISTO PARA USAR!
+═══════════════════════════════════════════════════════════════════════════════
+
+PARA EMPEZAR AHORA:
+
+    1. python INSTALAR_DEPENDENCIAS.bat  (si es PC nuevo)
+    2. INICIAR_SIN_CONSOLA.bat
+    3. Disfruta de tu aplicación completamente portable
+
+PARA LLEVAR A OTRO PC:
+
+    1. Copia toda la carpeta
+    2. INSTALAR_DEPENDENCIAS.bat
+    3. INICIAR_SIN_CONSOLA.bat
+    4. Tu configuración ya está ahí ✨
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Creado por Champi 🍄
+Versión: 3.1.0
+Fecha: 14 de Enero de 2026
+Estado: ✅ 100% FUNCIONAL Y PORTABLE
+
+═══════════════════════════════════════════════════════════════════════════════

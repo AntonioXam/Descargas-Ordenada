@@ -1,0 +1,19 @@
+# DescargasOrdenadas v3.0 - Portable Edition
+# Dependencias mínimas requeridas
+
+# Interfaz gráfica moderna
+PySide6>=6.5.0
+
+# Procesamiento de imágenes
+Pillow>=10.0.0
+
+# Integración específica de Windows (solo en Windows)
+pywin32>=300 ; platform_system == "Windows"
+
+# Monitor en tiempo real (requerido para organización automática)
+watchdog>=3.0.0
+
+# Dependencias opcionales para funcionalidades avanzadas
+# (se instalan automáticamente si están disponibles)
+requests>=2.31.0      # Para actualizaciones automáticas
+plyer>=2.1.0          # Para notificaciones nativas del sistema 
