@@ -13,7 +13,7 @@ from datetime import datetime
 
 try:
     from PySide6.QtCore import Qt, Signal, Slot, QThread, QTimer, QEvent
-    from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter
+    from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QGuiApplication
     from PySide6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
         QPushButton, QLabel, QCheckBox, QListWidget, QProgressBar, 
@@ -130,7 +130,7 @@ class OrganizadorAvanzado(QMainWindow):
         # Configuración ventana
         self.setWindowTitle("🍄 DescargasOrdenadas - Organizador Automático")
         self.setMinimumSize(1100, 800)
-        self.resize(1200, 850)
+        self._ajustar_tamano_inicial()
         
         self._setup_ui()
         self._aplicar_tema()  # Aplicar tema (reemplaza _aplicar_estilos_modernos)
@@ -155,6 +155,31 @@ class OrganizadorAvanzado(QMainWindow):
             QTimer.singleShot(10000, self._verificar_actualizaciones_silencioso)
             # Verificar cada 24 horas (86400000 ms) mientras la app está abierta
             self.timer_actualizaciones.start(86400000)  # 24 horas
+    
+    def _ajustar_tamano_inicial(self):
+        """Ajusta el tamaño inicial según la resolución para mostrar todo correctamente."""
+        try:
+            screen = QGuiApplication.primaryScreen()
+            if not screen:
+                self.resize(1200, 850)
+                return
+            
+            geom = screen.availableGeometry()
+            objetivo_w = int(geom.width() * 0.9)
+            objetivo_h = int(geom.height() * 0.9)
+            
+            min_w, min_h = 1100, 800
+            ancho = min(max(min_w, objetivo_w), geom.width())
+            alto = min(max(min_h, objetivo_h), geom.height())
+            
+            self.resize(ancho, alto)
+            
+            # Centrar la ventana
+            x = geom.x() + (geom.width() - ancho) // 2
+            y = geom.y() + (geom.height() - alto) // 2
+            self.move(x, y)
+        except Exception:
+            self.resize(1200, 850)
     
     def _aplicar_tema(self):
         """Aplica el tema visual actual."""
