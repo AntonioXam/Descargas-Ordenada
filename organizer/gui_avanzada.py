@@ -141,6 +141,10 @@ class OrganizadorAvanzado(QMainWindow):
         self.timer_auto = QTimer()
         self.timer_auto.timeout.connect(self._organizar_automatico)
         
+        # Timer para verificar actualizaciones periódicamente
+        self.timer_actualizaciones = QTimer()
+        self.timer_actualizaciones.timeout.connect(self._verificar_actualizaciones_silencioso)
+        
         # Activar auto-organización si está habilitada al inicio (para autostart)
         if auto_organizacion:
             # Delay de 5 segundos para que la aplicación se inicie completamente
@@ -149,6 +153,8 @@ class OrganizadorAvanzado(QMainWindow):
         # Verificar actualizaciones al inicio (después de 10 segundos)
         if self.gestor_actualizaciones:
             QTimer.singleShot(10000, self._verificar_actualizaciones_silencioso)
+            # Verificar cada 24 horas (86400000 ms) mientras la app está abierta
+            self.timer_actualizaciones.start(86400000)  # 24 horas
     
     def _aplicar_tema(self):
         """Aplica el tema visual actual."""
@@ -609,6 +615,9 @@ class OrganizadorAvanzado(QMainWindow):
         if hasattr(self, 'timer_auto') and self.timer_auto.isActive():
             self.timer_auto.stop()
         
+        if hasattr(self, 'timer_actualizaciones') and self.timer_actualizaciones.isActive():
+            self.timer_actualizaciones.stop()
+        
         # Cerrar la consola completamente
         self._cerrar_consola()
         
@@ -891,8 +900,8 @@ class OrganizadorAvanzado(QMainWindow):
             # Aplicar configuración
             self.organizador.usar_subcarpetas = usar_subcarpetas
             
-            # Organizar solo archivos nuevos de forma silenciosa
-            resultados, errores = self.organizador.organizar()
+            # Reorganizar todo de forma silenciosa (incluye subcarpetas)
+            resultados, errores = self.organizador.reorganizar_completamente()
             total = sum(len(files) for cat in resultados.values() for files in cat.values())
             
             # Log de actividad (con o sin archivos)
@@ -1105,30 +1114,7 @@ class OrganizadorAvanzado(QMainWindow):
         botones_group = QGroupBox("🚀 Organización")
         botones_layout = QHBoxLayout(botones_group)
         
-        btn_organizar = QPushButton("✨  Organizar archivos nuevos")
-        btn_organizar.setStyleSheet("""
-            QPushButton {
-                padding: 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #4CAF50, stop:1 #45a049);
-                color: white; 
-                font-size: 14px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #45a049, stop:1 #3d8b40);
-            }
-            QPushButton:pressed {
-                background: #3d8b40;
-            }
-        """)
-        btn_organizar.clicked.connect(self._organizar)
-        botones_layout.addWidget(btn_organizar)
-        
-        btn_reorganizar = QPushButton("🔄  Reorganizar TODOS los archivos")
+        btn_reorganizar = QPushButton("🔄  Organizar TODOS los archivos")
         btn_reorganizar.setStyleSheet("""
             QPushButton {
                 padding: 12px; 
@@ -1963,32 +1949,8 @@ class OrganizadorAvanzado(QMainWindow):
         scrollbar.setValue(scrollbar.maximum())
     
     def _organizar(self):
-        """Organiza archivos nuevos."""
-        try:
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)
-            
-            # Aplicar configuración de subcarpetas dinámicamente
-            usar_subcarpetas = self.chk_subcarpetas.isChecked()
-            self.organizador.usar_subcarpetas = usar_subcarpetas
-            
-            resultados, errores = self.organizador.organizar(
-                organizar_subcarpetas=self.chk_recursivo.isChecked()
-            )
-            
-            total = sum(len(files) for cat in resultados.values() for files in cat.values())
-            
-            modo = "DETALLADO" if usar_subcarpetas else "BÁSICO"
-            mensaje = f"✅ {total} archivos organizados (modo {modo})"
-            if errores:
-                mensaje += f"\n⚠️ {len(errores)} errores"
-            
-            QMessageBox.information(self, "Organización Completada", mensaje)
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"❌ Error: {e}")
-        finally:
-            self.progress_bar.setVisible(False)
+        """Compatibilidad: ahora organiza todo usando el flujo de reorganización."""
+        self._reorganizar()
     
     def _reorganizar(self):
         """Reorganiza todos los archivos."""
@@ -2114,9 +2076,18 @@ class OrganizadorAvanzado(QMainWindow):
         if not self.gestor_actualizaciones:
             return
         
-        hay_actualizacion, info = self.gestor_actualizaciones.verificar_actualizaciones()
-        if hay_actualizacion and info:
-            self._mostrar_notificacion_actualizacion(info)
+        try:
+            self._agregar_log("🔍 Verificando actualizaciones en segundo plano...")
+            hay_actualizacion, info = self.gestor_actualizaciones.verificar_actualizaciones()
+            
+            if hay_actualizacion and info:
+                version = info.get('version', 'Desconocida')
+                self._agregar_log(f"✨ ¡Nueva versión {version} disponible!")
+                self._mostrar_notificacion_actualizacion(info)
+            else:
+                self._agregar_log("✅ Ya tienes la última versión")
+        except Exception as e:
+            self._agregar_log(f"⚠️ Error verificando actualizaciones: {e}")
     
     def _verificar_actualizaciones(self):
         """Verifica actualizaciones y muestra el resultado."""
