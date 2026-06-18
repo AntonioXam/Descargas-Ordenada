@@ -146,7 +146,7 @@ class DetectorDuplicados:
             logger.error(f"Error guardando duplicados: {e}")
     
     def escanear_duplicados(self, incluir_subcarpetas: bool = True, 
-                          tamaño_minimo: int = 1024) -> Dict[str, Any]:
+                          tamaño_minimo: int = 1) -> Dict[str, Any]:
         """
         Escanea la carpeta en busca de archivos duplicados.
         

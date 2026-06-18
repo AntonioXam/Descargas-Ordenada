@@ -50,10 +50,12 @@ class NotificadorEscritorio:
         try:
             # Buscar icono de la aplicación
             posibles_iconos = [
-                Path(__file__).parent.parent / "resources" / "icon.png",
                 Path(__file__).parent.parent / "resources" / "icon.ico",
+                Path(__file__).parent.parent / "resources" / "icon.png",
+                Path(__file__).parent / "resources" / "icon.ico",
                 Path(__file__).parent / "resources" / "icon.png",
                 "/usr/share/pixmaps/descargasordenadas.png",
+                "resources/icon.ico",
                 "resources/icon.png"
             ]
             

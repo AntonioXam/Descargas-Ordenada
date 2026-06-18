@@ -293,6 +293,14 @@ class OrganizadorArchivos:
             usar_subcarpetas: Si es True, organiza los archivos en subcarpetas según su tipo.
         """
         self.carpeta_descargas = self._detectar_carpeta_descargas() if carpeta_descargas is None else Path(carpeta_descargas)
+        
+        # Protección: no organizar carpetas protegidas del sistema o la propia instalación
+        if self._es_carpeta_protegida(self.carpeta_descargas):
+            raise PermissionError(
+                f"No se puede organizar la carpeta protegida: {self.carpeta_descargas}. "
+                "Selecciona una carpeta de usuario como Descargas."
+            )
+        
         # Cambiar la ubicación del archivo de huella a una carpeta oculta dentro de Descargas
         self.carpeta_config = self.carpeta_descargas / ".config"
         self.carpeta_config.mkdir(exist_ok=True)
@@ -312,7 +320,38 @@ class OrganizadorArchivos:
         else:
             self.organizador_fechas = None
             logger.info("📅 Organizador de fechas no disponible")
+    
+    def _es_carpeta_protegida(self, carpeta: Path) -> bool:
+        """Evita organizar carpetas del sistema o la propia carpeta de instalación de la app."""
+        try:
+            ruta = carpeta.resolve()
+        except Exception:
+            ruta = carpeta.absolute()
         
+        # Directorios del sistema de Windows
+        ruta_str = str(ruta).lower()
+        protegidos = [
+            r"windows", r"system32", r"syswow64", r"program files", r"program files (x86)",
+            r"archivos de programa", r"archivos de programa (x86)", r"users\\public",
+            r"local\\microsoft", r"windows\\system"
+        ]
+        # AppData solo proteger la raíz de roaming/local Microsoft, no toda AppData
+        if r"appdata\\local\\microsoft" in ruta_str or r"appdata\
+oaming\\microsoft" in ruta_str:
+            return True
+        if any(prot in ruta_str for prot in protegidos):
+            return True
+        
+        # No organizar la propia carpeta del programa
+        try:
+            programa = Path(__file__).parent.parent.resolve()
+            if ruta == programa or programa in ruta.parents:
+                return True
+        except Exception:
+            pass
+        
+        return False
+    
     def _detectar_carpeta_descargas(self) -> Path:
         """Detecta automáticamente la carpeta de descargas según el sistema operativo."""
         if sys.platform == 'win32':

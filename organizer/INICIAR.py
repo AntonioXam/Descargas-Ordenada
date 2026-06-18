@@ -170,7 +170,11 @@ def main():
     
     # Solo mostrar prints si NO es modo silencioso
     if not (args.sin_consola or args.autostart or args.minimizado):
-        print("🍄 DescargasOrdenadas v3.0 - Edición Portable")
+        try:
+            version = Path(__file__).parent.parent.joinpath("VERSION.txt").read_text(encoding="utf-8").strip()
+        except Exception:
+            version = "3.2.0"
+        print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     
     # Solo configurar logger con salida a consola si NO es modo silencioso
