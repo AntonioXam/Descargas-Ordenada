@@ -4,6 +4,28 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.5.0] - 2026-09-17
+
+### 🖥️ Interfaz Responsive
+- Las pestañas ahora usan scroll automático en pantallas pequeñas
+- Tamaño mínimo de ventana reducido para caber en más resoluciones
+- La app recuerda el tamaño y el estado maximizado entre sesiones
+- Todos los campos siguen accesibles aunque la ventana no esté maximizada
+
+### 🚀 Autoarranque Multiplataforma
+- macOS usa LaunchAgent y Linux usa systemd con los argumentos reales
+- Se guarda la preferencia de inicio automático en la configuración
+- Se muestra una notificación nativa al activarlo o desactivarlo
+- La app arranca minimizada en la bandeja del sistema
+
+### 🔄 Actualizaciones
+- Si no hay Release publicado en GitHub, ahora usa los tags del repo como fallback
+
+### 🐧 Linux
+- Autoarranque corregido con el intérprete correcto y argumentos reales
+
+---
+
 ## [3.4.0] - 2026-09-17
 
 ### 🍎 Soporte macOS Completo

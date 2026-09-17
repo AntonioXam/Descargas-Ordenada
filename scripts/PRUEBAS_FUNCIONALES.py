@@ -7,6 +7,7 @@ Ejecutar desde la raíz del proyecto: python scripts/PRUEBAS_FUNCIONALES.py
 
 import sys
 import tempfile
+import os
 import shutil
 from pathlib import Path
 
@@ -16,6 +17,7 @@ sys.path.insert(0, str(project_root))
 
 from organizer.file_organizer import OrganizadorArchivos
 from organizer.duplicate_detector import DetectorDuplicados
+from organizer.portable_config import ConfigPortable
 import organizer.autostart  # noqa: F401 - regresión: debe importar en cualquier SO
 
 
@@ -77,12 +79,49 @@ def test_lanzadores_multiplataforma():
     print("✅ Lanzadores multiplataforma presentes y ejecutables")
 
 
+def test_configuracion_autoarranque():
+    """Verifica que la preferencia de autoarranque esté presente en la configuración base."""
+    config = ConfigPortable.__new__(ConfigPortable)
+    valores = config._obtener_config_por_defecto()
+    assert "autoarranque" in valores, "Falta la clave de autoarranque en la configuración"
+    assert valores["autoarranque"] is False, "El autoarranque debe estar desactivado por defecto"
+    print("✅ Preferencia de autoarranque guardada en la configuración")
+
+
+def test_gui_responsive():
+    """Verifica que la ventana sea adaptable y que todas las pestañas usen scroll."""
+    try:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication, QScrollArea
+        from organizer.gui_avanzada import OrganizadorAvanzado
+    except ImportError:
+        print("⏭️  GUI no probada: PySide6 no disponible")
+        return
+
+    app = QApplication.instance() or QApplication([])
+    ventana = OrganizadorAvanzado()
+    ventana.resize(800, 600)
+
+    assert ventana.minimumSize().width() <= 800, "El ancho mínimo es demasiado grande"
+    assert ventana.minimumSize().height() <= 600, "El alto mínimo es demasiado grande"
+    assert ventana.tabs.count() == 6, "No hay 6 pestañas"
+
+    for indice in range(ventana.tabs.count()):
+        pestaña = ventana.tabs.widget(indice)
+        assert isinstance(pestaña, QScrollArea), f"La pestaña {indice} no tiene scroll"
+        assert pestaña.widgetResizable(), f"La pestaña {indice} no es redimensionable"
+
+    print("✅ GUI adaptable con scroll en todas las pestañas")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
     test_proteccion_carpeta_programa()
     test_duplicados_pequeños()
     test_lanzadores_multiplataforma()
+    test_configuracion_autoarranque()
+    test_gui_responsive()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 

@@ -3,6 +3,7 @@
 
 import os
 import sys
+import shlex
 import subprocess
 import logging
 from pathlib import Path
@@ -70,25 +71,21 @@ class GestorAutoarranque:
                     comando = f'"{self.ruta_ejecutable}" --inicio-sistema --minimizado'
                 else:
                     # Si es un script de Python, usar el .bat apropiado
-                    proyecto_dir = Path(self.ruta_ejecutable).parent
+                    proyecto_dir = Path(__file__).resolve().parent.parent
                     
-                    # Buscar archivos .bat disponibles
-                    bat_principal = proyecto_dir / "windows" / "DescargasOrdenadas.bat"
-                    bat_iniciar = proyecto_dir / "windows" / "INICIAR.bat"
+                    # Buscar el lanzador .bat raíz de la distribución actual
+                    bat_principal = proyecto_dir / "INICIAR.bat"
                     
-                    # Preferir DescargasOrdenadas.bat si existe, sino INICIAR.bat
                     if bat_principal.exists():
                         bat_file = bat_principal
-                        comando = f'"{bat_file}" --inicio-sistema --minimizado'
-                    elif bat_iniciar.exists():
-                        bat_file = bat_iniciar
-                        comando = f'"{bat_file}" --inicio-sistema --minimizado'
+                        comando = f'"{bat_file}" --autostart --minimizado'
                     else:
                         # Fallback al método anterior si no hay .bat
                         python_exe = sys.executable
                         if python_exe.endswith('python.exe'):
                             python_exe = python_exe.replace('python.exe', 'pythonw.exe')
-                        comando = f'"{python_exe}" "{self.ruta_ejecutable}" --inicio-sistema --minimizado'
+                        iniciar_py = Path(__file__).resolve().parent / "INICIAR.py"
+                        comando = f'"{python_exe}" "{iniciar_py}" --autostart --minimizado'
                         logger.warning("No se encontraron archivos .bat, usando Python directamente")
                 
                 logger.info(f"Configurando autoarranque con comando: {comando}")
@@ -227,6 +224,17 @@ class GestorAutoarranque:
             if activar:
                 # Crear directorio si no existe
                 ruta_service.parent.mkdir(parents=True, exist_ok=True)
+
+                if getattr(sys, 'frozen', False):
+                    comando_args = [self.ruta_ejecutable, '--autostart', '--minimizado']
+                    directorio_trabajo = str(Path(self.ruta_ejecutable).parent)
+                else:
+                    iniciar_py = Path(__file__).resolve().parent / 'INICIAR.py'
+                    comando_args = [sys.executable, str(iniciar_py), '--autostart', '--minimizado']
+                    directorio_trabajo = str(Path(__file__).resolve().parent.parent)
+
+                exec_start = " ".join(shlex.quote(arg) for arg in comando_args)
+                working_directory = shlex.quote(directorio_trabajo)
                 
                 # Contenido del archivo de servicio
                 contenido_service = f'''[Unit]
@@ -235,8 +243,9 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart={self.ruta_ejecutable} --auto-organizar
-Restart=no
+ExecStart={exec_start}
+WorkingDirectory={working_directory}
+Restart=on-failure
 
 [Install]
 WantedBy=graphical-session.target
@@ -246,9 +255,10 @@ WantedBy=graphical-session.target
                     f.write(contenido_service)
                 
                 # Habilitar y arrancar servicio
+                subprocess.check_call(['systemctl', '--user', 'daemon-reload'])
                 subprocess.check_call(['systemctl', '--user', 'enable', ruta_service.name])
                 subprocess.check_call(['systemctl', '--user', 'start', ruta_service.name])
-                return True, "Autoarranque con organización automática configurado correctamente en Linux."
+                return True, "Autoarranque configurado correctamente en Linux (systemd user)."
             else:
                 # Deshabilitar y detener servicio si existe
                 if ruta_service.exists():

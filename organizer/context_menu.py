@@ -24,11 +24,11 @@ class GestorMenuContextual:
         if getattr(sys, 'frozen', False):
             return sys.executable
         else:
-            script_dir = Path(sys.argv[0]).parent.absolute()
-            launcher = script_dir / "INICIAR_SIN_CONSOLA.bat"
+            project_dir = Path(__file__).resolve().parent.parent
+            launcher = project_dir / "INICIAR.bat"
             if launcher.exists():
                 return str(launcher)
-            return str(Path(sys.argv[0]).resolve())
+            return str(Path(sys.executable).resolve())
     
     def registrar_menu_contextual(self, tipo="carpetas") -> Tuple[bool, str]:
         """Registra la aplicación en el menú contextual."""
@@ -50,10 +50,12 @@ class GestorMenuContextual:
     def _registrar_carpetas(self):
         """Registra el menú contextual para carpetas."""
         key_path = r"Directory\shell\DescargasOrdenadas"
+        icono = Path(__file__).resolve().parent.parent / "resources" / "favicon.ico"
+        icono_ruta = str(icono) if icono.exists() else self.ruta_ejecutable
         
         key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)
         winreg.SetValue(key, "", winreg.REG_SZ, "🍄 Organizar con DescargasOrdenadas")
-        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, self.ruta_ejecutable)
+        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, icono_ruta)
         winreg.CloseKey(key)
         
         command_path = key_path + r"\command"
@@ -65,10 +67,12 @@ class GestorMenuContextual:
     def _registrar_archivos(self):
         """Registra el menú contextual para archivos."""
         key_path = r"*\shell\DescargasOrdenadas"
+        icono = Path(__file__).resolve().parent.parent / "resources" / "favicon.ico"
+        icono_ruta = str(icono) if icono.exists() else self.ruta_ejecutable
         
         key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)
         winreg.SetValue(key, "", winreg.REG_SZ, "🍄 Organizar archivo")
-        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, self.ruta_ejecutable)
+        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, icono_ruta)
         winreg.CloseKey(key)
         
         command_path = key_path + r"\command"

@@ -57,12 +57,13 @@ class ConfigPortable:
             "tema": "azul_oscuro",
             "notificaciones_habilitadas": True,
             "auto_organizacion": False,
+            "autoarranque": False,
             "usar_subcarpetas": True,
             "organizar_recursivo": False,
             "patron_fechas": "YYYY/MM-Mes",
             "organizacion_fechas_activa": False,
             "ultima_carpeta_usada": None,
-            "ventana": {"ancho": 1000, "alto": 700, "maximizada": False},
+            "ventana": {"ancho": 1200, "alto": 850, "maximizada": False},
             "ai": {"nivel_confianza": 60}
         }
     

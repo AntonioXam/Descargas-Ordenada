@@ -34,8 +34,10 @@ INICIAR.bat
 
 ### Inicio Automático
 1. Ve a **"⚙️ Configuración"**
-2. Click en **"Agregar al Inicio"**
-3. La app se abrirá al encender el PC
+2. Marca **"Inicio automático"**
+3. La app se abrirá al encender el PC, Mac o Linux
+
+Funciona igual en los tres sistemas y arranca minimizada en la bandeja.
 
 ---
 
@@ -70,7 +72,7 @@ INSTALAR_DEPENDENCIAS.bat
 ```
 
 ### Textos cortados
-Amplía la ventana (mínimo 1100x800)
+Ya no es necesario ampliar la ventana. La interfaz usa scroll automático en pantallas pequeñas.
 
 ### No se actualiza
 Verifica tu conexión a internet

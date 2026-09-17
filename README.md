@@ -1,8 +1,8 @@
-# 🍄 DescargasOrdenadas v3.2
+# 🍄 DescargasOrdenadas v3.5
 
 **Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
 
-![Versión](https://img.shields.io/badge/versión-3.4.0-blue)
+![Versión](https://img.shields.io/badge/versión-3.5.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
@@ -80,6 +80,18 @@ Si necesitas instalar en un PC sin internet:
 - ⚙️ **Entorno Virtual** - El instalador crea `.venv` automáticamente en Mac/Linux
 - 🔄 **Reinicio Multiplataforma** - Las actualizaciones ya no fallan al reiniciar en Mac/Linux
 
+### 🆕 Novedades v3.5
+- 🖥️ **Interfaz Responsive** - Todas las pestañas se adaptan con scroll automático en pantallas pequeñas
+- 🚀 **Autoarranque Mejorado** - Notificación nativa al activarlo y arranque minimizado en macOS, Linux y Windows
+- 🔄 **Actualizaciones con Fallback** - Si no hay Release en GitHub, usa tags del repositorio
+- 📦 **Portable** - Funciona sin instalar nada más que sus dependencias
+
+### 🖥️ Pantallas Pequeñas
+- La ventana se ajusta automáticamente a tu resolución
+- Si un campo no cabe, aparece una barra de desplazamiento
+- La app recuerda el tamaño de la ventana y si la dejaste maximizada
+- Ya no necesitas ampliar la ventana a tamaños fijos
+
 ### 🆕 Novedades v3.2
 - ⏱️ **Intervalos Personalizables** - Elige cada cuánto revisar (30 seg a 1 día)
 - 🚀 **Inicio Automático Mejorado** - Botones claros para activar/desactivar
@@ -135,9 +147,9 @@ Descargas-Ordenada/
 3. Activa **"📁 Modo BÁSICO"** o **"🔧 Modo DETALLADO"**
 4. La aplicación organizará automáticamente cada X tiempo
 
-### Inicio con Windows
-1. Click en **"✅ Activar inicio automático"**
-2. ¡Ya está! La app se inicia al encender el PC
+### Inicio con el sistema
+1. Marca **"Inicio automático"**
+2. ¡Ya está! La app se inicia minimizada al encender Windows, macOS o Linux
 
 ---
 

@@ -34,6 +34,12 @@ descargasordenadas_logs_*.txt
 temp/
 tmp/
 
+# Actualizaciones y restauraciones locales
+.temp_update/
+.temp_extract/
+.temp_restart.bat
+DescargasOrdenadas_backup_*/
+
 # Dependencias locales (archivos .whl grandes)
 dependencias/
 *.whl

@@ -31,15 +31,15 @@ class GestorActualizacionesMejorado:
     """Gestor de actualizaciones con descarga automática desde GitHub."""
     
     VERSION_ACTUAL = obtener_version()
-    # Repositorio público - no requiere autenticación
     GITHUB_USER = "AntonioXam"
     GITHUB_REPO = "Descargas-Ordenada"
-    API_URL = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/releases/latest"
     
     def __init__(self):
         self.config_path = self._obtener_ruta_config()
         self.ultima_verificacion = None
         self.nueva_version_disponible = None
+        self._api_latest = f"https://api.github.com/repos/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases/latest"
+        self._api_tags = f"https://api.github.com/repos/{self.GITHUB_USER}/{self.GITHUB_REPO}/tags"
         self._cargar_config()
     
     def _obtener_ruta_config(self) -> Path:
@@ -91,10 +91,10 @@ class GestorActualizacionesMejorado:
                 return False, None
         
         try:
-            logger.info(f"Verificando actualizaciones desde: {self.API_URL}")
+            logger.info(f"Verificando actualizaciones desde: {self._api_latest}")
             
             headers = {'Accept': 'application/vnd.github.v3+json'}
-            response = requests.get(self.API_URL, headers=headers, timeout=10)
+            response = requests.get(self._api_latest, headers=headers, timeout=10)
             response.raise_for_status()
             
             data = response.json()
@@ -133,9 +133,49 @@ class GestorActualizacionesMejorado:
                 logger.info("✅ Ya tienes la última versión")
                 return False, None
                 
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.info("No hay GitHub Release; probando tags como fallback")
+                info = self._verificar_por_tags()
+                if info:
+                    return True, info
+            logger.warning(f"Error verificando actualizaciones: {e}")
         except Exception as e:
             logger.error(f"Error verificando actualizaciones: {e}")
-            return False, None
+        self.nueva_version_disponible = None
+        self.ultima_verificacion = datetime.now()
+        self._guardar_config()
+        logger.info("✅ Sin nuevas actualizaciones o no se pudo verificar")
+        return False, None
+
+    def _verificar_por_tags(self) -> Optional[Dict]:
+        """Fallback: si no hay release, mira el tag más reciente del repo."""
+        try:
+            headers = {'Accept': 'application/vnd.github.v3+json'}
+            response = requests.get(self._api_tags, headers=headers, timeout=10)
+            response.raise_for_status()
+            tags = response.json()
+            if not tags:
+                return None
+            primer_tag = tags[0]
+            version_remota = str(primer_tag.get('name', '')).lstrip('vV')
+            if not self._es_version_nueva(version_remota):
+                return None
+            self.nueva_version_disponible = {
+                'version': version_remota,
+                'nombre': version_remota,
+                'descripcion': 'Nueva versión disponible (basada en tags de GitHub).',
+                'url': f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases",
+                'download_url': primer_tag.get('zipball_url'),
+                'fecha': ''
+            }
+            self.ultima_verificacion = datetime.now()
+            self._guardar_config()
+            logger.info(f"✨ Nueva versión disponible (tag): {version_remota}")
+            return self.nueva_version_disponible
+        except Exception as e:
+            logger.warning(f"Error verificando actualizaciones por tags: {e}")
+            return None
     
     def _es_version_nueva(self, version_remota: str) -> bool:
         """Compara versiones semánticas rellenando con ceros las partes que falten."""

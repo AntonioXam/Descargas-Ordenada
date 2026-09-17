@@ -15,11 +15,11 @@ try:
     from PySide6.QtCore import Qt, Signal, Slot, QThread, QTimer, QEvent
     from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QGuiApplication
     from PySide6.QtWidgets import (
-        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-        QPushButton, QLabel, QCheckBox, QListWidget, QProgressBar, 
-        QMessageBox, QSystemTrayIcon, QTabWidget, QTextEdit, QSlider, 
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+        QPushButton, QLabel, QCheckBox, QListWidget, QProgressBar,
+        QMessageBox, QSystemTrayIcon, QTabWidget, QTextEdit, QSlider,
         QGroupBox, QComboBox, QPlainTextEdit, QInputDialog, QMenu,
-        QFileDialog
+        QFileDialog, QScrollArea
     )
 except ImportError:
     print("❌ PySide6 no instalado. Ejecuta: pip install PySide6")
@@ -75,13 +75,13 @@ class OrganizadorAvanzado(QMainWindow):
     
     def __init__(self, directorio=None, auto_organizacion=False):
         super().__init__()
-        
+
         # Inicializar organizador (MODO AVANZADO por defecto - con subcarpetas)
         if directorio:
             self.organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=True)
         else:
             self.organizador = OrganizadorArchivos(usar_subcarpetas=True)
-        
+
         self.gestor_autoarranque = GestorAutoarranque()
         
         # Inicializar menú contextual
@@ -130,7 +130,7 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Configuración ventana
         self.setWindowTitle("🍄 DescargasOrdenadas - Organizador Automático")
-        self.setMinimumSize(1100, 800)
+        self.setMinimumSize(760, 560)
         self._ajustar_tamano_inicial()
         
         self._setup_ui()
@@ -166,21 +166,49 @@ class OrganizadorAvanzado(QMainWindow):
                 return
             
             geom = screen.availableGeometry()
-            objetivo_w = int(geom.width() * 0.9)
-            objetivo_h = int(geom.height() * 0.9)
-            
-            min_w, min_h = 1100, 800
-            ancho = min(max(min_w, objetivo_w), geom.width())
-            alto = min(max(min_h, objetivo_h), geom.height())
-            
+            min_w, min_h = 760, 560
+
+            ventana_guardada = {}
+            if self.config_portable:
+                ventana_guardada = self.config_portable.obtener("ventana", {}) or {}
+
+            ancho_guardado = int(ventana_guardada.get("ancho", 0) or 0)
+            alto_guardado = int(ventana_guardada.get("alto", 0) or 0)
+            maximizada = bool(ventana_guardada.get("maximizada", False))
+
+            if ancho_guardado >= min_w and alto_guardado >= min_h:
+                ancho = min(ancho_guardado, geom.width())
+                alto = min(alto_guardado, geom.height())
+            else:
+                ancho = min(max(min_w, int(geom.width() * 0.9)), geom.width())
+                alto = min(max(min_h, int(geom.height() * 0.9)), geom.height())
+
             self.resize(ancho, alto)
-            
-            # Centrar la ventana
-            x = geom.x() + (geom.width() - ancho) // 2
-            y = geom.y() + (geom.height() - alto) // 2
-            self.move(x, y)
+
+            if maximizada:
+                self.setWindowState(Qt.WindowMaximized)
+            else:
+                x = geom.x() + (geom.width() - ancho) // 2
+                y = geom.y() + (geom.height() - alto) // 2
+                self.move(x, y)
         except Exception:
             self.resize(1200, 850)
+
+    def _guardar_geometria_ventana(self):
+        """Guarda el tamaño y estado de la ventana para restaurarlos después."""
+        if not self.config_portable:
+            return
+        try:
+            self.config_portable.establecer(
+                "ventana",
+                {
+                    "ancho": self.width(),
+                    "alto": self.height(),
+                    "maximizada": self.isMaximized()
+                }
+            )
+        except Exception as e:
+            logger.debug(f"No se pudo guardar la geometría de la ventana: {e}")
     
     def _aplicar_tema(self):
         """Aplica el tema visual actual."""
@@ -614,6 +642,7 @@ class OrganizadorAvanzado(QMainWindow):
     def _ocultar_en_bandeja(self):
         """Oculta la ventana en la bandeja del sistema."""
         if self.tray_icon and self.tray_icon.isVisible():
+            self._guardar_geometria_ventana()
             self.hide()
             self.en_bandeja = True
             
@@ -636,6 +665,7 @@ class OrganizadorAvanzado(QMainWindow):
     def _salir_completamente(self):
         """Cierra la aplicación completamente."""
         self._agregar_log("🚪 Cerrando aplicación completamente...")
+        self._guardar_geometria_ventana()
         
         # Detener timer si está activo
         if hasattr(self, 'timer_auto') and self.timer_auto.isActive():
@@ -959,53 +989,56 @@ class OrganizadorAvanzado(QMainWindow):
     
     def _ocultar_consola(self):
         """Oculta la consola de Windows de forma optimizada."""
-        if sys.platform == "win32":
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                user32 = ctypes.windll.user32
-                
-                console_window = kernel32.GetConsoleWindow()
-                if console_window:
-                    # SW_HIDE = 0, oculta completamente la ventana
-                    user32.ShowWindow(console_window, 0)
-                    
-                    # Minimizar el impacto en la barra de tareas
-                    # WS_EX_TOOLWINDOW evita que aparezca en la barra de tareas
-                    GWL_EXSTYLE = -20
-                    WS_EX_TOOLWINDOW = 0x00000080
-                    
-                    try:
-                        current_style = user32.GetWindowLongW(console_window, GWL_EXSTYLE)
-                        user32.SetWindowLongW(console_window, GWL_EXSTYLE, current_style | WS_EX_TOOLWINDOW)
-                    except:
-                        pass
-                    
-                    self._agregar_log("🔇 Consola externa ocultada completamente")
-                    return True
-            except Exception as e:
-                self._agregar_log(f"❌ Error ocultando consola: {e}")
-        else:
+        if sys.platform != "win32":
             self._agregar_log("ℹ️  Ocultar consola no disponible en este sistema operativo")
+            return False
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
+
+            console_window = kernel32.GetConsoleWindow()
+            if not console_window:
+                return False
+
+            # SW_HIDE = 0, oculta completamente la ventana
+            user32.ShowWindow(console_window, 0)
+
+            # Minimizar el impacto en la barra de tareas
+            GWL_EXSTYLE = -20
+            WS_EX_TOOLWINDOW = 0x00000080
+
+            try:
+                current_style = user32.GetWindowLongW(console_window, GWL_EXSTYLE)
+                user32.SetWindowLongW(console_window, GWL_EXSTYLE, current_style | WS_EX_TOOLWINDOW)
+            except Exception:
+                pass
+
+            self._agregar_log("🔇 Consola externa ocultada completamente")
+            return True
+        except Exception as e:
+            self._agregar_log(f"❌ Error ocultando consola: {e}")
         return False
 
     def _mostrar_consola(self):
         """Muestra la consola de Windows."""
-        if sys.platform == "win32":
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                user32 = ctypes.windll.user32
-                
-                console_window = kernel32.GetConsoleWindow()
-                if console_window:
-                    user32.ShowWindow(console_window, 5)  # SW_SHOW
-                    self._agregar_log("🔊 Consola externa mostrada")
-                    return True
-            except Exception as e:
-                self._agregar_log(f"❌ Error mostrando consola: {e}")
-        else:
+        if sys.platform != "win32":
             self._agregar_log("ℹ️  Mostrar consola no disponible en este sistema operativo")
+            return False
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
+
+            console_window = kernel32.GetConsoleWindow()
+            if not console_window:
+                return False
+
+            user32.ShowWindow(console_window, 5)  # SW_SHOW
+            self._agregar_log("🔊 Consola externa mostrada")
+            return True
+        except Exception as e:
+            self._agregar_log(f"❌ Error mostrando consola: {e}")
         return False
 
     def _cerrar_consola(self):
@@ -1051,6 +1084,7 @@ class OrganizadorAvanzado(QMainWindow):
     
     def closeEvent(self, event):
         """Maneja el evento de cierre de la ventana."""
+        self._guardar_geometria_ventana()
         if self.cerrar_completamente:
             # Cierre definitivo
             if hasattr(self, 'tray_icon'):
@@ -1130,6 +1164,16 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addWidget(self.progress_bar)
         
         self.statusBar().showMessage("🍄 Listo - Todas las funcionalidades cargadas")
+
+    def _agregar_tab_con_scroll(self, contenido: QWidget, titulo: str):
+        """Agrega una pestaña envuelta en scroll para adaptarse a cualquier resolución."""
+        scroll = QScrollArea()
+        scroll.setWidget(contenido)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        self.tabs.addTab(scroll, titulo)
     
     def _crear_tab_principal(self):
         """Pestaña principal de organización."""
@@ -1253,54 +1297,17 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Grupo de inicio automático
         autostart_layout = QHBoxLayout()
-        autostart_layout.addWidget(QLabel("🚀 Inicio con Windows:"))
-        
-        # Botón para crear acceso directo en startup
-        btn_crear_acceso_startup = QPushButton("✅  Activar inicio automático")
-        btn_crear_acceso_startup.setStyleSheet("""
-            QPushButton {
-                padding: 12px 20px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #4CAF50, stop:1 #45a049);
-                color: white; 
-                font-size: 13px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-width: 160px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #66BB6A, stop:1 #4CAF50);
-            }
-        """)
-        btn_crear_acceso_startup.setToolTip("La aplicación se iniciará automáticamente al encender Windows")
-        btn_crear_acceso_startup.clicked.connect(self._crear_acceso_directo_startup)
-        autostart_layout.addWidget(btn_crear_acceso_startup)
-        
-        # Botón para quitar acceso directo del startup
-        btn_quitar_acceso_startup = QPushButton("❌  Desactivar inicio automático")
-        btn_quitar_acceso_startup.setStyleSheet("""
-            QPushButton {
-                padding: 12px 20px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #f44336, stop:1 #d32f2f);
-                color: white; 
-                font-size: 13px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-width: 160px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #EF5350, stop:1 #f44336);
-            }
-        """)
-        btn_quitar_acceso_startup.setToolTip("La aplicación NO se iniciará automáticamente con Windows")
-        btn_quitar_acceso_startup.clicked.connect(self._quitar_acceso_directo_startup)
-        autostart_layout.addWidget(btn_quitar_acceso_startup)
-        
+        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
+        autostart_layout.addWidget(QLabel(f"🚀 Inicio con {nombre_so}:"))
+
+        self.chk_autoarranque = QCheckBox("Inicio automático")
+        self.chk_autoarranque.blockSignals(True)
+        self.chk_autoarranque.setChecked(self.gestor_autoarranque.verificar_autoarranque())
+        self.chk_autoarranque.blockSignals(False)
+        self.chk_autoarranque.setToolTip(f"Activa/desactiva el inicio automático al encender {nombre_so}")
+        self.chk_autoarranque.toggled.connect(self._toggle_autoarranque)
+        autostart_layout.addWidget(self.chk_autoarranque)
+
         autostart_layout.addStretch()
         
         config_layout.addLayout(autostart_layout)
@@ -1454,7 +1461,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.list_archivos = QListWidget()
         layout.addWidget(self.list_archivos)
         
-        self.tabs.addTab(tab, "🏠 Principal")
+        self._agregar_tab_con_scroll(tab, "🏠 Principal")
     
     def _crear_tab_ia(self):
         """Pestaña de IA."""
@@ -1503,7 +1510,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_patrones.setReadOnly(True)
         layout.addWidget(self.text_patrones)
         
-        self.tabs.addTab(tab, "🤖 IA")
+        self._agregar_tab_con_scroll(tab, "🤖 IA")
     
     def _crear_tab_fechas(self):
         """Pestaña de organización por fechas."""
@@ -1715,7 +1722,7 @@ class OrganizadorAvanzado(QMainWindow):
         # Actualizar ejemplo inicial
         self._actualizar_ejemplo_fecha()
         
-        self.tabs.addTab(tab, "📅 Fechas")
+        self._agregar_tab_con_scroll(tab, "📅 Fechas")
     
     def _crear_tab_duplicados(self):
         """Pestaña de duplicados."""
@@ -1744,7 +1751,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_duplicados.setPlaceholderText("Los duplicados aparecerán aquí...")
         layout.addWidget(self.text_duplicados)
         
-        self.tabs.addTab(tab, "🔍 Duplicados")
+        self._agregar_tab_con_scroll(tab, "🔍 Duplicados")
     
     def _crear_tab_estadisticas(self):
         """Pestaña de estadísticas."""
@@ -1761,7 +1768,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_stats.setReadOnly(True)
         layout.addWidget(self.text_stats)
         
-        self.tabs.addTab(tab, "📊 Stats")
+        self._agregar_tab_con_scroll(tab, "📊 Stats")
     
     def _crear_tab_logs(self):
         """Pestaña de logs y consola interna."""
@@ -1871,8 +1878,8 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_logs.setPlainText("🍄 DescargasOrdenadas - Sistema de Logs\n" + "="*60 + "\n")
         layout.addWidget(self.text_logs)
         
-        self.tabs.addTab(tab, "📋 Logs")
-        
+        self._agregar_tab_con_scroll(tab, "📋 Logs")
+
         # Configurar captura de logs
         self._setup_log_capture()
     
@@ -2263,10 +2270,27 @@ class OrganizadorAvanzado(QMainWindow):
             exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(activo)
             if not exito:
                 QMessageBox.warning(self, "Error Autoarranque", f"❌ {mensaje}")
+                self.chk_autoarranque.blockSignals(True)
                 self.chk_autoarranque.setChecked(False)
+                self.chk_autoarranque.blockSignals(False)
+                return
+
+            if self.config_portable:
+                self.config_portable.establecer("autoarranque", activo)
+
+            if self.notificador:
+                estado = "activado" if activo else "desactivado"
+                self.notificador.mostrar(
+                    "Autoarranque",
+                    f"Inicio automático {estado}.",
+                    tipo="success",
+                    duracion=4
+                )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"❌ Error configurando autoarranque: {e}")
+            self.chk_autoarranque.blockSignals(True)
             self.chk_autoarranque.setChecked(False)
+            self.chk_autoarranque.blockSignals(False)
     
     def _crear_acceso_directo_startup(self):
         """Crea un acceso directo en la carpeta de inicio de Windows (shell:startup)."""
