@@ -4,6 +4,29 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.3.0] - 2026-09-17
+
+### 🔧 Correcciones Críticas
+
+#### 🔄 Sistema de Actualizaciones
+- **Corregido el repositorio de GitHub** - Apuntaba a `AntonioIbanez1` (inexistente) y ahora apunta a `AntonioXam/Descargas-Ordenada`, por lo que la búsqueda de versiones vuelve a funcionar
+- **Corregido el módulo antiguo** `actualizaciones.py` - Usaba una URL de ejemplo (`usuario/descargasordenadas`) y versión 3.1.0
+
+### 📌 Versión Centralizada
+- Nuevo módulo `organizer/version.py` - `VERSION.txt` es ahora la única fuente de verdad de la versión
+- Todos los módulos (GUI, actualizaciones, arranque) leen la versión del mismo sitio
+- Eliminadas las versiones duplicadas y desincronizadas (3.1.0, 3.2.0 y 1.0.0 en distintos archivos)
+
+### 🧮 Mejoras Técnicas
+- Comparación de versiones semánticas rellenando con ceros - `3.3` y `3.3.0` ahora se comparan correctamente
+- El footer de la GUI muestra la versión dinámicamente en lugar de un texto fijo
+- `__version__` del paquete `organizer` ahora se sincroniza con `VERSION.txt`
+
+### 📚 Documentación
+- Corregidas todas las URLs de GitHub en docs y scripts (antes apuntaban al usuario equivocado)
+
+---
+
 ## [3.2.0] - 2026-01-14
 
 ### ✨ Nuevas Funcionalidades

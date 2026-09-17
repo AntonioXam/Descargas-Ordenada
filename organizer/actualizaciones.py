@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
+from .version import obtener_version
+
 logger = logging.getLogger('organizador.actualizaciones')
 
 try:
@@ -19,8 +21,8 @@ except ImportError:
 class GestorActualizaciones:
     """Gestor de actualizaciones automáticas."""
     
-    VERSION_ACTUAL = "3.1.0"
-    URL_ACTUALIZACIONES = "https://api.github.com/repos/usuario/descargasordenadas/releases/latest"
+    VERSION_ACTUAL = obtener_version()
+    URL_ACTUALIZACIONES = "https://api.github.com/repos/AntonioXam/Descargas-Ordenada/releases/latest"
     
     def __init__(self):
         self.config_path = self._obtener_ruta_config()
@@ -104,10 +106,13 @@ class GestorActualizaciones:
             return False, None
     
     def _es_version_nueva(self, version_remota: str) -> bool:
-        """Compara versiones."""
+        """Compara versiones semánticas rellenando con ceros las partes que falten."""
         try:
             local = tuple(map(int, self.VERSION_ACTUAL.split('.')))
             remota = tuple(map(int, version_remota.split('.')))
+            longitud = max(len(local), len(remota))
+            local += (0,) * (longitud - len(local))
+            remota += (0,) * (longitud - len(remota))
             return remota > local
         except Exception:
             return False

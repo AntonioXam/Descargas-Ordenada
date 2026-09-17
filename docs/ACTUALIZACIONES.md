@@ -184,7 +184,7 @@ pip install requests
 3. Intenta actualizar de nuevo
 
 Si persiste:
-1. Descarga manualmente desde: https://github.com/AntonioIbanez1/Descargas-Ordenada/releases
+1. Descarga manualmente desde: https://github.com/AntonioXam/Descargas-Ordenada/releases
 2. Extrae el .zip
 3. Copia sobre tu instalación actual (preservando .config/)
 
@@ -200,13 +200,15 @@ Si quieres publicar tu propia versión:
    GITHUB_REPO = "tu-repositorio"
    ```
 
-2. Actualiza `VERSION_ACTUAL`:
-   ```python
-   VERSION_ACTUAL = "3.2.0"  # Tu versión
+2. Actualiza la versión editando `VERSION.txt` (única fuente de verdad desde v3.3):
+   ```text
+   3.3.0
    ```
+   Todos los módulos (GUI, actualizaciones y arranque) leen la versión desde
+   `organizer/version.py`, así que no hace falta tocar más archivos.
 
 3. Crea un release en GitHub:
-   - Tag: `v3.2.0`
+   - Tag: `v3.3.0`
    - GitHub generará automáticamente el .zip
 
 ---
@@ -215,6 +217,6 @@ Si quieres publicar tu propia versión:
 
 ¿Problemas con las actualizaciones?
 
-- 🐛 **GitHub Issues:** https://github.com/AntonioIbanez1/Descargas-Ordenada/issues
+- 🐛 **GitHub Issues:** https://github.com/AntonioXam/Descargas-Ordenada/issues
 - 📧 **Email:** [tu email si quieres]
 - 📖 **Documentación:** `docs/COMO_USAR.md`

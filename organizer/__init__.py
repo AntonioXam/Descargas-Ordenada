@@ -2,4 +2,6 @@
 DescargasOrdenadas - Organizador de la carpeta de descargas multiplataforma.
 """
 
-__version__ = "1.0.0" 
+from .version import obtener_version
+
+__version__ = obtener_version()

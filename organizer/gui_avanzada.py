@@ -27,6 +27,7 @@ except ImportError:
 
 from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
+from .version import obtener_version
 
 # Importar notificaciones nativas
 try:
@@ -1107,7 +1108,7 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addWidget(self.tabs)
         
         # Footer con versión
-        footer = QLabel("v3.2.0")
+        footer = QLabel(f"v{obtener_version()}")
         footer.setAlignment(Qt.AlignRight)
         footer.setStyleSheet("""
             color: #888;

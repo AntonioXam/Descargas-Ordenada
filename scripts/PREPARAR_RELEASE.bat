@@ -29,7 +29,7 @@ echo    git add .
 echo    git commit -m "Release v%VERSION%"
 echo    git push
 echo.
-echo 2️⃣  Ve a: https://github.com/AntonioIbanez1/Descargas-Ordenada/releases/new
+echo 2️⃣  Ve a: https://github.com/AntonioXam/Descargas-Ordenada/releases/new
 echo.
 echo 3️⃣  Completa los campos:
 echo    • Tag version: v%VERSION%
