@@ -10,7 +10,7 @@ desincronizaciones entre archivos.
 
 from pathlib import Path
 
-VERSION_FALLBACK = "3.3.0"
+VERSION_FALLBACK = "3.4.0"
 
 
 def obtener_version() -> str:

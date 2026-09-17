@@ -4,6 +4,35 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.4.0] - 2026-09-17
+
+### 🍎 Soporte macOS Completo
+
+#### 🐛 Corrección Crítica de Arranque
+- **Corregido el bloqueo total en macOS** - `autostart.py` importaba `winreg` (exclusivo de Windows) sin condición y la GUI lo importa siempre, por lo que la aplicación **ni siquiera arrancaba** en Mac. Ahora el import es condicional
+
+#### 🚀 Autoarranque en macOS
+- **LaunchAgent corregido** - Usaba el argumento `--auto-organizar` (inexistente); ahora usa `--autostart --minimizado`, los argumentos reales de `INICIAR.py`
+- **Rutas con espacios** - El XML del plist ahora escapa correctamente espacios y caracteres especiales
+- **launchctl moderno** - Usa `bootstrap`/`bootout` (sintaxis actual de macOS) con fallback a `load`/`unload` para versiones antiguas
+
+#### 🔄 Actualizaciones en macOS
+- **Reinicio corregido** - Tras actualizar, usaba constantes exclusivas de Windows (`DETACHED_PROCESS`, `CREATE_NO_WINDOW`) que no existen en Mac/Linux y provocaban error. Ahora cada plataforma usa su mecanismo correcto (`start_new_session` en Unix)
+
+### 🐧 Soporte Linux
+- Autoarranque con systemd ya existía; los nuevos lanzadores de terminal lo hacen usable de principio a fin
+
+### ⚙️ Lanzadores Multiplataforma
+- `INSTALAR_DEPENDENCIAS.sh` - Instalador para Mac/Linux que crea un entorno virtual `.venv` (evita el Python "externally-managed" de macOS/Homebrew)
+- `INICIAR.sh` - Lanzador de terminal que usa el `.venv` si existe
+- `INICIAR.command` y `INSTALAR_DEPENDENCIAS.command` - Doble clic desde Finder en macOS
+
+### ✅ Pruebas
+- Nuevas pruebas de regresión multiplataforma: import de `autostart` en cualquier SO y existencia de lanzadores
+
+---
+
+## [3.3.0] - 2026-09-17
 ## [3.3.0] - 2026-09-17
 
 ### 🔧 Correcciones Críticas

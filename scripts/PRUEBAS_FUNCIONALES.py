@@ -16,6 +16,7 @@ sys.path.insert(0, str(project_root))
 
 from organizer.file_organizer import OrganizadorArchivos
 from organizer.duplicate_detector import DetectorDuplicados
+import organizer.autostart  # noqa: F401 - regresión: debe importar en cualquier SO
 
 
 def crear_escenario(base: Path):
@@ -65,11 +66,23 @@ def test_duplicados_pequeños():
     shutil.rmtree(base, ignore_errors=True)
 
 
+def test_lanzadores_multiplataforma():
+    """Verifica que existan lanzadores para macOS/Linux y sean ejecutables."""
+    esperados = ["INICIAR.sh", "INSTALAR_DEPENDENCIAS.sh", "INICIAR.command", "INSTALAR_DEPENDENCIAS.command"]
+    for nombre in esperados:
+        ruta = project_root / nombre
+        assert ruta.exists(), f"Falta el lanzador: {nombre}"
+        import os
+        assert os.access(ruta, os.X_OK), f"El lanzador {nombre} no es ejecutable"
+    print("✅ Lanzadores multiplataforma presentes y ejecutables")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
     test_proteccion_carpeta_programa()
     test_duplicados_pequeños()
+    test_lanzadores_multiplataforma()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 

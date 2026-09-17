@@ -34,14 +34,16 @@ class NotificadorEscritorio:
     
     def _detectar_mejor_metodo(self) -> str:
         """Detecta el mejor método de notificación disponible."""
-        if PLYER_AVAILABLE:
-            return 'plyer'
-        elif self.sistema == 'windows':
+        # Priorizar el método nativo de cada SO: en macOS plyer no tiene
+        # implementación usable, y en Windows el método nativo es más fiable
+        if self.sistema == 'windows':
             return 'windows_native'
         elif self.sistema == 'darwin':  # macOS
             return 'macos_native'
         elif self.sistema == 'linux':
             return 'linux_native'
+        elif PLYER_AVAILABLE:
+            return 'plyer'
         else:
             return 'none'
     
@@ -88,11 +90,17 @@ class NotificadorEscritorio:
             if self.metodo_preferido == 'plyer':
                 return self._notificar_plyer(titulo, mensaje, timeout)
             elif self.metodo_preferido == 'windows_native':
-                return self._notificar_windows(titulo, mensaje, tipo)
+                if self._notificar_windows(titulo, mensaje, tipo):
+                    return True
+                return self._notificar_plyer(titulo, mensaje, timeout) if PLYER_AVAILABLE else False
             elif self.metodo_preferido == 'macos_native':
-                return self._notificar_macos(titulo, mensaje)
+                if self._notificar_macos(titulo, mensaje):
+                    return True
+                return self._notificar_plyer(titulo, mensaje, timeout) if PLYER_AVAILABLE else False
             elif self.metodo_preferido == 'linux_native':
-                return self._notificar_linux(titulo, mensaje, tipo, timeout)
+                if self._notificar_linux(titulo, mensaje, tipo, timeout):
+                    return True
+                return self._notificar_plyer(titulo, mensaje, timeout) if PLYER_AVAILABLE else False
             else:
                 logger.debug("No hay método de notificación disponible")
                 return False

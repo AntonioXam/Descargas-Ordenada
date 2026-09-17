@@ -7,7 +7,10 @@ import subprocess
 import logging
 from pathlib import Path
 from typing import Optional, Tuple
-import winreg
+
+# winreg solo existe en Windows; importarlo en macOS/Linux rompía la app al arrancar
+if sys.platform == "win32":
+    import winreg
 
 logger = logging.getLogger('organizador.autostart')
 
@@ -126,6 +129,21 @@ class GestorAutoarranque:
                 # Crear directorio si no existe
                 ruta_plist.parent.mkdir(parents=True, exist_ok=True)
                 
+                # Comando de arranque: usar el mismo intérprete de Python y
+                # los argumentos reales que soporta INICIAR.py
+                if getattr(sys, 'frozen', False):
+                    comando_args = [self.ruta_ejecutable, '--autostart', '--minimizado']
+                else:
+                    iniciar_py = Path(__file__).resolve().parent / 'INICIAR.py'
+                    comando_args = [sys.executable, str(iniciar_py), '--autostart', '--minimizado']
+
+                # Escapar rutas para XML (espacios, &, <, >)
+                import xml.sax.saxutils as saxutils
+                comando_xml = [saxutils.escape(arg) for arg in comando_args]
+                args_xml = "\n".join(
+                    f"        <string>{arg}</string>" for arg in comando_xml
+                )
+
                 # Contenido del archivo plist
                 contenido_plist = f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -135,8 +153,7 @@ class GestorAutoarranque:
     <string>com.{self.nombre_app}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{self.ruta_ejecutable}</string>
-        <string>--auto-organizar</string>
+{args_xml}
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -149,13 +166,43 @@ class GestorAutoarranque:
                 with open(ruta_plist, 'w', encoding='utf-8') as f:
                     f.write(contenido_plist)
                 
-                # Cargar servicio
-                subprocess.check_call(['launchctl', 'load', '-w', str(ruta_plist)])
-                return True, "Autoarranque con organización automática configurado correctamente en macOS."
+                # Cargar servicio: preferir la sintaxis moderna (bootstrap)
+                # y hacer fallback a la clásica (load -w) en macOS antiguos
+                uid = str(os.getuid())
+                cargado = False
+                try:
+                    subprocess.check_call(
+                        ['launchctl', 'bootstrap', f'gui/{uid}', str(ruta_plist)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    cargado = True
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    try:
+                        subprocess.check_call(
+                            ['launchctl', 'load', '-w', str(ruta_plist)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        cargado = True
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        pass
+
+                if cargado:
+                    return True, "Autoarranque configurado correctamente en macOS (LaunchAgent)."
+                return False, "No se pudo cargar el LaunchAgent de macOS (launchctl)."
             else:
                 # Descargar servicio si existe
                 if ruta_plist.exists():
-                    subprocess.check_call(['launchctl', 'unload', '-w', str(ruta_plist)])
+                    uid = str(os.getuid())
+                    try:
+                        subprocess.run(
+                            ['launchctl', 'bootout', f'gui/{uid}', str(ruta_plist)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        subprocess.run(
+                            ['launchctl', 'unload', '-w', str(ruta_plist)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
                     ruta_plist.unlink()
                 return True, "Autoarranque desactivado correctamente en macOS."
         except Exception as e:

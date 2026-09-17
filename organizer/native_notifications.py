@@ -3,6 +3,8 @@
 """Sistema de notificaciones nativas para DescargasOrdenadas v3.1"""
 
 import logging
+import sys
+import subprocess
 from pathlib import Path
 
 logger = logging.getLogger('organizador.native_notifications')
@@ -34,7 +36,11 @@ class NotificadorNativo:
     
     def mostrar(self, titulo, mensaje, tipo="info", duracion=5):
         """Muestra una notificación nativa."""
-        if not self.habilitado or not PLYER_AVAILABLE:
+        if not self.habilitado:
+            return
+
+        if not PLYER_AVAILABLE:
+            self._notificar_sistema(titulo, mensaje)
             return
         
         try:
@@ -47,6 +53,29 @@ class NotificadorNativo:
             )
         except Exception as e:
             logger.debug(f"Error mostrando notificación: {e}")
+            # plyer falló (p.ej. en macOS no tiene implementación): usar el método nativo
+            self._notificar_sistema(titulo, mensaje)
+
+    def _notificar_sistema(self, titulo, mensaje):
+        """Fallback nativo cuando plyer no está disponible o falla."""
+        try:
+            if sys.platform == "darwin":
+                # Escapar comillas para el AppleScript
+                titulo = titulo.replace('"', '\\"')
+                mensaje = mensaje.replace('"', '\\"')
+                script = (
+                    f'display notification "{mensaje}" '
+                    f'with title "DescargasOrdenadas" subtitle "{titulo}"'
+                )
+                subprocess.run(['osascript', '-e', script],
+                               check=True, capture_output=True)
+            elif sys.platform.startswith("linux"):
+                subprocess.run(
+                    ['notify-send', '🍄 DescargasOrdenadas', titulo, mensaje],
+                    check=True, capture_output=True
+                )
+        except Exception as e:
+            logger.debug(f"Fallback de notificación no disponible: {e}")
     
     def notificar_organizacion(self, cantidad_archivos, categorias):
         """Notificación de organización de archivos."""

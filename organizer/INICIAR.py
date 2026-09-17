@@ -173,7 +173,7 @@ def main():
         try:
             version = Path(__file__).parent.parent.joinpath("VERSION.txt").read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.3.0"
+            version = "3.4.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

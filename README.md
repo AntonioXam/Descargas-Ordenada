@@ -2,13 +2,15 @@
 
 **Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
 
-![Versión](https://img.shields.io/badge/versión-3.3.0-blue)
+![Versión](https://img.shields.io/badge/versión-3.4.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
 ---
 
 ## 🚀 Inicio Rápido (3 pasos)
+
+### 💻 Windows
 
 ### 1️⃣ Instalar dependencias (solo la primera vez)
 ```bash
@@ -23,6 +25,23 @@ INICIAR.bat
 
 ### 3️⃣ ¡Listo! 🎉
 La aplicación se abre sin consola y aparece en la bandeja del sistema.
+
+### 🍎 macOS / 🐧 Linux
+
+### 1️⃣ Instalar dependencias (solo la primera vez)
+```bash
+./INSTALAR_DEPENDENCIAS.sh
+```
+Se creará un entorno virtual (`.venv`) con todas las dependencias, evitando conflictos con el Python del sistema.
+
+### 2️⃣ Iniciar la aplicación
+```bash
+./INICIAR.sh
+```
+En macOS también puedes hacer **doble clic en `INICIAR.command`** desde Finder.
+
+### 3️⃣ ¡Listo! 🎉
+La aplicación se abre con su interfaz gráfica y puede minimizarse a la barra de menús.
 
 ---
 
@@ -54,6 +73,12 @@ Si necesitas instalar en un PC sin internet:
 - 📌 **Versión Centralizada** - `VERSION.txt` es la única fuente de verdad
 - 🧮 **Comparación de Versiones** - Compatible con formatos 3.3 y 3.3.0
 - 🎨 **Footer Dinámico** - La GUI muestra siempre la versión real
+
+### 🆕 Novedades v3.4
+- 🍎 **Soporte macOS** - Corregido el bloqueo de arranque (import de `winreg`) y autoarranque con LaunchAgent
+- 🐧 **Soporte Linux** - Lanzadores de terminal y autoarranque con systemd
+- ⚙️ **Entorno Virtual** - El instalador crea `.venv` automáticamente en Mac/Linux
+- 🔄 **Reinicio Multiplataforma** - Las actualizaciones ya no fallan al reiniciar en Mac/Linux
 
 ### 🆕 Novedades v3.2
 - ⏱️ **Intervalos Personalizables** - Elige cada cuánto revisar (30 seg a 1 día)
@@ -218,6 +243,6 @@ MIT License - Creado por Champi 🍄
 
 **Mantén tu carpeta de descargas siempre organizada automáticamente** 🍄✨
 
-**Versión:** 3.3.0  
+**Versión:** 3.4.0  
 **Fecha:** Septiembre 2026  
 **Estado:** ✅ Funcional y estable

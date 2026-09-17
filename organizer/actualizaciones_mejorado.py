@@ -304,30 +304,51 @@ class GestorActualizacionesMejorado:
     def reiniciar_aplicacion(self):
         """Reinicia la aplicación después de actualizar."""
         try:
-            if getattr(sys, 'frozen', False):
-                # Si es ejecutable
-                exe_path = sys.executable
-                subprocess.Popen([exe_path], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
-            else:
-                # Si es script Python, buscar INICIAR.bat
-                base_dir = Path(__file__).parent.parent
-                iniciar_bat = base_dir / "INICIAR.bat"
-                
-                if iniciar_bat.exists():
-                    # Crear un script temporal que espere y reinicie
-                    temp_script = base_dir / ".temp_restart.bat"
-                    with open(temp_script, 'w') as f:
-                        f.write('@echo off\n')
-                        f.write('timeout /t 2 /nobreak >nul\n')
-                        f.write(f'cd /d "{base_dir}"\n')
-                        f.write('start "" "INICIAR.bat"\n')
-                        f.write('del "%~f0"\n')
-                    
-                    # Ejecutar script temporal
-                    subprocess.Popen([str(temp_script)], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            if sys.platform == "win32":
+                # Las constantes DETACHED_PROCESS/CREATE_* solo existen en Windows
+                if getattr(sys, 'frozen', False):
+                    exe_path = sys.executable
+                    subprocess.Popen([exe_path], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
                 else:
-                    logger.error("No se encontró INICIAR.bat")
-                    return False
+                    base_dir = Path(__file__).parent.parent
+                    iniciar_bat = base_dir / "INICIAR.bat"
+
+                    if iniciar_bat.exists():
+                        temp_script = base_dir / ".temp_restart.bat"
+                        with open(temp_script, 'w') as f:
+                            f.write('@echo off\n')
+                            f.write('timeout /t 2 /nobreak >nul\n')
+                            f.write(f'cd /d "{base_dir}"\n')
+                            f.write('start "" "INICIAR.bat"\n')
+                            f.write('del "%~f0"\n')
+
+                        subprocess.Popen([str(temp_script)], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    else:
+                        # Fallback multiplataforma: relanzar con el mismo Python
+                        iniciar_py = Path(__file__).parent / "INICIAR.py"
+                        subprocess.Popen(
+                            [sys.executable, str(iniciar_py), "--minimizado"],
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+            else:
+                # macOS/Linux: start_new_session desvincula el proceso hijo
+                # de la sesión actual para que sobreviva al cierre de la app
+                if getattr(sys, 'frozen', False):
+                    comando = [sys.executable, "--minimizado"]
+                else:
+                    iniciar_py = Path(__file__).parent / "INICIAR.py"
+                    comando = [sys.executable, str(iniciar_py), "--minimizado"]
+
+                subprocess.Popen(
+                    comando,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
             
             # Salir de la aplicación actual
             sys.exit(0)
