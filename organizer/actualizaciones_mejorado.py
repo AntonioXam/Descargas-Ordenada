@@ -17,6 +17,7 @@ from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
 from .version import obtener_version
+from .app_paths import obtener_directorio_configuracion
 
 logger = logging.getLogger('organizador.actualizaciones')
 
@@ -44,13 +45,8 @@ class GestorActualizacionesMejorado:
     
     def _obtener_ruta_config(self) -> Path:
         """Obtiene la ruta del archivo de configuración."""
-        if getattr(sys, 'frozen', False):
-            base_dir = Path(sys.executable).parent
-        else:
-            base_dir = Path(__file__).parent.parent
-        
-        config_dir = base_dir / ".config"
-        config_dir.mkdir(exist_ok=True)
+        config_dir = obtener_directorio_configuracion()
+        config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / "actualizaciones.json"
     
     def _cargar_config(self):

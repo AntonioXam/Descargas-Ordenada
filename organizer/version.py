@@ -8,16 +8,15 @@ VERSION.txt es la única fuente de verdad de la versión. Todos los módulos
 desincronizaciones entre archivos.
 """
 
-from pathlib import Path
+from .app_paths import obtener_archivo_version
 
-VERSION_FALLBACK = "3.5.0"
+VERSION_FALLBACK = "3.6.0"
 
 
 def obtener_version() -> str:
     """Obtiene la versión actual desde VERSION.txt con fallback seguro."""
     try:
-        version_path = Path(__file__).parent.parent / "VERSION.txt"
-        version = version_path.read_text(encoding="utf-8").strip()
+        version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         return version or VERSION_FALLBACK
     except Exception:
         return VERSION_FALLBACK

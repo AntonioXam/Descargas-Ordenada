@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=DescargasOrdenadas
+GenericName=Organizador de descargas
+Comment=Organiza automáticamente tu carpeta de descargas.
+Exec=/opt/DescargasOrdenadas/DescargasOrdenadas
+Icon=/opt/DescargasOrdenadas/resources/icon.png
+Terminal=false
+Categories=Utility;FileTools;
+StartupWMClass=DescargasOrdenadas

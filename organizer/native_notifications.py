@@ -5,7 +5,8 @@
 import logging
 import sys
 import subprocess
-from pathlib import Path
+
+from .app_paths import obtener_recurso
 
 logger = logging.getLogger('organizador.native_notifications')
 
@@ -24,10 +25,9 @@ class NotificadorNativo:
         self.habilitado = True
         
         if not self.icono_path:
-            script_dir = Path(__file__).parent.parent
             iconos = [
-                script_dir / "resources" / "favicon.ico",
-                script_dir / "resources" / "icon.png",
+                obtener_recurso("favicon.ico"),
+                obtener_recurso("icon.png"),
             ]
             for icono in iconos:
                 if icono.exists():

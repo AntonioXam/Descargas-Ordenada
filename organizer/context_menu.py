@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Tuple
 
+from .app_paths import obtener_recurso
+
 logger = logging.getLogger('organizador.context_menu')
 
 if sys.platform == "win32":
@@ -50,7 +52,7 @@ class GestorMenuContextual:
     def _registrar_carpetas(self):
         """Registra el menú contextual para carpetas."""
         key_path = r"Directory\shell\DescargasOrdenadas"
-        icono = Path(__file__).resolve().parent.parent / "resources" / "favicon.ico"
+        icono = obtener_recurso("favicon.ico")
         icono_ruta = str(icono) if icono.exists() else self.ruta_ejecutable
         
         key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)
@@ -67,7 +69,7 @@ class GestorMenuContextual:
     def _registrar_archivos(self):
         """Registra el menú contextual para archivos."""
         key_path = r"*\shell\DescargasOrdenadas"
-        icono = Path(__file__).resolve().parent.parent / "resources" / "favicon.ico"
+        icono = obtener_recurso("favicon.ico")
         icono_ruta = str(icono) if icono.exists() else self.ruta_ejecutable
         
         key = winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)

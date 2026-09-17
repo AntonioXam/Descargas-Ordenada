@@ -1,0 +1,10 @@
+Package: descargasordenadas
+Version: __VERSION__
+Section: utils
+Priority: optional
+Architecture: __ARCH__
+Maintainer: AntonioXam
+Depends: libc6, libx11-6, libxkbcommon0, libgl1, libegl1, libfontconfig1, libfreetype6, libdbus-1-3, libglib2.0-0
+Description: Organizador automático de descargas
+ DescargasOrdenadas organiza automáticamente los archivos de tu carpeta de descargas
+ y funciona en Windows, macOS y Linux.

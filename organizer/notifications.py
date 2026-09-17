@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+from .app_paths import obtener_recurso
+
 try:
     from plyer import notification as plyer_notification
     PLYER_AVAILABLE = True
@@ -52,10 +54,9 @@ class NotificadorEscritorio:
         try:
             # Buscar icono de la aplicación
             posibles_iconos = [
-                Path(__file__).parent.parent / "resources" / "icon.ico",
-                Path(__file__).parent.parent / "resources" / "icon.png",
-                Path(__file__).parent / "resources" / "icon.ico",
-                Path(__file__).parent / "resources" / "icon.png",
+                obtener_recurso("icon.ico"),
+                obtener_recurso("icon.png"),
+                obtener_recurso("favicon.ico"),
                 "/usr/share/pixmaps/descargasordenadas.png",
                 "resources/icon.ico",
                 "resources/icon.png"

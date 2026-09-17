@@ -12,6 +12,8 @@ import sys
 import os
 from pathlib import Path
 
+from organizer.app_paths import obtener_archivo_version
+
 # Asegurar que el directorio padre está en el path para importar organizer
 SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -39,6 +41,9 @@ def instalar_dependencia(package_name):
 
 def verificar_dependencias():
     """Verifica e instala dependencias automáticamente."""
+    if getattr(sys, "frozen", False):
+        return True
+
     required_packages = [
         ("pillow", "PIL"),
         ("PySide6", "PySide6"),
@@ -75,6 +80,8 @@ def verificar_dependencias():
 
 def verificar_y_crear_acceso_directo():
     """Verifica si existe un acceso directo y lo crea si no existe."""
+    if getattr(sys, "frozen", False):
+        return
     if sys.platform != "win32":
         return  # Solo en Windows
     
@@ -171,9 +178,9 @@ def main():
     # Solo mostrar prints si NO es modo silencioso
     if not (args.sin_consola or args.autostart or args.minimizado):
         try:
-            version = Path(__file__).parent.parent.joinpath("VERSION.txt").read_text(encoding="utf-8").strip()
+            version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.5.0"
+            version = "3.6.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

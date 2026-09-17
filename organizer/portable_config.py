@@ -4,9 +4,10 @@
 
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Dict
+
+from .app_paths import obtener_directorio_configuracion
 
 logger = logging.getLogger('organizador.portable_config')
 
@@ -21,13 +22,8 @@ class ConfigPortable:
     
     def _obtener_ruta_config(self) -> Path:
         """Obtiene la ruta del archivo de configuración."""
-        if getattr(sys, 'frozen', False):
-            base_dir = Path(sys.executable).parent
-        else:
-            base_dir = Path(__file__).parent.parent
-        
-        config_dir = base_dir / ".config"
-        config_dir.mkdir(exist_ok=True)
+        config_dir = obtener_directorio_configuracion()
+        config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / f"{self.nombre_app.lower()}_config.json"
     
     def _cargar_config(self):

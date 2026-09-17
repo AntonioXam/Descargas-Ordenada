@@ -1,0 +1,145 @@
+name: Generar instaladores
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Generar instalador Windows
+    runs-on: windows-latest
+    env:
+      APP_VERSION: ${{ github.ref_name }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Construir app con PyInstaller
+        run: pyinstaller packaging/DescargasOrdenadas.spec --noconfirm --clean
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y
+
+      - name: Construir instalador EXE
+        run: iscc packaging\windows\DescargasOrdenadas.iss
+
+      - name: Subir instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: dist/instalador/*.exe
+
+  macos:
+    name: Generar instalador macOS
+    runs-on: macos-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Construir app con PyInstaller
+        run: pyinstaller packaging/DescargasOrdenadas.spec --noconfirm --clean
+
+      - name: Generar instalador PKG
+        run: |
+          VERSION=$(cat VERSION.txt)
+          codesign --force --deep --sign - dist/DescargasOrdenadas.app
+          productbuild \
+            --component dist/DescargasOrdenadas.app /Applications \
+            --identifier com.antonioxam.DescargasOrdenadas \
+            --version "$VERSION" \
+            "dist/DescargasOrdenadas-v$VERSION.pkg"
+
+      - name: Subir instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-macos
+          path: dist/*.pkg
+
+  linux:
+    name: Generar instalador Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Construir app con PyInstaller
+        run: pyinstaller packaging/DescargasOrdenadas.spec --noconfirm --clean
+
+      - name: Generar paquete DEB
+        run: |
+          VERSION=$(cat VERSION.txt)
+          PACKAGE_ROOT=dist/deb/DescargasOrdenadas
+          mkdir -p "$PACKAGE_ROOT/DEBIAN" \
+                   "$PACKAGE_ROOT/opt/DescargasOrdenadas" \
+                   "$PACKAGE_ROOT/usr/share/applications" \
+                   "$PACKAGE_ROOT/usr/share/icons/hicolor/256x256/apps"
+          cp -a dist/DescargasOrdenadas/. "$PACKAGE_ROOT/opt/DescargasOrdenadas/"
+          cp packaging/linux/DescargasOrdenadas.desktop "$PACKAGE_ROOT/usr/share/applications/"
+          cp resources/icon.png "$PACKAGE_ROOT/usr/share/icons/hicolor/256x256/apps/descargasordenadas.png"
+          ARCH=$(dpkg --print-architecture)
+          sed -e "s/__VERSION__/$VERSION/g" -e "s/__ARCH__/$ARCH/g" \
+            packaging/linux/control.in > "$PACKAGE_ROOT/DEBIAN/control"
+          dpkg-deb --build --root-owner-group "$PACKAGE_ROOT" \
+            "dist/DescargasOrdenadas-v$VERSION-$ARCH.deb"
+
+      - name: Subir instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-linux
+          path: dist/*.deb
+
+  release:
+    name: Adjuntar instaladores al release
+    needs: [windows, macos, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar instaladores
+        uses: actions/download-artifact@v4
+        with:
+          path: instaladores
+          merge-multiple: true
+
+      - name: Subir al release de GitHub
+        run: |
+          gh release upload "$GITHUB_REF_NAME" instaladores/* --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,6 +4,25 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.6.0] - 2026-09-17
+
+### 📦 Instaladores por Sistema
+- Windows: instalador `.exe` con Inno Setup
+- macOS: instalador `.pkg` nativo con `productbuild`
+- Linux: paquete `.deb` listo para instalar
+
+### 🔐 Permisos y Dependencias
+- Los instaladores piden permisos de administrador
+- Todas las dependencias van incluidas dentro de la app
+- No hace falta ejecutar `.bat` ni `.sh`
+
+### 🛠️ Empaquetado
+- Nuevo spec de PyInstaller multiplataforma
+- Recursos, iconos y `VERSION.txt` se incluyen en el paquete
+- Configuración compatible con app instalada en cada sistema
+
+---
+
 ## [3.5.0] - 2026-09-17
 
 ### 🖥️ Interfaz Responsive

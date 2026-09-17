@@ -1,14 +1,22 @@
-# 🍄 DescargasOrdenadas v3.5
+# 🍄 DescargasOrdenadas v3.6
 
 **Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
 
-![Versión](https://img.shields.io/badge/versión-3.5.0-blue)
+![Versión](https://img.shields.io/badge/versión-3.6.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
 ---
 
 ## 🚀 Inicio Rápido (3 pasos)
+
+### 📦 Descargar instalador
+
+1. Abre la página de [Releases](https://github.com/AntonioXam/Descargas-Ordenada/releases).
+2. Descarga el instalador de tu sistema.
+3. Ejecútalo y sigue el asistente.
+
+El instalador ya incluye todas las dependencias, así que no tienes que instalar Python ni nada más.
 
 ### 💻 Windows
 
@@ -91,6 +99,12 @@ Si necesitas instalar en un PC sin internet:
 - Si un campo no cabe, aparece una barra de desplazamiento
 - La app recuerda el tamaño de la ventana y si la dejaste maximizada
 - Ya no necesitas ampliar la ventana a tamaños fijos
+
+### 🆕 Novedades v3.6
+- 📦 **Instaladores automáticos** - Windows `.exe`, macOS `.pkg` y Linux `.deb`
+- 🔐 **Permisos del sistema** - Los instaladores piden permisos de administrador
+- 🧩 **Todo incluido** - Las dependencias se empaquetan dentro del instalador
+- 🚀 **Sin scripts** - Ya no hace falta abrir `.bat` ni `.sh`
 
 ### 🆕 Novedades v3.2
 - ⏱️ **Intervalos Personalizables** - Elige cada cuánto revisar (30 seg a 1 día)
