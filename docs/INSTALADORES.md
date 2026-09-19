@@ -23,6 +23,7 @@ El instalador `.exe` abre un asistente de instalación:
 - Crea el menú de inicio.
 - Crea un icono en el escritorio.
 - Instala la app en `Archivos de programa`.
+- Las dependencias ya van incluidas dentro del instalador.
 
 ## 🍎 macOS
 
@@ -30,7 +31,7 @@ El instalador `.pkg` abre el instalador nativo de macOS:
 
 - Pide contraseña de administrador.
 - Instala la app en `/Applications`.
-- No necesita dependencias externas.
+- Las dependencias ya van incluidas dentro del paquete.
 
 Como el paquete no está firmado con un certificado de Apple, la primera vez puede que macOS muestre un aviso de seguridad.
 
@@ -45,9 +46,10 @@ Para abrirlo la primera vez:
 El paquete `.deb` se puede instalar con:
 
 ```bash
-sudo dpkg -i DescargasOrdenadas-v3.5.0-amd64.deb
+sudo apt install ./DescargasOrdenadas-v4.0.0-amd64.deb
 ```
 
+Con `apt install` se resuelven e instalan las dependencias del sistema automáticamente desde internet.
 La app se instala en `/opt/DescargasOrdenadas` y crea una entrada en el menú de aplicaciones.
 
 ## 🧑‍💻 Construcción local
@@ -66,3 +68,25 @@ productbuild --component dist/DescargasOrdenadas.app /Applications \
 ```
 
 El resto de sistemas usan el mismo spec de PyInstaller y luego empaquetan el resultado con Inno Setup o `dpkg-deb`.
+
+## 🔧 Reparación online
+
+Si en un PC concreto falta alguna dependencia de Python, puedes repararla desde la app:
+
+```bash
+python organizer/INICIAR.py --reparar-dependencias
+```
+
+El comando comprueba las dependencias y descarga automáticamente lo que falte desde PyPI.
+
+## 🧰 Dependencias online
+
+Los instaladores ya incluyen las dependencias principales para funcionar en cualquier PC.
+
+Si en un PC concreto falta alguna dependencia de Python, puedes repararla con:
+
+```bash
+python organizer/INICIAR.py --reparar-dependencias
+```
+
+El comando comprueba las dependencias y descarga automáticamente lo que falte desde PyPI.

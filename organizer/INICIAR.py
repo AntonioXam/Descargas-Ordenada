@@ -41,6 +41,48 @@ def instalar_dependencia(package_name):
         print(f"❌ Error al instalar {package_name}")
         return False
 
+def obtener_dependencias_faltantes() -> list[tuple[str, str]]:
+    """Devuelve la lista de dependencias Python que faltan en el sistema."""
+    dependencias = [
+        ("Pillow", "PIL"),
+        ("PySide6", "PySide6"),
+        ("watchdog", "watchdog"),
+        ("requests", "requests"),
+        ("plyer", "plyer"),
+    ]
+    if sys.platform == "win32":
+        dependencias.append(("pywin32", "win32com.client"))
+
+    faltantes = []
+    for package_name, import_name in dependencias:
+        try:
+            importlib.import_module(import_name)
+        except ImportError:
+            faltantes.append((package_name, import_name))
+    return faltantes
+
+def reparar_dependencias() -> bool:
+    """Repara las dependencias Python faltantes descargándolas desde PyPI."""
+    faltantes = obtener_dependencias_faltantes()
+    if not faltantes:
+        print("✅ Todas las dependencias están instaladas")
+        return True
+
+    print("🩹 Reparando dependencias online...")
+    fallos = []
+    for package_name, _ in faltantes:
+        if not instalar_dependencia(package_name):
+            fallos.append(package_name)
+
+    faltantes_despues = obtener_dependencias_faltantes()
+    if faltantes_despues:
+        nombres = ", ".join(package for package, _ in faltantes_despues)
+        print(f"❌ No se pudieron reparar: {nombres}")
+        return False
+
+    print("✅ Dependencias reparadas correctamente")
+    return True
+
 def verificar_dependencias():
     """Verifica e instala dependencias automáticamente."""
     if getattr(sys, "frozen", False):
@@ -159,6 +201,7 @@ def main():
     parser = argparse.ArgumentParser(description="Organiza automáticamente los archivos de descargas")
     parser.add_argument("--version", action="version", version=f"DescargasOrdenadas {obtener_version()}")
     parser.add_argument("--info", action="store_true", help="Mostrar información del sistema y de la instalación")
+    parser.add_argument("--reparar-dependencias", action="store_true", help="Descargar e instalar dependencias faltantes")
     parser.add_argument("--gui", action="store_true", help="Abrir interfaz gráfica (por defecto)")
     parser.add_argument("--auto", action="store_true", help="Organizar una vez sin GUI")
     parser.add_argument("--autostart", action="store_true", help="Modo autostart del sistema")
@@ -170,6 +213,9 @@ def main():
     parser.add_argument("--recursivo", action="store_true", help="Organizar también archivos dentro de subcarpetas")
     
     args = parser.parse_args()
+
+    if args.reparar_dependencias:
+        sys.exit(0 if reparar_dependencias() else 1)
 
     if args.info:
         try:
@@ -187,6 +233,12 @@ def main():
         print(f"Modo: {'instalado (PyInstaller)' if getattr(sys, 'frozen', False) else 'desarrollo'}")
         print(f"Recursos: {obtener_base_recursos()}")
         print(f"Configuración: {obtener_directorio_configuracion()}")
+        faltantes = obtener_dependencias_faltantes()
+        if faltantes:
+            print("Dependencias faltantes:")
+            for package_name, _ in faltantes:
+                print(f"  ❌ {package_name}")
+            print("  💡 Usa: python organizer/INICIAR.py --reparar-dependencias")
         if estado:
             print("Módulos avanzados:")
             for nombre, disponible in estado.items():
@@ -209,7 +261,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.0.0"
+            version = "4.1.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

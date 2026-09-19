@@ -27,6 +27,8 @@ a = Analysis(
         "PySide6.QtCore",
         "PySide6.QtGui",
         "PySide6.QtWidgets",
+        "PIL",
+        "PIL.Image",
         "watchdog",
         "plyer",
         "requests",

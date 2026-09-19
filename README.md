@@ -1,8 +1,8 @@
-# 🍄 DescargasOrdenadas v4.0
+# 🍄 DescargasOrdenadas v4.1
 
 **Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
 
-![Versión](https://img.shields.io/badge/versión-4.0.0-blue)
+![Versión](https://img.shields.io/badge/versión-4.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
@@ -154,6 +154,7 @@ Descargas-Ordenada/
 ```bash
 python organizer/INICIAR.py --version
 python organizer/INICIAR.py --info
+python organizer/INICIAR.py --reparar-dependencias
 python organizer/INICIAR.py --auto
 python organizer/INICIAR.py --auto --dry-run
 python organizer/INICIAR.py --auto --modo basico
@@ -161,6 +162,7 @@ python organizer/INICIAR.py --auto --modo detallado --recursivo
 ```
 
 - `--dry-run` muestra qué haría la app sin mover archivos.
+- `--reparar-dependencias` descarga e instala las dependencias que falten.
 - `--modo basico` usa carpetas principales.
 - `--modo detallado` usa subcarpetas por tipo.
 - `--recursivo` busca también dentro de subcarpetas.

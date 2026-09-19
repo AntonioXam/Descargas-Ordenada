@@ -13,11 +13,14 @@ jobs:
   windows:
     name: Generar instalador Windows
     runs-on: windows-latest
-    env:
-      APP_VERSION: ${{ github.ref_name }}
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
+
+      - name: Leer versión
+        run: |
+          echo "APP_VERSION=$(cat VERSION.txt)" >> $GITHUB_ENV
+        shell: bash
 
       - name: Preparar Python
         uses: actions/setup-python@v5
@@ -140,6 +143,14 @@ jobs:
 
       - name: Subir al release de GitHub
         run: |
-          gh release upload "$GITHUB_REF_NAME" instaladores/* --clobber
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "DescargasOrdenadas $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" instaladores/* \
+            --repo "$GITHUB_REPOSITORY" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

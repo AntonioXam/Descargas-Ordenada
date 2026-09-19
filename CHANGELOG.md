@@ -4,6 +4,15 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.1.0] - 2026-09-19
+
+### 🧰 Dependencias online
+- Nuevo `--reparar-dependencias` para descargar e instalar dependencias faltantes
+- `--info` ahora muestra las dependencias que faltan
+- Instaladores adjuntados automáticamente al release
+
+---
+
 ## [4.0.0] - 2026-09-19
 
 ### 🎉 Versión estable multiplataforma
