@@ -4,6 +4,14 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.9.0] - 2026-09-19
+
+### 🧭 Organización configurable desde terminal
+- Nuevo `--modo basico` y `--modo detallado`
+- Nuevo `--recursivo` para procesar también las subcarpetas
+
+---
+
 ## [3.8.0] - 2026-09-19
 
 ### 🧪 Modo simulación

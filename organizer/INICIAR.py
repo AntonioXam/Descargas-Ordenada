@@ -166,6 +166,8 @@ def main():
     parser.add_argument("--sin-consola", action="store_true", help="Ocultar ventana de consola")
     parser.add_argument("--dir", type=str, help="Directorio a organizar")
     parser.add_argument("--dry-run", action="store_true", help="Mostrar qué se organizaría sin mover archivos")
+    parser.add_argument("--modo", choices=["basico", "detallado"], default="detallado", help="Modo de organización")
+    parser.add_argument("--recursivo", action="store_true", help="Organizar también archivos dentro de subcarpetas")
     
     args = parser.parse_args()
 
@@ -207,7 +209,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.8.0"
+            version = "3.9.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     
@@ -256,8 +258,12 @@ def main():
     if args.auto:
         # Solo organizar una vez
         logger.info("📂 Organizando archivos...")
-        organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=True)
-        resultados, errores = organizador.organizar(simular=args.dry_run)
+        usar_subcarpetas = args.modo == "detallado"
+        organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=usar_subcarpetas)
+        resultados, errores = organizador.organizar(
+            organizar_subcarpetas=args.recursivo,
+            simular=args.dry_run
+        )
         modo = "simulación" if args.dry_run else "organización"
         total = sum(len(files) for cat in resultados.values() for files in cat.values())
         logger.info(f"✅ {total} archivos organizados")
@@ -265,8 +271,9 @@ def main():
     elif args.autostart:
         # Modo autostart: organizar + GUI minimizada con auto-organización
         logger.info("🚀 Modo autostart iniciado...")
-        organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=True)
-        resultados, errores = organizador.organizar()
+        usar_subcarpetas = args.modo == "detallado"
+        organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=usar_subcarpetas)
+        resultados, errores = organizador.organizar(organizar_subcarpetas=args.recursivo)
         total = sum(len(files) for cat in resultados.values() for files in cat.values())
         logger.info(f"✅ {total} archivos organizados inicialmente")
         

@@ -10,7 +10,7 @@ desincronizaciones entre archivos.
 
 from .app_paths import obtener_archivo_version
 
-VERSION_FALLBACK = "3.8.0"
+VERSION_FALLBACK = "3.9.0"
 
 
 def obtener_version() -> str:

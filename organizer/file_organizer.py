@@ -848,7 +848,10 @@ oaming\\microsoft" in ruta_str:
                     if callback:
                         callback(nombre_relativo, categoria, subcategoria)
                     
-                    logger.info(f"Archivo movido: {nombre_relativo} -> {ruta_relativa}")
+                    logger.info(
+                        f"{'Archivo simulado' if simular else 'Archivo movido'}: "
+                        f"{nombre_relativo} -> {ruta_relativa}"
+                    )
                 except Exception as e:
                     error_msg = f"Error al mover archivo {nombre_relativo}: {e}"
                     logger.error(error_msg)
