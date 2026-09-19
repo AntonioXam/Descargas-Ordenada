@@ -676,7 +676,7 @@ oaming\\microsoft" in ruta_str:
         except Exception as e:
             logger.error(f"Error al limpiar carpetas vacías: {e}")
 
-    def organizar(self, callback=None, organizar_subcarpetas: bool = False) -> Tuple[Dict[str, Dict[str, List[str]]], List[str]]:
+    def organizar(self, callback=None, organizar_subcarpetas: bool = False, simular: bool = False) -> Tuple[Dict[str, Dict[str, List[str]]], List[str]]:
         """
         Organiza los archivos de la carpeta de descargas.
         
@@ -684,6 +684,7 @@ oaming\\microsoft" in ruta_str:
             callback: Función opcional a llamar por cada archivo procesado.
                      Recibe (nombre_archivo, carpeta_destino, subcarpeta_destino) como parámetros.
             organizar_subcarpetas: Si es True, organiza también archivos dentro de subcarpetas.
+            simular: Si es True, no mueve archivos ni crea carpetas; solo muestra el plan.
         
         Returns:
             Tupla con un diccionario de archivos movidos por categoría/subcategoría y una lista de errores.
@@ -731,7 +732,8 @@ oaming\\microsoft" in ruta_str:
                 
                 # Mover directorio a la carpeta de carpetas
                 try:
-                    carpeta_carpetas.mkdir(exist_ok=True)
+                    if not simular:
+                        carpeta_carpetas.mkdir(exist_ok=True)
                     destino = carpeta_carpetas / item.name
                     
                     # Evitar sobreescribir carpetas existentes
@@ -744,7 +746,8 @@ oaming\\microsoft" in ruta_str:
                                 break
                             indice += 1
                     
-                    shutil.move(str(item), str(destino))
+                    if not simular:
+                        shutil.move(str(item), str(destino))
                     
                     # Registrar movimiento
                     if "Carpetas" not in archivos_movidos:
@@ -794,7 +797,8 @@ oaming\\microsoft" in ruta_str:
                 try:
                     # Crear la carpeta de destino si no existe
                     carpeta_destino = self._obtener_carpeta_destino(item, categoria, subcategoria)
-                    carpeta_destino.mkdir(parents=True, exist_ok=True)
+                    if not simular:
+                        carpeta_destino.mkdir(parents=True, exist_ok=True)
                     
                     # Ruta de destino
                     destino = carpeta_destino / item.name
@@ -812,7 +816,8 @@ oaming\\microsoft" in ruta_str:
                             indice += 1
                     
                     # Mover el archivo
-                    shutil.move(str(item), str(destino))
+                    if not simular:
+                        shutil.move(str(item), str(destino))
                     
                     # Registrar movimiento para el organizador de fechas si está activo
                     if self.organizador_fechas and self.organizador_fechas.activo:
@@ -868,7 +873,8 @@ oaming\\microsoft" in ruta_str:
                     
                     # Crear la carpeta de destino si no existe
                     carpeta_destino = self._obtener_carpeta_destino(archivo, categoria, subcategoria)
-                    carpeta_destino.mkdir(parents=True, exist_ok=True)
+                    if not simular:
+                        carpeta_destino.mkdir(parents=True, exist_ok=True)
                     
                     # Ruta de destino
                     destino = carpeta_destino / archivo.name
@@ -886,7 +892,8 @@ oaming\\microsoft" in ruta_str:
                             indice += 1
                     
                     # Mover el archivo
-                    shutil.move(str(archivo), str(destino))
+                    if not simular:
+                        shutil.move(str(archivo), str(destino))
                     
                     # Registrar movimiento para el organizador de fechas si está activo
                     if self.organizador_fechas and self.organizador_fechas.activo:
@@ -929,7 +936,8 @@ oaming\\microsoft" in ruta_str:
                     errores.append(error_msg)
         
         # Guardar el archivo de huella
-        self._guardar_huella()
+        if not simular:
+            self._guardar_huella()
         
         # Notificar si está disponible
         archivos_movidos_count = sum(sum(len(sub) for sub in cat.values()) for cat in archivos_movidos.values())

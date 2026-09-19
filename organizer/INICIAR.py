@@ -165,6 +165,7 @@ def main():
     parser.add_argument("--minimizado", action="store_true", help="Iniciar minimizado")
     parser.add_argument("--sin-consola", action="store_true", help="Ocultar ventana de consola")
     parser.add_argument("--dir", type=str, help="Directorio a organizar")
+    parser.add_argument("--dry-run", action="store_true", help="Mostrar qué se organizaría sin mover archivos")
     
     args = parser.parse_args()
 
@@ -206,7 +207,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.7.0"
+            version = "3.8.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     
@@ -256,7 +257,8 @@ def main():
         # Solo organizar una vez
         logger.info("📂 Organizando archivos...")
         organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=True)
-        resultados, errores = organizador.organizar()
+        resultados, errores = organizador.organizar(simular=args.dry_run)
+        modo = "simulación" if args.dry_run else "organización"
         total = sum(len(files) for cat in resultados.values() for files in cat.values())
         logger.info(f"✅ {total} archivos organizados")
         

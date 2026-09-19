@@ -4,6 +4,14 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.8.0] - 2026-09-19
+
+### 🧪 Modo simulación
+- Nuevo argumento `--dry-run` para ver qué se organizaría sin mover archivos
+- No crea carpetas ni modifica la huella de archivos procesados
+
+---
+
 ## [3.7.0] - 2026-09-19
 
 ### 🧭 Diagnóstico desde terminal
