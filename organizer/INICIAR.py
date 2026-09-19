@@ -209,7 +209,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.9.0"
+            version = "4.0.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

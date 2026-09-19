@@ -4,6 +4,16 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.0.0] - 2026-09-19
+
+### 🎉 Versión estable multiplataforma
+- CLI con diagnóstico, simulación y modos de organización
+- Instaladores automáticos para Windows, macOS y Linux
+- GUI responsive con scroll y tamaño de ventana persistente
+- Autoarranque unificado en Windows, macOS y Linux
+
+---
+
 ## [3.9.0] - 2026-09-19
 
 ### 🧭 Organización configurable desde terminal

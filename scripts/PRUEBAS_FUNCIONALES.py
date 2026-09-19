@@ -8,6 +8,7 @@ Ejecutar desde la raíz del proyecto: python scripts/PRUEBAS_FUNCIONALES.py
 import sys
 import tempfile
 import os
+import subprocess
 import shutil
 from pathlib import Path
 
@@ -114,6 +115,24 @@ def test_gui_responsive():
     print("✅ GUI adaptable con scroll en todas las pestañas")
 
 
+def test_cli_diagnostico():
+    """Comprueba que la CLI muestra versión e información del sistema."""
+    python = sys.executable
+    version = subprocess.run(
+        [python, str(project_root / "organizer" / "INICIAR.py"), "--version"],
+        check=True, capture_output=True, text=True
+    )
+    assert "4.0.0" in version.stdout.strip(), version.stdout.strip()
+
+    info = subprocess.run(
+        [python, str(project_root / "organizer" / "INICIAR.py"), "--info"],
+        check=True, capture_output=True, text=True
+    )
+    assert "Información del sistema" in info.stdout, info.stdout
+    assert "Sistema:" in info.stdout, info.stdout
+    print("✅ CLI de diagnóstico funciona")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -122,6 +141,7 @@ def main():
     test_lanzadores_multiplataforma()
     test_configuracion_autoarranque()
     test_gui_responsive()
+    test_cli_diagnostico()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 
