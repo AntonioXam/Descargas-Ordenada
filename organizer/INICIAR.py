@@ -12,8 +12,6 @@ import sys
 import os
 from pathlib import Path
 
-from organizer.app_paths import obtener_archivo_version
-
 # Asegurar que el directorio padre está en el path para importar organizer
 SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -23,8 +21,12 @@ if str(PROJECT_ROOT) not in sys.path:
 import argparse
 import logging
 import importlib.util
+import platform
 import subprocess
 import time
+
+from organizer.version import obtener_version
+from organizer.app_paths import obtener_archivo_version, obtener_base_recursos, obtener_directorio_configuracion
 
 def instalar_dependencia(package_name):
     """Instala una dependencia automáticamente."""
@@ -155,6 +157,8 @@ def obtener_carpeta_descargas():
 
 def main():
     parser = argparse.ArgumentParser(description="Organiza automáticamente los archivos de descargas")
+    parser.add_argument("--version", action="version", version=f"DescargasOrdenadas {obtener_version()}")
+    parser.add_argument("--info", action="store_true", help="Mostrar información del sistema y de la instalación")
     parser.add_argument("--gui", action="store_true", help="Abrir interfaz gráfica (por defecto)")
     parser.add_argument("--auto", action="store_true", help="Organizar una vez sin GUI")
     parser.add_argument("--autostart", action="store_true", help="Modo autostart del sistema")
@@ -163,6 +167,28 @@ def main():
     parser.add_argument("--dir", type=str, help="Directorio a organizar")
     
     args = parser.parse_args()
+
+    if args.info:
+        try:
+            from organizer.file_organizer import OrganizadorArchivos
+            organizador = OrganizadorArchivos()
+            estado = organizador.obtener_estado_modulos()
+        except Exception:
+            estado = {}
+
+        print("🍄 DescargasOrdenadas - Información del sistema")
+        print("=" * 55)
+        print(f"Versión: {obtener_version()}")
+        print(f"Sistema: {platform.system()} {platform.release()}")
+        print(f"Python: {platform.python_version()}")
+        print(f"Modo: {'instalado (PyInstaller)' if getattr(sys, 'frozen', False) else 'desarrollo'}")
+        print(f"Recursos: {obtener_base_recursos()}")
+        print(f"Configuración: {obtener_directorio_configuracion()}")
+        if estado:
+            print("Módulos avanzados:")
+            for nombre, disponible in estado.items():
+                print(f"  {'✅' if disponible else '❌'} {nombre}")
+        return
     
     # Ocultar consola ANTES de cualquier print si se solicita
     if args.sin_consola or args.autostart or args.minimizado:
@@ -180,7 +206,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "3.6.0"
+            version = "3.7.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

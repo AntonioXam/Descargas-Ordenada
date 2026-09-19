@@ -4,6 +4,14 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [3.7.0] - 2026-09-19
+
+### 🧭 Diagnóstico desde terminal
+- Nuevo argumento `--version` para ver la versión exacta
+- Nuevo argumento `--info` para ver sistema, Python, rutas y módulos avanzados
+
+---
+
 ## [3.6.0] - 2026-09-17
 
 ### 📦 Instaladores por Sistema
