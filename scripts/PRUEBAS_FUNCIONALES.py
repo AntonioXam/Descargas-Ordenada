@@ -19,6 +19,7 @@ sys.path.insert(0, str(project_root))
 from organizer.file_organizer import OrganizadorArchivos
 from organizer.duplicate_detector import DetectorDuplicados
 from organizer.portable_config import ConfigPortable
+from organizer.version import obtener_version
 import organizer.autostart  # noqa: F401 - regresión: debe importar en cualquier SO
 
 
@@ -122,7 +123,7 @@ def test_cli_diagnostico():
         [python, str(project_root / "organizer" / "INICIAR.py"), "--version"],
         check=True, capture_output=True, text=True
     )
-    assert "4.0.0" in version.stdout.strip(), version.stdout.strip()
+    assert obtener_version() in version.stdout.strip(), version.stdout.strip()
 
     info = subprocess.run(
         [python, str(project_root / "organizer" / "INICIAR.py"), "--info"],

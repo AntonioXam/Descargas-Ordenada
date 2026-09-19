@@ -4,6 +4,14 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.2.0] - 2026-09-19
+
+### 🔁 Reparación en app instalada
+- `--reparar-dependencias` ahora busca Python del sistema en modo instalado
+- Evita intentar usar `pip` dentro del binario empaquetado
+
+---
+
 ## [4.1.0] - 2026-09-19
 
 ### 🧰 Dependencias online

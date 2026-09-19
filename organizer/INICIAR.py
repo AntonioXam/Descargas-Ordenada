@@ -23,17 +23,31 @@ import logging
 import importlib.util
 import platform
 import subprocess
+import shutil
 import time
 
 from organizer.version import obtener_version
 from organizer.app_paths import obtener_archivo_version, obtener_base_recursos, obtener_directorio_configuracion
+
+def obtener_python_ejecutable() -> str:
+    """Obtiene un intérprete Python válido incluso cuando la app está empaquetada."""
+    if not getattr(sys, "frozen", False):
+        return sys.executable
+
+    for candidato in ("python", "python3"):
+        ruta = shutil.which(candidato)
+        if ruta:
+            return ruta
+
+    return sys.executable
+
 
 def instalar_dependencia(package_name):
     """Instala una dependencia automáticamente."""
     try:
         print(f"📦 Instalando {package_name}...")
         subprocess.check_call([
-            sys.executable, "-m", "pip", "install", package_name,
+            obtener_python_ejecutable(), "-m", "pip", "install", package_name,
             "--quiet", "--disable-pip-version-check"
         ])
         return True
@@ -261,7 +275,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.1.0"
+            version = "4.2.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

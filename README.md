@@ -1,8 +1,8 @@
-# 🍄 DescargasOrdenadas v4.1
+# 🍄 DescargasOrdenadas v4.2
 
 **Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
 
-![Versión](https://img.shields.io/badge/versión-4.1.0-blue)
+![Versión](https://img.shields.io/badge/versión-4.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
