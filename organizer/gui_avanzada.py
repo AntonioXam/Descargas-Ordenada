@@ -539,59 +539,73 @@ class OrganizadorAvanzado(QMainWindow):
             self._actualizar_estadisticas()
     
     def _crear_icono_personalizado(self):
-        """Icono de la bandeja: carpeta con flecha de ordenación."""
+        """Icono de la bandeja: carpeta con flecha de ordenación.
+
+        Se dibuja con QPainter cuidando siempre cerrarlo (try/finally): un
+        QPainter sin cerrar al destruirse puede corromper la memoria y
+        provocar un crash al arrancar.
+        """
         try:
             from PySide6.QtCore import QPointF
 
             pixmap = QPixmap(256, 256)
             pixmap.fill(Qt.transparent)
 
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
+            painter = QPainter()
+            try:
+                if not painter.begin(pixmap):
+                    return self._icono_reserva()
+                painter.setRenderHint(QPainter.Antialiasing)
 
-            azul = QColor("#0A84FF")
-            gris = QColor("#8E8E93")
+                azul = QColor("#0A84FF")
+                gris = QColor("#8E8E93")
 
-            # Carpeta (trazo gris, esquinas redondeadas)
-            pluma_carpeta = QPen(gris, 256 * 0.075)
-            pluma_carpeta.setCapStyle(Qt.RoundCap)
-            pluma_carpeta.setJoinStyle(Qt.RoundJoin)
-            painter.setPen(pluma_carpeta)
-            painter.setBrush(Qt.NoBrush)
+                pluma_carpeta = QPen(gris, 256 * 0.075)
+                pluma_carpeta.setCapStyle(Qt.RoundCap)
+                pluma_carpeta.setJoinStyle(Qt.RoundJoin)
+                painter.setPen(pluma_carpeta)
+                painter.setBrush(Qt.NoBrush)
 
-            margen = 256 * 0.16
-            contorno_carpeta = [
-                QPointF(margen, 256 * 0.34),
-                QPointF(256 * 0.40, 256 * 0.34),
-                QPointF(256 * 0.46, 256 * 0.42),
-                QPointF(256 - margen, 256 * 0.42),
-                QPointF(256 - margen, 256 * 0.78),
-                QPointF(margen, 256 * 0.78),
-                QPointF(margen, 256 * 0.34),
-            ]
-            painter.drawPolyline(contorno_carpeta)
+                margen = 256 * 0.16
+                contorno_carpeta = [
+                    QPointF(margen, 256 * 0.34),
+                    QPointF(256 * 0.40, 256 * 0.34),
+                    QPointF(256 * 0.46, 256 * 0.42),
+                    QPointF(256 - margen, 256 * 0.42),
+                    QPointF(256 - margen, 256 * 0.78),
+                    QPointF(margen, 256 * 0.78),
+                    QPointF(margen, 256 * 0.34),
+                ]
+                painter.drawPolyline(contorno_carpeta)
 
-            # Flecha ascendente (acento azul): "sube y ordena"
-            pluma_flecha = QPen(azul, 256 * 0.075)
-            pluma_flecha.setCapStyle(Qt.RoundCap)
-            pluma_flecha.setJoinStyle(Qt.RoundJoin)
-            painter.setPen(pluma_flecha)
+                pluma_flecha = QPen(azul, 256 * 0.075)
+                pluma_flecha.setCapStyle(Qt.RoundCap)
+                pluma_flecha.setJoinStyle(Qt.RoundJoin)
+                painter.setPen(pluma_flecha)
 
-            centro = 256 / 2
-            painter.drawLine(QPointF(centro, 256 * 0.74), QPointF(centro, 256 * 0.30))
-            painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro - 256 * 0.12, 256 * 0.42))
-            painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro + 256 * 0.12, 256 * 0.42))
+                centro = 256 / 2
+                painter.drawLine(QPointF(centro, 256 * 0.74), QPointF(centro, 256 * 0.30))
+                painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro - 256 * 0.12, 256 * 0.42))
+                painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro + 256 * 0.12, 256 * 0.42))
+            finally:
+                # Cerrar SIEMPRE el painter, incluso si algo falla a mitad
+                if painter.isActive():
+                    painter.end()
 
-            painter.end()
+            if pixmap.isNull():
+                return self._icono_reserva()
             return QIcon(pixmap)
         except Exception:
-            # Fallback a un icono estándar de carpeta
-            try:
-                from PySide6.QtWidgets import QStyle
-                return self.style().standardIcon(QStyle.SP_DirIcon)
-            except Exception:
-                return QIcon()
-    
+            return self._icono_reserva()
+
+    def _icono_reserva(self):
+        """Icono estándar de carpeta por si falla el dibujo."""
+        try:
+            from PySide6.QtWidgets import QStyle
+            return self.style().standardIcon(QStyle.SP_DirIcon)
+        except Exception:
+            return QIcon()
+
     def _tray_icon_activated(self, reason):
         """Maneja la activación del icono de la bandeja."""
         if reason == QSystemTrayIcon.Trigger:  # Click simple

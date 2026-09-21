@@ -4,6 +4,15 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.6.1] - 2026-09-21
+
+### 🐛 Corrección de crash al arrancar (macOS)
+- El icono de la bandeja se dibuja cerrando siempre el QPainter (try/finally)
+- Si el dibujo falla, se usa un icono estándar de carpeta en lugar de romper el arranque
+- Afectaba a la 4.5.0/4.6.0 instalada: QPainter sin cerrar podía corromper memoria (SIGSEGV)
+
+---
+
 ## [4.6.0] - 2026-09-21
 
 ### 🎨 Interfaz afinada
