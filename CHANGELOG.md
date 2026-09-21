@@ -4,6 +4,16 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.5.0] - 2026-09-21
+
+### 🗂️ Carpetas y menú contextual
+- La reorganización completa ahora también lleva las carpetas sueltas a Carpetas/
+- El menú contextual de Windows apunta a la carpeta elegida y usa el icono de la app
+- Icono de bandeja nuevo: carpeta con flecha de ordenación (sin círculo verde ni champiñón)
+- Textos de la ventana y de la bandeja más sobrios
+
+---
+
 ## [4.4.0] - 2026-09-21
 
 ### 🎨 Rediseño minimalista

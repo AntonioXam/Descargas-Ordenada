@@ -628,6 +628,10 @@ oaming\\microsoft" in ruta_str:
                 logger.error(error_msg)
                 errores.append(error_msg)
         
+        # Mover las carpetas sueltas de la raíz (que no son categorías) a Carpetas/
+        carpetas_movidas = self._mover_carpetas_a_carpeta_carpetas(archivos_movidos, errores)
+        archivos_procesados += carpetas_movidas
+
         # Limpiar carpetas vacías
         self._limpiar_carpetas_vacias()
         
@@ -637,6 +641,44 @@ oaming\\microsoft" in ruta_str:
         logger.info(f"✅ Reorganización completa finalizada. {archivos_procesados} archivos reorganizados.")
         
         return archivos_movidos, errores
+
+    def _mover_carpetas_a_carpeta_carpetas(self, archivos_movidos: Dict[str, Dict[str, List[str]]], errores: List[str]) -> int:
+        """Mueve a Carpetas/ las carpetas de la raíz que no sean categorías."""
+        carpeta_carpetas = self.carpeta_descargas / "Carpetas"
+        categorias = set(TIPOS_ARCHIVOS_DETALLADOS.keys()) | {"Otros", "Carpetas"}
+        movidas = 0
+        try:
+            for item in self.carpeta_descargas.iterdir():
+                if not item.is_dir():
+                    continue
+                if item.name.startswith('.') or item.name in categorias:
+                    continue
+                destino = carpeta_carpetas / item.name
+                try:
+                    carpeta_carpetas.mkdir(exist_ok=True)
+                    if destino.exists():
+                        indice = 1
+                        while (carpeta_carpetas / f"{item.name}_{indice}").exists():
+                            indice += 1
+                        destino = carpeta_carpetas / f"{item.name}_{indice}"
+                    shutil.move(str(item), str(destino))
+
+                    if "Carpetas" not in archivos_movidos:
+                        archivos_movidos["Carpetas"] = {}
+                    if "General" not in archivos_movidos["Carpetas"]:
+                        archivos_movidos["Carpetas"]["General"] = []
+                    archivos_movidos["Carpetas"]["General"].append(item.name)
+
+                    self.archivos_procesados[item.name] = os.path.join("Carpetas", destino.name)
+                    logger.info(f"Carpeta movida: {item.name} -> Carpetas/{destino.name}")
+                    movidas += 1
+                except Exception as e:
+                    error_msg = f"Error al mover carpeta {item.name}: {e}"
+                    logger.error(error_msg)
+                    errores.append(error_msg)
+        except PermissionError:
+            errores.append(f"Sin permiso para acceder a {self.carpeta_descargas}")
+        return movidas
     
     def _limpiar_carpetas_vacias(self):
         """Elimina carpetas vacías después de la reorganización"""

@@ -137,7 +137,7 @@ class OrganizadorAvanzado(QMainWindow):
         self._sincronizando_controles = False
         
         # Configuración ventana
-        self.setWindowTitle("🍄 DescargasOrdenadas - Organizador Automático")
+        self.setWindowTitle("DescargasOrdenadas")
         self.setMinimumSize(640, 520)
         self._ajustar_tamano_inicial()
         
@@ -402,18 +402,18 @@ class OrganizadorAvanzado(QMainWindow):
         tray_menu = QMenu()
         
         # Acciones del menú
-        mostrar_action = QAction("📂 Mostrar Ventana", self)
+        mostrar_action = QAction("Mostrar ventana", self)
         mostrar_action.triggered.connect(self._mostrar_ventana)
         tray_menu.addAction(mostrar_action)
         
-        organizar_action = QAction("🔄 Organizar Ahora", self)
+        organizar_action = QAction("Organizar ahora", self)
         organizar_action.triggered.connect(self._organizar)
         tray_menu.addAction(organizar_action)
         
         tray_menu.addSeparator()
         
         # Toggle auto-organización
-        self.auto_action = QAction("⚡ Auto-Organización", self)
+        self.auto_action = QAction("Organización automática", self)
         self.auto_action.setCheckable(True)
         self.auto_action.triggered.connect(self._toggle_auto_organizacion)
         tray_menu.addAction(self.auto_action)
@@ -421,13 +421,13 @@ class OrganizadorAvanzado(QMainWindow):
         tray_menu.addSeparator()
         
         # Información
-        info_action = QAction(f"📁 {os.path.basename(self.organizador.carpeta_descargas)}", self)
+        info_action = QAction(f"Carpeta: {os.path.basename(str(self.organizador.carpeta_descargas))}", self)
         info_action.setEnabled(False)
         tray_menu.addAction(info_action)
         
         tray_menu.addSeparator()
         
-        salir_action = QAction("❌ Salir", self)
+        salir_action = QAction("Salir", self)
         salir_action.triggered.connect(self._salir_completamente)
         tray_menu.addAction(salir_action)
         
@@ -438,7 +438,7 @@ class OrganizadorAvanzado(QMainWindow):
         self.tray_icon.activated.connect(self._tray_icon_activated)
         
         # Mostrar tooltip
-        self.tray_icon.setToolTip("🍄 DescargasOrdenadas - Organizador Activo")
+        self.tray_icon.setToolTip("DescargasOrdenadas")
         
         # Mostrar icono
         self.tray_icon.show()
@@ -538,31 +538,58 @@ class OrganizadorAvanzado(QMainWindow):
             self._actualizar_estadisticas()
     
     def _crear_icono_personalizado(self):
-        """Crea un icono personalizado para la bandeja."""
+        """Icono de la bandeja: carpeta con flecha de ordenación."""
         try:
-            # Crear un pixmap de 64x64
-            pixmap = QPixmap(64, 64)
+            from PySide6.QtCore import QPointF
+
+            pixmap = QPixmap(256, 256)
             pixmap.fill(Qt.transparent)
-            
+
             painter = QPainter(pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
-            
-            # Dibujar fondo circular
-            painter.setBrush(Qt.green)
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(4, 4, 56, 56)
-            
-            # Dibujar símbolo de carpeta
-            painter.setPen(Qt.white)
-            painter.setFont(painter.font())
-            painter.drawText(pixmap.rect(), Qt.AlignCenter, "📁")
-            
+
+            azul = QColor("#0A84FF")
+            gris = QColor("#8E8E93")
+
+            # Carpeta (trazo gris, esquinas redondeadas)
+            pluma_carpeta = QPen(gris, 256 * 0.075)
+            pluma_carpeta.setCapStyle(Qt.RoundCap)
+            pluma_carpeta.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pluma_carpeta)
+            painter.setBrush(Qt.NoBrush)
+
+            margen = 256 * 0.16
+            contorno_carpeta = [
+                QPointF(margen, 256 * 0.34),
+                QPointF(256 * 0.40, 256 * 0.34),
+                QPointF(256 * 0.46, 256 * 0.42),
+                QPointF(256 - margen, 256 * 0.42),
+                QPointF(256 - margen, 256 * 0.78),
+                QPointF(margen, 256 * 0.78),
+                QPointF(margen, 256 * 0.34),
+            ]
+            painter.drawPolyline(contorno_carpeta)
+
+            # Flecha ascendente (acento azul): "sube y ordena"
+            pluma_flecha = QPen(azul, 256 * 0.075)
+            pluma_flecha.setCapStyle(Qt.RoundCap)
+            pluma_flecha.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pluma_flecha)
+
+            centro = 256 / 2
+            painter.drawLine(QPointF(centro, 256 * 0.74), QPointF(centro, 256 * 0.30))
+            painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro - 256 * 0.12, 256 * 0.42))
+            painter.drawLine(QPointF(centro, 256 * 0.30), QPointF(centro + 256 * 0.12, 256 * 0.42))
+
             painter.end()
-            
             return QIcon(pixmap)
-        except:
-            # Fallback a icono por defecto
-            return self.style().standardIcon(self.style().SP_DirIcon)
+        except Exception:
+            # Fallback a un icono estándar de carpeta
+            try:
+                from PySide6.QtWidgets import QStyle
+                return self.style().standardIcon(QStyle.SP_DirIcon)
+            except Exception:
+                return QIcon()
     
     def _tray_icon_activated(self, reason):
         """Maneja la activación del icono de la bandeja."""
@@ -602,7 +629,7 @@ class OrganizadorAvanzado(QMainWindow):
             
             # Mostrar notificación
             self.tray_icon.showMessage(
-                "🍄 DescargasOrdenadas",
+                "DescargasOrdenadas",
                 "Aplicación minimizada a la bandeja del sistema",
                 QSystemTrayIcon.Information,
                 3000
@@ -681,7 +708,7 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
-                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Auto BÁSICA ({intervalo_texto})")
+                    self.tray_icon.setToolTip(f"Auto-organización BÁSICA ({intervalo_texto})")
                     
                 # Actualizar estado visual
                 self.lbl_estado.setText(f"📁 Auto-organización BÁSICA: ACTIVADA ({intervalo_texto})")
@@ -724,7 +751,7 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
-                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Auto DETALLADA ({intervalo_texto})")
+                    self.tray_icon.setToolTip(f"Auto-organización DETALLADA ({intervalo_texto})")
                     
                 # Actualizar estado visual
                 self.lbl_estado.setText(f"🔧 Auto-organización DETALLADA: ACTIVADA ({intervalo_texto})")
@@ -755,7 +782,7 @@ class OrganizadorAvanzado(QMainWindow):
         if not auto_activa:
             # Actualizar tooltip de la bandeja
             if self.tray_icon:
-                self.tray_icon.setToolTip("🍄 DescargasOrdenadas - Auto-organización INACTIVA")
+                self.tray_icon.setToolTip("Organización automática inactiva")
                 
             # Actualizar estado visual
             self.lbl_estado.setText("⏸️ Auto-organización: DESACTIVADA")
@@ -910,7 +937,7 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar tooltip de la bandeja para mostrar última actividad
                 if self.tray_icon:
-                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Última org: {hora_actual} ({total} archivos)")
+                    self.tray_icon.setToolTip(f"Última organización: {hora_actual} ({total} archivos)")
                     
                 # Actualizar estadísticas si hay cambios
                 self._actualizar_datos()
@@ -921,7 +948,7 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar tooltip para mostrar que está funcionando
                 if self.tray_icon:
-                    self.tray_icon.setToolTip(f"🍄 DescargasOrdenadas - Revisando: {hora_actual} (Activo)")
+                    self.tray_icon.setToolTip(f"Revisando: {hora_actual}")
                 
         except Exception as e:
             self._agregar_log(f"❌ Error en auto-organización: {e}")
@@ -1065,7 +1092,7 @@ class OrganizadorAvanzado(QMainWindow):
         layout.setSpacing(12)
 
         # Cabecera compacta
-        self.header = QLabel(f"🍄 DescargasOrdenadas · 📁 {os.path.basename(str(self.organizador.carpeta_descargas))}")
+        self.header = QLabel(f"DescargasOrdenadas · 📁 {os.path.basename(str(self.organizador.carpeta_descargas))}")
         self.header.setStyleSheet("font-weight: 600; font-size: 15px;")
         self.header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(self.header)
@@ -1524,7 +1551,7 @@ class OrganizadorAvanzado(QMainWindow):
     def _limpiar_logs(self):
         """Limpia el área de logs."""
         self.text_logs.clear()
-        self.text_logs.setPlainText("🍄 DescargasOrdenadas - Sistema de Logs\n" + "="*60 + "\n")
+        self.text_logs.setPlainText("DescargasOrdenadas\n" + "-" * 40 + "\n")
     
     def _exportar_logs(self):
         """Exporta los logs a un archivo."""
@@ -1679,7 +1706,7 @@ class OrganizadorAvanzado(QMainWindow):
                         "Menú Contextual",
                         "✅ Menú contextual registrado correctamente\n\n"
                         "Ahora puedes hacer click derecho en cualquier carpeta\n"
-                        "y seleccionar '🍄 Organizar con DescargasOrdenadas'"
+                        "y seleccionar 'Organizar con DescargasOrdenadas'"
                     )
                 else:
                     self._agregar_log(f"❌ Error: {mensaje}")
@@ -2336,7 +2363,7 @@ class OrganizadorAvanzado(QMainWindow):
             
             # Actualizar el header
             if hasattr(self, 'header'):
-                self.header.setText(f"🍄 DescargasOrdenadas | 📁 {nueva_carpeta}")
+                self.header.setText(f"DescargasOrdenadas · 📁 {nueva_carpeta}")
             
             # Reinitializar módulos avanzados con la nueva carpeta
             self._inicializar_modulos()
@@ -2365,7 +2392,7 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Actualizar el header
         if hasattr(self, 'header'):
-            self.header.setText(f"🍄 DescargasOrdenadas | 📁 {carpeta_predeterminada}")
+            self.header.setText(f"DescargasOrdenadas · 📁 {carpeta_predeterminada}")
         
         # Reinitializar módulos avanzados
         self._inicializar_modulos()
