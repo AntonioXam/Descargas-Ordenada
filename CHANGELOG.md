@@ -4,6 +4,24 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.3.0] - 2026-09-21
+
+### 🧭 Una sola instancia
+- Nuevo control de instancia única en Windows, macOS y Linux
+- Si la app ya está abierta, el segundo arranque la muestra en lugar de duplicarla
+- El bloqueo se libera solo, incluso si la app se cierra a la fuerza
+
+### ⚙️ Autoarranque con memoria
+- El modo BÁSICO/DETALLADO y el intervalo se guardan y se restauran al arrancar
+- El autoarranque del sistema se reescribe con el modo elegido
+- Al apagar la auto-organización, el autoarranque deja de auto-organizar
+
+### 🛠️ Otros
+- `--nueva-instancia` para forzar una segunda copia si alguien la necesita
+- Empaquetado: incluidos PySide6.QtNetwork y el módulo de instancia única
+
+---
+
 ## [4.2.0] - 2026-09-19
 
 ### 🔁 Reparación en app instalada

@@ -73,8 +73,12 @@ logger = logging.getLogger('organizador.gui_avanzada')
 class OrganizadorAvanzado(QMainWindow):
     """GUI completa con todas las funcionalidades avanzadas."""
     
-    def __init__(self, directorio=None, auto_organizacion=False):
+    def __init__(self, directorio=None, auto_organizacion=False, intervalo_auto=None, modo_auto=None):
         super().__init__()
+
+        # Preferencias de auto-organización (se completan desde la configuración)
+        self._auto_intervalo_inicial = intervalo_auto
+        self._auto_modo_inicial = modo_auto
 
         # Inicializar organizador (MODO AVANZADO por defecto - con subcarpetas)
         if directorio:
@@ -146,10 +150,13 @@ class OrganizadorAvanzado(QMainWindow):
         self.timer_actualizaciones = QTimer()
         self.timer_actualizaciones.timeout.connect(self._verificar_actualizaciones_silencioso)
         
-        # Activar auto-organización si está habilitada al inicio (para autostart)
+        # Restaurar el modo y el intervalo guardados y, si procede, arrancar
+        # la auto-organización con esa misma configuración.
+        self._restaurar_preferencias_auto()
+
         if auto_organizacion:
-            # Delay de 5 segundos para que la aplicación se inicie completamente
-            QTimer.singleShot(5000, lambda: self._toggle_auto_organizacion(True))
+            # Pequeña espera para que la ventana esté completamente lista
+            QTimer.singleShot(3000, self._activar_auto_guardada)
         
         # Verificar actualizaciones al inicio (después de 10 segundos)
         if self.gestor_actualizaciones:
@@ -711,9 +718,11 @@ class OrganizadorAvanzado(QMainWindow):
         """Toggle auto-organización básica cada 30 segundos."""
         try:
             if activo:
-                # Desactivar el modo detallado si estaba activo
-                if hasattr(self, 'chk_auto_detallado'):
+                # Desactivar el modo detallado si estaba activo (sin propagar)
+                if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
+                    self.chk_auto_detallado.blockSignals(True)
                     self.chk_auto_detallado.setChecked(False)
+                    self.chk_auto_detallado.blockSignals(False)
                 
                 if not hasattr(self, 'timer_auto') or self.timer_auto is None:
                     self.timer_auto = QTimer()
@@ -740,11 +749,15 @@ class OrganizadorAvanzado(QMainWindow):
                     border-radius: 6px;
                     font-size: 14px;
                 """)
+
+                # Recordar la elección para el próximo arranque
+                self._guardar_preferencia_auto()
             else:
                 if hasattr(self, 'timer_auto') and self.timer_auto:
                     self.timer_auto.stop()
                 
                 self._agregar_log("⏸️ Auto-organización BÁSICA DESACTIVADA")
+                self._olvidar_preferencia_auto()
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
@@ -756,9 +769,11 @@ class OrganizadorAvanzado(QMainWindow):
         """Toggle auto-organización detallada cada 30 segundos."""
         try:
             if activo:
-                # Desactivar el modo básico si estaba activo
-                if hasattr(self, 'chk_auto_basico'):
+                # Desactivar el modo básico si estaba activo (sin propagar)
+                if hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
+                    self.chk_auto_basico.blockSignals(True)
                     self.chk_auto_basico.setChecked(False)
+                    self.chk_auto_basico.blockSignals(False)
                 
                 if not hasattr(self, 'timer_auto') or self.timer_auto is None:
                     self.timer_auto = QTimer()
@@ -785,11 +800,15 @@ class OrganizadorAvanzado(QMainWindow):
                     border-radius: 6px;
                     font-size: 14px;
                 """)
+
+                # Recordar la elección para el próximo arranque
+                self._guardar_preferencia_auto()
             else:
                 if hasattr(self, 'timer_auto') and self.timer_auto:
                     self.timer_auto.stop()
                 
                 self._agregar_log("⏸️ Auto-organización DETALLADA DESACTIVADA")
+                self._olvidar_preferencia_auto()
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
@@ -2267,7 +2286,13 @@ class OrganizadorAvanzado(QMainWindow):
     def _toggle_autoarranque(self, activo):
         """Toggle autoarranque."""
         try:
-            exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(activo)
+            modo = "detallado"
+            if hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked():
+                modo = "basico"
+            try:
+                exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(activo, modo=modo)
+            except TypeError:
+                exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(activo)
             if not exito:
                 QMessageBox.warning(self, "Error Autoarranque", f"❌ {mensaje}")
                 self.chk_autoarranque.blockSignals(True)
@@ -2349,7 +2374,8 @@ class OrganizadorAvanzado(QMainWindow):
             shortcut.Targetpath = str(target_file)
             shortcut.WorkingDirectory = str(script_dir)
             shortcut.Description = descripcion
-            shortcut.Arguments = "--autostart --minimizado"
+            modo = "basico" if (hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked()) else "detallado"
+            shortcut.Arguments = f"--autostart --minimizado --modo {modo}"
             
             # Buscar icono
             ico_path = script_dir / "resources" / "favicon.ico"
@@ -2874,13 +2900,144 @@ class OrganizadorAvanzado(QMainWindow):
         return False
     
 
+    def _restaurar_preferencias_auto(self):
+        """Restaura el modo (básico/detallado) y el intervalo guardados."""
+        if self._sincronizando_controles:
+            return
+        self._sincronizando_controles = True
+        try:
+            intervalo = self._auto_intervalo_inicial
+            modo = self._auto_modo_inicial
+
+            if self.config_portable:
+                if intervalo is None:
+                    try:
+                        intervalo = int(self.config_portable.obtener("auto_intervalo", 30) or 30)
+                    except (TypeError, ValueError):
+                        intervalo = 30
+                if modo not in ("basico", "detallado"):
+                    modo = self.config_portable.obtener("auto_modo", "detallado")
+
+            if modo not in ("basico", "detallado"):
+                modo = "detallado"
+
+            # Seleccionar el intervalo guardado en el desplegable
+            if hasattr(self, "combo_intervalo_auto") and intervalo:
+                indice = self.combo_intervalo_auto.findData(int(intervalo))
+                if indice >= 0:
+                    self.combo_intervalo_auto.setCurrentIndex(indice)
+
+            self._auto_modo_guardado = modo
+
+            # Marcar la casilla correspondiente sin disparar el timer todavía
+            if modo == "basico" and hasattr(self, "chk_auto_basico"):
+                self.chk_auto_basico.blockSignals(True)
+                self.chk_auto_basico.setChecked(True)
+                if hasattr(self, "chk_auto_detallado"):
+                    self.chk_auto_detallado.blockSignals(True)
+                    self.chk_auto_detallado.setChecked(False)
+                    self.chk_auto_detallado.blockSignals(False)
+                self.chk_auto_basico.blockSignals(False)
+            elif hasattr(self, "chk_auto_detallado"):
+                self.chk_auto_detallado.blockSignals(True)
+                self.chk_auto_detallado.setChecked(True)
+                if hasattr(self, "chk_auto_basico"):
+                    self.chk_auto_basico.blockSignals(True)
+                    self.chk_auto_basico.setChecked(False)
+                    self.chk_auto_basico.blockSignals(False)
+                self.chk_auto_detallado.blockSignals(False)
+        except Exception as e:
+            logger.debug(f"No se pudieron restaurar las preferencias de auto-organización: {e}")
+        finally:
+            self._sincronizando_controles = False
+
+    def _activar_auto_guardada(self):
+        """Arranca la auto-organización con el modo previamente guardado."""
+        modo = getattr(self, "_auto_modo_guardado", "detallado")
+        try:
+            if modo == "basico" and hasattr(self, "chk_auto_basico"):
+                self.chk_auto_basico.setChecked(True)
+            elif hasattr(self, "chk_auto_detallado"):
+                self.chk_auto_detallado.setChecked(True)
+        except Exception as e:
+            logger.debug(f"No se pudo activar la auto-organización guardada: {e}")
+
+    def _guardar_preferencia_auto(self):
+        """Guarda qué modo está activo y cada cuánto se revisa la carpeta."""
+        if not self.config_portable:
+            return
+        if getattr(self, "_sincronizando_controles", False):
+            return
+        try:
+            modo = "detallado" if (hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked()) else "basico"
+            if hasattr(self, "combo_intervalo_auto"):
+                intervalo = int(self.combo_intervalo_auto.currentData() or 30)
+            else:
+                intervalo = 30
+            self.config_portable.establecer("auto_modo", modo)
+            self.config_portable.establecer("auto_intervalo", intervalo)
+            self.config_portable.establecer("auto_organizacion", True)
+            self._sincronizar_autoarranque(modo)
+        except Exception as e:
+            logger.debug(f"No se pudieron guardar las preferencias de auto-organización: {e}")
+
+    def _olvidar_preferencia_auto(self):
+        """Desactiva la auto-organización recordada para el próximo arranque."""
+        if not self.config_portable:
+            return
+        if getattr(self, "_sincronizando_controles", False):
+            return
+        # Si el otro modo sigue activo, mantenemos la preferencia guardada
+        otro_activo = False
+        if hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked():
+            otro_activo = True
+        if hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked():
+            otro_activo = True
+        if otro_activo:
+            return
+        try:
+            self.config_portable.establecer("auto_organizacion", False)
+            # Si el autoarranque sigue activo, lo reescribimos sin modo para que
+            # el próximo inicio no reactive la auto-organización.
+            if self.config_portable.obtener("autoarranque", False):
+                exito, msg = self.gestor_autoarranque.configurar_autoarranque(True, modo=None)
+                logger.debug(f"Autoarranque reescrito sin modo: exito={exito}, mensaje={msg}")
+        except Exception as e:
+            logger.debug(f"No se pudo desactivar la auto-organización guardada: {e}")
+
+    def _sincronizar_autoarranque(self, modo):
+        """Reescribe el autoarranque del sistema con el modo actual."""
+        if not self.config_portable:
+            return
+        if not self.config_portable.obtener("autoarranque", False):
+            return
+        # Evitar reentradas: actualizar el autoarranque puede volver a disparar
+        # las casillas y repetir el ciclo.
+        if getattr(self, "_sincronizando_autoarranque", False):
+            return
+        self._sincronizando_autoarranque = True
+        try:
+            self.gestor_autoarranque.configurar_autoarranque(True, modo=modo)
+        except TypeError:
+            self.gestor_autoarranque.configurar_autoarranque(True)
+        except Exception as e:
+            logger.debug(f"No se pudo actualizar el autoarranque: {e}")
+        finally:
+            self._sincronizando_autoarranque = False
+
     def _cambiar_intervalo_auto(self, index):
         """Cambia el intervalo de auto-organización."""
+        if self.config_portable:
+            try:
+                self.config_portable.establecer("auto_intervalo", int(self.combo_intervalo_auto.currentData() or 30))
+            except Exception:
+                pass
+
         if hasattr(self, 'timer_auto') and self.timer_auto and self.timer_auto.isActive():
             # Si el timer está activo, reiniciar con el nuevo intervalo
             intervalo_ms = self.combo_intervalo_auto.currentData() * 1000
             self.timer_auto.setInterval(intervalo_ms)
-            
+
             intervalo_texto = self.combo_intervalo_auto.currentText()
             self._agregar_log(f"⏱️ Intervalo de auto-organización cambiado a: {intervalo_texto}")
     
@@ -2976,16 +3133,44 @@ class OrganizadorAvanzado(QMainWindow):
     
 
 
-def run_advanced_gui(directorio=None, minimizado=False, auto_organizacion=False):
+def run_advanced_gui(
+    directorio=None,
+    minimizado=False,
+    auto_organizacion=False,
+    intervalo_auto=None,
+    modo_auto=None,
+    guardia_instancia=None,
+):
     """Ejecuta la GUI avanzada."""
     app = QApplication.instance() or QApplication(sys.argv)
-    
-    window = OrganizadorAvanzado(directorio, auto_organizacion=auto_organizacion)
-    
+
+    window = OrganizadorAvanzado(
+        directorio,
+        auto_organizacion=auto_organizacion,
+        intervalo_auto=intervalo_auto,
+        modo_auto=modo_auto,
+    )
+
+    # Canal para que una segunda ejecución muestre esta ventana en vez de abrir
+    # otra copia de la aplicación.
+    if guardia_instancia is not None:
+        try:
+            guardia_instancia.conectar_activacion(window._mostrar_ventana)
+            guardia_instancia.iniciar_servidor()
+        except Exception as e:
+            logger.debug(f"No se pudo preparar el canal de instancia única: {e}")
+
     if not minimizado:
         window.show()
     else:
         # Si se inicia minimizado, ir directo a la bandeja
         window._ocultar_en_bandeja()
-    
-    return app.exec() 
+
+    try:
+        return app.exec()
+    finally:
+        if guardia_instancia is not None:
+            try:
+                guardia_instancia.liberar()
+            except Exception:
+                pass

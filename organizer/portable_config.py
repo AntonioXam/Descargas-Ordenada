@@ -53,6 +53,8 @@ class ConfigPortable:
             "tema": "azul_oscuro",
             "notificaciones_habilitadas": True,
             "auto_organizacion": False,
+            "auto_modo": "detallado",
+            "auto_intervalo": 30,
             "autoarranque": False,
             "usar_subcarpetas": True,
             "organizar_recursivo": False,

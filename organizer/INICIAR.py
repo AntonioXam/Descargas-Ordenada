@@ -28,6 +28,7 @@ import time
 
 from organizer.version import obtener_version
 from organizer.app_paths import obtener_archivo_version, obtener_base_recursos, obtener_directorio_configuracion
+from organizer.single_instance import InstanciaUnica
 
 def obtener_python_ejecutable() -> str:
     """Obtiene un intérprete Python válido incluso cuando la app está empaquetada."""
@@ -211,6 +212,31 @@ def obtener_carpeta_descargas():
     
     return downloads_path
 
+
+def leer_preferencias_autoarranque() -> dict:
+    """Devuelve el modo y el intervalo de auto-organización guardados."""
+    preferencias = {"auto_organizacion": False, "modo": "detallado", "intervalo": 30}
+    try:
+        from organizer.portable_config import obtener_config
+        config = obtener_config()
+        preferencias["auto_organizacion"] = bool(config.obtener("auto_organizacion", False))
+        modo_guardado = config.obtener("auto_modo", "detallado")
+        if modo_guardado in ("basico", "detallado"):
+            preferencias["modo"] = modo_guardado
+        try:
+            intervalo = int(config.obtener("auto_intervalo", 30) or 30)
+            preferencias["intervalo"] = max(30, intervalo)
+        except (TypeError, ValueError):
+            pass
+    except Exception as e:
+        logger.debug(f"No se pudieron leer las preferencias guardadas: {e}")
+    return preferencias
+
+
+def preparar_instancia_unica(permitir_duplicada: bool):
+    """Crea el control de instancia única de la aplicación."""
+    return InstanciaUnica("DescargasOrdenadas")
+
 def main():
     parser = argparse.ArgumentParser(description="Organiza automáticamente los archivos de descargas")
     parser.add_argument("--version", action="version", version=f"DescargasOrdenadas {obtener_version()}")
@@ -223,8 +249,9 @@ def main():
     parser.add_argument("--sin-consola", action="store_true", help="Ocultar ventana de consola")
     parser.add_argument("--dir", type=str, help="Directorio a organizar")
     parser.add_argument("--dry-run", action="store_true", help="Mostrar qué se organizaría sin mover archivos")
-    parser.add_argument("--modo", choices=["basico", "detallado"], default="detallado", help="Modo de organización")
+    parser.add_argument("--modo", choices=["basico", "detallado"], default=None, help="Modo de organización (por defecto, el guardado en la configuración)")
     parser.add_argument("--recursivo", action="store_true", help="Organizar también archivos dentro de subcarpetas")
+    parser.add_argument("--nueva-instancia", action="store_true", help="Permitir una segunda copia aunque ya haya una abierta")
     
     args = parser.parse_args()
 
@@ -275,7 +302,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.2.0"
+            version = "4.3.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     
@@ -320,11 +347,35 @@ def main():
     
     logger.info(f"📁 Directorio: {directorio}")
     
+    # Preferencias guardadas (modo básico/detallado e intervalo)
+    preferencias = leer_preferencias_autoarranque()
+    modo_efectivo = args.modo or preferencias["modo"]
+
+    # ¿La GUI disponible acepta el intervalo y el modo guardados?
+    try:
+        import inspect
+        gui_acepta_preferencias = "intervalo_auto" in inspect.signature(run_gui).parameters
+    except (TypeError, ValueError):
+        gui_acepta_preferencias = False
+
+    # Control de instancia única (evita el doble arranque del ejecutable)
+    permitir_duplicada = args.nueva_instancia or os.environ.get("DESCARGASORDENADAS_NUEVA_INSTANCIA") == "1"
+    guardia = None
+    if not permitir_duplicada:
+        guardia = preparar_instancia_unica(permitir_duplicada)
+        if not guardia.adquirir():
+            logger.info("ℹ️ Ya hay una instancia abierta; no se lanza una segunda copia")
+            if not (args.minimizado or args.autostart):
+                # Si el usuario la ha abierto a mano, sacamos la ventana existente
+                if not guardia.avisar_instancia_existente():
+                    print("ℹ️ DescargasOrdenadas ya está abierto (revisa la bandeja del sistema).")
+            return
+
     # Modo de funcionamiento
     if args.auto:
         # Solo organizar una vez
         logger.info("📂 Organizando archivos...")
-        usar_subcarpetas = args.modo == "detallado"
+        usar_subcarpetas = modo_efectivo == "detallado"
         organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=usar_subcarpetas)
         resultados, errores = organizador.organizar(
             organizar_subcarpetas=args.recursivo,
@@ -337,7 +388,12 @@ def main():
     elif args.autostart:
         # Modo autostart: organizar + GUI minimizada con auto-organización
         logger.info("🚀 Modo autostart iniciado...")
-        usar_subcarpetas = args.modo == "detallado"
+        logger.info(
+            f"⚙️  Configuración guardada: modo {modo_efectivo}, "
+            f"intervalo {preferencias['intervalo']}s, "
+            f"auto-organización {'activada' if preferencias['auto_organizacion'] else 'desactivada'}"
+        )
+        usar_subcarpetas = modo_efectivo == "detallado"
         organizador = OrganizadorArchivos(carpeta_descargas=str(directorio), usar_subcarpetas=usar_subcarpetas)
         resultados, errores = organizador.organizar(organizar_subcarpetas=args.recursivo)
         total = sum(len(files) for cat in resultados.values() for files in cat.values())
@@ -353,9 +409,20 @@ def main():
             except:
                 pass
         
-        # Iniciar GUI minimizada
+        # Iniciar GUI minimizada respetando la configuración guardada
         try:
-            run_gui(directorio=directorio, minimizado=True)
+            if gui_acepta_preferencias:
+                run_gui(
+                    directorio=directorio,
+                    minimizado=True,
+                    auto_organizacion=preferencias["auto_organizacion"],
+                    intervalo_auto=preferencias["intervalo"],
+                    modo_auto=modo_efectivo,
+                    guardia_instancia=guardia,
+                )
+            else:
+                # Compatibilidad con la GUI sencilla (organizer/gui.py)
+                run_gui(directorio=directorio, minimizado=True)
         except Exception as e:
             logger.error(f"Error iniciando GUI: {e}")
             
@@ -363,7 +430,18 @@ def main():
         # Modo normal: GUI
         logger.info("🖥️  Iniciando interfaz gráfica...")
         try:
-            run_gui(directorio=directorio, minimizado=args.minimizado)
+            if gui_acepta_preferencias:
+                run_gui(
+                    directorio=directorio,
+                    minimizado=args.minimizado,
+                    auto_organizacion=preferencias["auto_organizacion"],
+                    intervalo_auto=preferencias["intervalo"],
+                    modo_auto=modo_efectivo,
+                    guardia_instancia=guardia,
+                )
+            else:
+                # Compatibilidad con la GUI sencilla (organizer/gui.py)
+                run_gui(directorio=directorio, minimizado=args.minimizado)
         except Exception as e:
             logger.error(f"Error iniciando GUI: {e}")
             # No mostrar input() porque la GUI maneja su propio cierre

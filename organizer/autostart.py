@@ -26,6 +26,7 @@ class GestorAutoarranque:
             nombre_app: Nombre de la aplicación para identificarla en las tareas de inicio.
         """
         self.nombre_app = nombre_app
+        self.modo_actual = None
         self.ruta_ejecutable = self._obtener_ruta_ejecutable()
         
     def _obtener_ruta_ejecutable(self) -> str:
@@ -42,7 +43,7 @@ class GestorAutoarranque:
             # Si estamos en un script
             return str(Path(sys.argv[0]).resolve())
     
-    def _configurar_windows(self, activar: bool) -> Tuple[bool, str]:
+    def _configurar_windows(self, activar: bool, modo: str = None) -> Tuple[bool, str]:
         """
         Configura el autoarranque en Windows usando el registro.
         
@@ -68,7 +69,9 @@ class GestorAutoarranque:
                 # Determinar la ruta del proyecto
                 if getattr(sys, 'frozen', False):
                     # Si es un ejecutable empaquetado
-                    comando = f'"{self.ruta_ejecutable}" --inicio-sistema --minimizado'
+                    comando = f'"{self.ruta_ejecutable}" --autostart --minimizado'
+                    if self.modo_actual:
+                        comando += f' --modo {self.modo_actual}'
                 else:
                     # Si es un script de Python, usar el .bat apropiado
                     proyecto_dir = Path(__file__).resolve().parent.parent
@@ -79,6 +82,8 @@ class GestorAutoarranque:
                     if bat_principal.exists():
                         bat_file = bat_principal
                         comando = f'"{bat_file}" --autostart --minimizado'
+                        if self.modo_actual:
+                            comando += f' --modo {self.modo_actual}'
                     else:
                         # Fallback al método anterior si no hay .bat
                         python_exe = sys.executable
@@ -86,6 +91,8 @@ class GestorAutoarranque:
                             python_exe = python_exe.replace('python.exe', 'pythonw.exe')
                         iniciar_py = Path(__file__).resolve().parent / "INICIAR.py"
                         comando = f'"{python_exe}" "{iniciar_py}" --autostart --minimizado'
+                        if self.modo_actual:
+                            comando += f' --modo {self.modo_actual}'
                         logger.warning("No se encontraron archivos .bat, usando Python directamente")
                 
                 logger.info(f"Configurando autoarranque con comando: {comando}")
@@ -108,7 +115,7 @@ class GestorAutoarranque:
             logger.error(error_msg)
             return False, error_msg
     
-    def _configurar_macos(self, activar: bool) -> Tuple[bool, str]:
+    def _configurar_macos(self, activar: bool, modo: str = None) -> Tuple[bool, str]:
         """
         Configura el autoarranque en macOS usando launchd.
         
@@ -128,11 +135,14 @@ class GestorAutoarranque:
                 
                 # Comando de arranque: usar el mismo intérprete de Python y
                 # los argumentos reales que soporta INICIAR.py
-                if getattr(sys, 'frozen', False):
-                    comando_args = [self.ruta_ejecutable, '--autostart', '--minimizado']
-                else:
+                comando_args = [self.ruta_ejecutable if getattr(sys, 'frozen', False) else sys.executable, '--autostart', '--minimizado']
+                if self.modo_actual:
+                    comando_args += ['--modo', self.modo_actual]
+                if not getattr(sys, 'frozen', False):
                     iniciar_py = Path(__file__).resolve().parent / 'INICIAR.py'
                     comando_args = [sys.executable, str(iniciar_py), '--autostart', '--minimizado']
+                    if self.modo_actual:
+                        comando_args += ['--modo', self.modo_actual]
 
                 # Escapar rutas para XML (espacios, &, <, >)
                 import xml.sax.saxutils as saxutils
@@ -207,7 +217,7 @@ class GestorAutoarranque:
             logger.error(error_msg)
             return False, error_msg
     
-    def _configurar_linux(self, activar: bool) -> Tuple[bool, str]:
+    def _configurar_linux(self, activar: bool, modo: str = None) -> Tuple[bool, str]:
         """
         Configura el autoarranque en Linux usando systemd user service.
         
@@ -227,10 +237,14 @@ class GestorAutoarranque:
 
                 if getattr(sys, 'frozen', False):
                     comando_args = [self.ruta_ejecutable, '--autostart', '--minimizado']
+                    if self.modo_actual:
+                        comando_args += ['--modo', self.modo_actual]
                     directorio_trabajo = str(Path(self.ruta_ejecutable).parent)
                 else:
                     iniciar_py = Path(__file__).resolve().parent / 'INICIAR.py'
                     comando_args = [sys.executable, str(iniciar_py), '--autostart', '--minimizado']
+                    if self.modo_actual:
+                        comando_args += ['--modo', self.modo_actual]
                     directorio_trabajo = str(Path(__file__).resolve().parent.parent)
 
                 exec_start = " ".join(shlex.quote(arg) for arg in comando_args)
@@ -271,16 +285,21 @@ WantedBy=graphical-session.target
             logger.error(error_msg)
             return False, error_msg
     
-    def configurar_autoarranque(self, activar: bool) -> Tuple[bool, str]:
+    def configurar_autoarranque(self, activar: bool, modo: str = "detallado") -> Tuple[bool, str]:
         """
         Configura el autoarranque de la aplicación según el sistema operativo.
         
         Args:
             activar: True para activar, False para desactivar.
+            modo: 'basico' o 'detallado', para que arranque con la misma configuración.
             
         Returns:
             Tupla con éxito (bool) y mensaje informativo (str).
         """
+        if modo in ("basico", "detallado"):
+            self.modo_actual = modo
+        elif modo is None:
+            self.modo_actual = None
         if sys.platform == 'win32':
             # Windows
             return self._configurar_windows(activar)
