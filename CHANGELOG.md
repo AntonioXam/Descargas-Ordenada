@@ -4,6 +4,19 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.6.0] - 2026-09-21
+
+### 🎨 Interfaz afinada
+- Solo quedan los temas Minimal claro y Minimal oscuro; los antiguos se retiran (migran al oscuro)
+- Pestaña de Ajustes separada de Actividad; las herramientas avanzadas (IA, Fechas, Duplicados, Estadísticas) se agrupan en Avanzado
+
+### 🖱️ Menú contextual en los tres sistemas
+- macOS: acción rápida de Finder (clic derecho → Acciones rápidas → Organizar con DescargasOrdenadas)
+- Linux: entrada "Abrir con…" para carpetas y script para Nautilus
+- Windows: el comando ahora organiza la carpeta seleccionada (antes solo la abría)
+
+---
+
 ## [4.5.0] - 2026-09-21
 
 ### 🗂️ Carpetas y menú contextual

@@ -106,7 +106,7 @@ def test_gui_responsive():
 
     assert ventana.minimumSize().width() <= 800, "El ancho mínimo es demasiado grande"
     assert ventana.minimumSize().height() <= 600, "El alto mínimo es demasiado grande"
-    assert ventana.tabs.count() == 6, "No hay 6 pestañas"
+    assert ventana.tabs.count() == 4, "No hay 4 pestañas (Inicio, Actividad, Ajustes, Avanzado)"
 
     for indice in range(ventana.tabs.count()):
         pestaña = ventana.tabs.widget(indice)

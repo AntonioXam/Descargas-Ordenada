@@ -189,60 +189,8 @@ class GestorTemas:
         self.tema_actual = "minimal_oscuro"
     
     def _cargar_temas_predefinidos(self):
-        """Carga los temas predefinidos."""
-        
-        # Tema Azul Oscuro
-        self.temas["azul_oscuro"] = Tema("Azul Oscuro", {
-            'fondo_1': '#1a1a2e', 'fondo_2': '#16213e', 'fondo_panel': '#16213e',
-            'fondo_oscuro': '#0a1929', 'borde': '#0f3460',
-            'tab_inactivo_1': '#0f3460', 'tab_inactivo_2': '#0a2647',
-            'acento_1': '#00d4ff', 'acento_2': '#0084ff',
-            'acento_hover': '#00e1ff', 'acento_pressed': '#0066cc',
-            'hover_1': '#16537e', 'hover_2': '#113f67',
-            'texto': '#e0e0e0', 'texto_secundario': '#b0b0c0',
-            'texto_deshabilitado': '#666677',
-            'deshabilitado_1': '#2a2a3e', 'deshabilitado_2': '#1a1a2e'
-        })
-        
-        # Tema Verde Oscuro
-        self.temas["verde_oscuro"] = Tema("Verde Oscuro", {
-            'fondo_1': '#1a2e1a', 'fondo_2': '#16213e', 'fondo_panel': '#1e2e1e',
-            'fondo_oscuro': '#0a190a', 'borde': '#0f6034',
-            'tab_inactivo_1': '#0f4034', 'tab_inactivo_2': '#0a2720',
-            'acento_1': '#4CAF50', 'acento_2': '#45a049',
-            'acento_hover': '#66BB6A', 'acento_pressed': '#2e7d32',
-            'hover_1': '#16537e', 'hover_2': '#113f67',
-            'texto': '#e0e0e0', 'texto_secundario': '#b0c0b0',
-            'texto_deshabilitado': '#666677',
-            'deshabilitado_1': '#2a3e2a', 'deshabilitado_2': '#1a2e1a'
-        })
-        
-        # Tema Púrpura
-        self.temas["purpura"] = Tema("Púrpura", {
-            'fondo_1': '#2e1a2e', 'fondo_2': '#21163e', 'fondo_panel': '#2e1e2e',
-            'fondo_oscuro': '#190a19', 'borde': '#60347e',
-            'tab_inactivo_1': '#40347e', 'tab_inactivo_2': '#272047',
-            'acento_1': '#9C27B0', 'acento_2': '#7B1FA2',
-            'acento_hover': '#AB47BC', 'acento_pressed': '#6A1B9A',
-            'hover_1': '#537e7e', 'hover_2': '#3f6767',
-            'texto': '#e0e0e0', 'texto_secundario': '#c0b0c0',
-            'texto_deshabilitado': '#776677',
-            'deshabilitado_1': '#3e2a3e', 'deshabilitado_2': '#2e1a2e'
-        })
-        
-        # Tema Naranja
-        self.temas["naranja"] = Tema("Naranja", {
-            'fondo_1': '#2e1f1a', 'fondo_2': '#3e2116', 'fondo_panel': '#2e2116',
-            'fondo_oscuro': '#19100a', 'borde': '#7e4034',
-            'tab_inactivo_1': '#603420', 'tab_inactivo_2': '#472720',
-            'acento_1': '#FF9800', 'acento_2': '#F57C00',
-            'acento_hover': '#FFB74D', 'acento_pressed': '#EF6C00',
-            'hover_1': '#7e5316', 'hover_2': '#673f11',
-            'texto': '#e0e0e0', 'texto_secundario': '#c0b0a0',
-            'texto_deshabilitado': '#776666',
-            'deshabilitado_1': '#3e2e2a', 'deshabilitado_2': '#2e1f1a'
-        })
-        
+        """Carga los temas predefinidos (solo paleta minimalista)."""
+
         # Tema Minimal Claro (estilo Apple)
         self.temas["minimal_claro"] = Tema("Minimal Claro", {
             'fondo_1': '#F5F5F7', 'fondo_2': '#F5F5F7', 'fondo_panel': '#FFFFFF',
@@ -269,19 +217,6 @@ class GestorTemas:
             'deshabilitado_1': '#2C2C2E', 'deshabilitado_2': '#2C2C2E'
         })
 
-        # Tema Gris
-        self.temas["gris"] = Tema("Gris", {
-            'fondo_1': '#2b2b2b', 'fondo_2': '#1e1e1e', 'fondo_panel': '#2d2d2d',
-            'fondo_oscuro': '#1a1a1a', 'borde': '#505050',
-            'tab_inactivo_1': '#404040', 'tab_inactivo_2': '#353535',
-            'acento_1': '#757575', 'acento_2': '#616161',
-            'acento_hover': '#9E9E9E', 'acento_pressed': '#424242',
-            'hover_1': '#505050', 'hover_2': '#454545',
-            'texto': '#ffffff', 'texto_secundario': '#cccccc',
-            'texto_deshabilitado': '#999999',
-            'deshabilitado_1': '#555555', 'deshabilitado_2': '#2b2b2b'
-        })
-    
     def obtener_tema(self, nombre: str):
         """Obtiene un tema por nombre."""
         return self.temas.get(nombre, self.temas["minimal_oscuro"])

@@ -53,7 +53,7 @@ except ImportError:
 # Importar menú contextual
 try:
     from .context_menu import GestorMenuContextual
-    MENU_CONTEXTUAL_DISPONIBLE = sys.platform == "win32"
+    MENU_CONTEXTUAL_DISPONIBLE = True  # disponible en Windows, macOS y Linux
 except ImportError:
     MENU_CONTEXTUAL_DISPONIBLE = False
 
@@ -112,9 +112,10 @@ class OrganizadorAvanzado(QMainWindow):
             # Cargar tema guardado
             if self.config_portable:
                 tema_guardado = self.config_portable.obtener("tema", "minimal_oscuro")
-                # Migración: los usuarios de la versión anterior venían del tema
-                # azul oscuro por defecto; pasamos al nuevo tema minimalista.
-                if tema_guardado == "azul_oscuro":
+                # Solo existen temas minimalistas; cualquier valor antiguo
+                # (azul_oscuro, verde_oscuro, purpura, naranja, gris…) cae al
+                # tema oscuro minimalista.
+                if tema_guardado not in ("minimal_oscuro", "minimal_claro"):
                     tema_guardado = "minimal_oscuro"
                 self.gestor_temas.establecer_tema_actual(tema_guardado)
         else:
@@ -1108,11 +1109,9 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addWidget(footer)
 
         self._crear_tab_principal()
-        self._crear_tab_ia()
-        self._crear_tab_fechas()
-        self._crear_tab_duplicados()
-        self._crear_tab_estadisticas()
-        self._crear_tab_logs()
+        self._crear_tab_actividad()
+        self._crear_tab_ajustes()
+        self._crear_tab_avanzado()
 
         # Barra de progreso (indeterminada)
         self.progress_bar = QProgressBar()
@@ -1123,15 +1122,16 @@ class OrganizadorAvanzado(QMainWindow):
 
         self.statusBar().showMessage("Listo")
 
-    def _agregar_tab_con_scroll(self, contenido: QWidget, titulo: str):
+    def _agregar_tab_con_scroll(self, contenido: QWidget, titulo: str, destino: QTabWidget = None):
         """Agrega una pestaña envuelta en scroll para adaptarse a cualquier resolución."""
+        contenedor = destino if destino is not None else self.tabs
         scroll = QScrollArea()
         scroll.setWidget(contenido)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        self.tabs.addTab(scroll, titulo)
+        contenedor.addTab(scroll, titulo)
 
     def _crear_tab_principal(self):
         """Pantalla de inicio: lo esencial, nada más."""
@@ -1225,7 +1225,7 @@ class OrganizadorAvanzado(QMainWindow):
 
         self._agregar_tab_con_scroll(tab, "Inicio")
 
-    def _crear_tab_ia(self):
+    def _crear_tab_ia(self, destino=None):
         """Pestaña de IA."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1263,9 +1263,9 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_patrones.setReadOnly(True)
         layout.addWidget(self.text_patrones)
 
-        self._agregar_tab_con_scroll(tab, "IA")
+        self._agregar_tab_con_scroll(tab, "IA", destino)
 
-    def _crear_tab_fechas(self):
+    def _crear_tab_fechas(self, destino=None):
         """Pestaña de organización por fechas."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1321,9 +1321,9 @@ class OrganizadorAvanzado(QMainWindow):
 
         layout.addStretch()
         self._actualizar_ejemplo_fecha()
-        self._agregar_tab_con_scroll(tab, "Fechas")
+        self._agregar_tab_con_scroll(tab, "Fechas", destino)
 
-    def _crear_tab_duplicados(self):
+    def _crear_tab_duplicados(self, destino=None):
         """Pestaña de duplicados."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1342,9 +1342,9 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_duplicados.setPlaceholderText("Los duplicados aparecerán aquí…")
         layout.addWidget(self.text_duplicados)
 
-        self._agregar_tab_con_scroll(tab, "Duplicados")
+        self._agregar_tab_con_scroll(tab, "Duplicados", destino)
 
-    def _crear_tab_estadisticas(self):
+    def _crear_tab_estadisticas(self, destino=None):
         """Pestaña de estadísticas."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -1360,21 +1360,54 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_stats.setReadOnly(True)
         layout.addWidget(self.text_stats)
 
-        self._agregar_tab_con_scroll(tab, "Estadísticas")
+        self._agregar_tab_con_scroll(tab, "Estadísticas", destino)
 
-    def _crear_tab_logs(self):
-        """Pestaña de actividad y ajustes."""
+    def _crear_tab_actividad(self):
+        """Pestaña de actividad: registros de lo que hace la app."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
-        # --- Ajustes -------------------------------------------------------
-        ajustes_group = QGroupBox("Ajustes")
-        ajustes_layout = QVBoxLayout(ajustes_group)
-        ajustes_layout.setSpacing(10)
+        fila_logs = QHBoxLayout()
+        btn_limpiar = QPushButton("Limpiar")
+        btn_limpiar.clicked.connect(self._limpiar_logs)
+        fila_logs.addWidget(btn_limpiar)
+        btn_exportar = QPushButton("Exportar")
+        btn_exportar.clicked.connect(self._exportar_logs)
+        fila_logs.addWidget(btn_exportar)
+        fila_logs.addStretch()
 
-        # Carpeta
-        carpeta_layout = QHBoxLayout()
-        self.lbl_carpeta_actual = QLabel(f"Carpeta: {os.path.basename(str(self.organizador.carpeta_descargas))}")
+        if sys.platform == "win32":
+            self.chk_mostrar_consola = QCheckBox("Mostrar consola externa")
+            self.chk_mostrar_consola.setChecked(False)
+            self.chk_mostrar_consola.toggled.connect(self._toggle_consola_externa)
+            fila_logs.addWidget(self.chk_mostrar_consola)
+
+        layout.addLayout(fila_logs)
+
+        self.list_archivos = QListWidget()
+        self.list_archivos.setMaximumHeight(120)
+        layout.addWidget(self.list_archivos)
+
+        self.text_logs = QPlainTextEdit()
+        self.text_logs.setReadOnly(True)
+        self.text_logs.setPlainText("DescargasOrdenadas\n" + "-" * 40 + "\n")
+        layout.addWidget(self.text_logs, 1)
+
+        self._agregar_tab_con_scroll(tab, "Actividad")
+
+        # Configurar captura de logs
+        self._setup_log_capture()
+
+    def _crear_tab_ajustes(self):
+        """Pestaña de ajustes de la aplicación."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(14)
+
+        # --- Carpeta de trabajo --------------------------------------------
+        carpeta_group = QGroupBox("Carpeta a organizar")
+        carpeta_layout = QHBoxLayout(carpeta_group)
+        self.lbl_carpeta_actual = QLabel(os.path.basename(str(self.organizador.carpeta_descargas)))
         carpeta_layout.addWidget(self.lbl_carpeta_actual)
         carpeta_layout.addStretch()
         btn_seleccionar_carpeta = QPushButton("Cambiar…")
@@ -1384,9 +1417,33 @@ class OrganizadorAvanzado(QMainWindow):
         btn_reset_carpeta.setToolTip("Volver a la carpeta de descargas predeterminada")
         btn_reset_carpeta.clicked.connect(self._reset_carpeta_descargas)
         carpeta_layout.addWidget(btn_reset_carpeta)
-        ajustes_layout.addLayout(carpeta_layout)
+        layout.addWidget(carpeta_group)
 
-        # Opciones de organización
+        # --- Integración con el sistema ------------------------------------
+        sistema_group = QGroupBox("Integración")
+        sistema_layout = QVBoxLayout(sistema_group)
+        sistema_layout.setSpacing(10)
+
+        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
+        if MENU_CONTEXTUAL_DISPONIBLE:
+            self.chk_menu_contextual = QCheckBox(f"Añadir al menú contextual ({nombre_so})")
+            self.chk_menu_contextual.setChecked(self.gestor_menu_contextual.verificar_registro())
+            if nombre_so == "macOS":
+                self.chk_menu_contextual.setToolTip("Aparece en Finder con clic derecho → Acciones rápidas → Organizar con DescargasOrdenadas")
+            elif nombre_so == "Linux":
+                self.chk_menu_contextual.setToolTip("Aparece con clic derecho → Abrir con…, y en los scripts del explorador (Nautilus)")
+            else:
+                self.chk_menu_contextual.setToolTip("Aparece con clic derecho sobre una carpeta")
+            self.chk_menu_contextual.toggled.connect(self._toggle_menu_contextual)
+            sistema_layout.addWidget(self.chk_menu_contextual)
+
+        layout.addWidget(sistema_group)
+
+        # --- Organización --------------------------------------------------
+        organizacion_group = QGroupBox("Organización")
+        organizacion_layout = QVBoxLayout(organizacion_group)
+        organizacion_layout.setSpacing(10)
+
         self.chk_subcarpetas = QCheckBox("Usar subcarpetas detalladas")
         self.chk_subcarpetas.setChecked(False)
         self.chk_subcarpetas.setToolTip(
@@ -1394,36 +1451,30 @@ class OrganizadorAvanzado(QMainWindow):
             "Marcado: organización DETALLADA (Comprimidos/Zip, Imágenes/PNG…)"
         )
         self.chk_subcarpetas.toggled.connect(self._toggle_subcarpetas)
-        ajustes_layout.addWidget(self.chk_subcarpetas)
+        organizacion_layout.addWidget(self.chk_subcarpetas)
 
         self.chk_recursivo = QCheckBox("Buscar en subcarpetas")
-        ajustes_layout.addWidget(self.chk_recursivo)
+        organizacion_layout.addWidget(self.chk_recursivo)
 
         if NOTIFICACIONES_NATIVAS:
             self.chk_notificaciones = QCheckBox("Notificaciones del sistema")
             self.chk_notificaciones.setChecked(True)
             self.chk_notificaciones.setToolTip("Notifica cuando se organizan archivos")
             self.chk_notificaciones.toggled.connect(self._toggle_notificaciones)
-            ajustes_layout.addWidget(self.chk_notificaciones)
+            organizacion_layout.addWidget(self.chk_notificaciones)
+        layout.addWidget(organizacion_group)
 
-        fila_tema = QHBoxLayout()
-        fila_tema_lbl = QLabel("Tema")
-        fila_tema_lbl.setStyleSheet("color: #98989D;")
-        fila_tema_lbl.setObjectName("etiquetaSecundaria")
-        fila_tema_lbl.setStyleSheet("color: #98989D; font-size: 12px;")
-        fila_tema = fila_tema_lbl
-        fila_tema_row = fila_tema
-        fila_tema_widget = fila_tema_lbl
-        fila_tema_lbl_final = fila_tema_lbl
-        tema_label = fila_tema_lbl
-        tema_label2 = QLabel("Tema")
-        tema_label2.setStyleSheet("color: #98989D; font-size: 12px;")
-        tema_layout = QHBoxLayout()
-        tema_layout.addWidget(tema_label2)
+        # --- Apariencia ----------------------------------------------------
         if TEMAS_DISPONIBLES:
+            apariencia_group = QGroupBox("Apariencia")
+            apariencia_layout = QHBoxLayout(apariencia_group)
+            lbl_tema = QLabel("Tema")
+            lbl_tema.setObjectName("etiquetaSecundaria")
+            apariencia_layout.addWidget(lbl_tema)
+
             self.combo_temas = QComboBox()
             for tema_nombre in self.gestor_temas.obtener_nombres_temas():
-                display = tema_nombre.replace("_", " ").replace("minimal", "Minimal").title()
+                display = "Minimal claro" if tema_nombre == "minimal_claro" else "Minimal oscuro"
                 self.combo_temas.addItem(display, tema_nombre)
             tema_actual = self.gestor_temas.tema_actual
             for i in range(self.combo_temas.count()):
@@ -1431,30 +1482,11 @@ class OrganizadorAvanzado(QMainWindow):
                     self.combo_temas.setCurrentIndex(i)
                     break
             self.combo_temas.currentIndexChanged.connect(self._cambiar_tema)
-            tema_layout.addWidget(self.combo_temas)
-        tema_layout.addStretch()
-        ajustes_layout.addLayout(tema_layout)
+            apariencia_layout.addWidget(self.combo_temas)
+            apariencia_layout.addStretch()
+            layout.addWidget(apariencia_group)
 
-        if MENU_CONTEXTUAL_DISPONIBLE:
-            self.chk_menu_contextual = QCheckBox("Añadir al menú contextual (clic derecho)")
-            self.chk_menu_contextual.setChecked(self.gestor_menu_contextual.verificar_registro())
-            self.chk_menu_contextual.toggled.connect(self._toggle_menu_contextual)
-            ajustes_layout.addWidget(self.chk_menu_contextual)
-
-        if ACTUALIZACIONES_DISPONIBLES:
-            fila_actualizaciones = QHBoxLayout()
-            btn_verificar_actualizaciones = QPushButton("Buscar actualizaciones")
-            btn_verificar_actualizaciones.clicked.connect(self._verificar_actualizaciones)
-            fila_actualizaciones.addWidget(btn_verificar_actualizaciones)
-            lbl_version = QLabel(f"Versión {self.gestor_actualizaciones.obtener_version_actual()}")
-            lbl_version.setStyleSheet("color: #98989D; font-size: 11px;")
-            fila_actualizaciones.addWidget(lbl_version)
-            fila_actualizaciones.addStretch()
-            ajustes_layout.addLayout(fila_actualizaciones)
-
-        layout.addWidget(ajustes_group)
-
-        # --- Consola (solo Windows) ---------------------------------------
+        # --- Consola (solo Windows) ----------------------------------------
         if sys.platform == "win32":
             consola_group = QGroupBox("Consola")
             consola_layout = QHBoxLayout(consola_group)
@@ -1471,36 +1503,38 @@ class OrganizadorAvanzado(QMainWindow):
             self.btn_reiniciar_sin_consola.clicked.connect(self._crear_proceso_sin_consola)
             consola_layout.addWidget(self.btn_reiniciar_sin_consola)
             consola_layout.addStretch()
-            self.chk_mostrar_consola = QCheckBox("Mostrar consola externa")
-            self.chk_mostrar_consola.setChecked(False)
-            self.chk_mostrar_consola.toggled.connect(self._toggle_consola_externa)
-            consola_layout.addWidget(self.chk_mostrar_consola)
             layout.addWidget(consola_group)
 
-        # --- Actividad -----------------------------------------------------
-        fila_logs = QHBoxLayout()
-        btn_limpiar = QPushButton("Limpiar")
-        btn_limpiar.clicked.connect(self._limpiar_logs)
-        fila_logs.addWidget(btn_limpiar)
-        btn_exportar = QPushButton("Exportar")
-        btn_exportar.clicked.connect(self._exportar_logs)
-        fila_logs.addWidget(btn_exportar)
-        fila_logs.addStretch()
-        layout.addLayout(fila_logs)
+        # --- Actualizaciones -----------------------------------------------
+        if ACTUALIZACIONES_DISPONIBLES:
+            fila_actualizaciones = QHBoxLayout()
+            btn_verificar_actualizaciones = QPushButton("Buscar actualizaciones")
+            btn_verificar_actualizaciones.clicked.connect(self._verificar_actualizaciones)
+            fila_actualizaciones.addWidget(btn_verificar_actualizaciones)
+            lbl_version = QLabel(f"Versión {self.gestor_actualizaciones.obtener_version_actual()}")
+            lbl_version.setObjectName("etiquetaSecundaria")
+            fila_actualizaciones.addWidget(lbl_version)
+            fila_actualizaciones.addStretch()
+            layout.addLayout(fila_actualizaciones)
 
-        self.list_archivos = QListWidget()
-        self.list_archivos.setMaximumHeight(120)
-        layout.addWidget(self.list_archivos)
+        layout.addStretch()
+        self._agregar_tab_con_scroll(tab, "Ajustes")
 
-        self.text_logs = QPlainTextEdit()
-        self.text_logs.setReadOnly(True)
-        self.text_logs.setPlainText("DescargasOrdenadas\n" + "-" * 40 + "\n")
-        layout.addWidget(self.text_logs, 1)
+    def _crear_tab_avanzado(self):
+        """Herramientas avanzadas agrupadas en una sola pestaña."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        self._agregar_tab_con_scroll(tab, "Actividad")
+        pestañas_avanzadas = QTabWidget()
+        layout.addWidget(pestañas_avanzadas)
 
-        # Configurar captura de logs
-        self._setup_log_capture()
+        self._crear_tab_ia(destino=pestañas_avanzadas)
+        self._crear_tab_fechas(destino=pestañas_avanzadas)
+        self._crear_tab_duplicados(destino=pestañas_avanzadas)
+        self._crear_tab_estadisticas(destino=pestañas_avanzadas)
+
+        self._agregar_tab_con_scroll(tab, "Avanzado")
 
     def _setup_log_capture(self):
         """Configura la captura de logs en la pestaña interna."""
@@ -1701,16 +1735,17 @@ class OrganizadorAvanzado(QMainWindow):
                 exito, mensaje = self.gestor_menu_contextual.registrar_menu_contextual("carpetas")
                 if exito:
                     self._agregar_log("🖱️ Menú contextual registrado")
-                    QMessageBox.information(
-                        self,
-                        "Menú Contextual",
-                        "✅ Menú contextual registrado correctamente\n\n"
-                        "Ahora puedes hacer click derecho en cualquier carpeta\n"
-                        "y seleccionar 'Organizar con DescargasOrdenadas'"
-                    )
+                    if self.notificador:
+                        self.notificador.mostrar(
+                            "Menú contextual",
+                            "Ya puedes organizar con clic derecho sobre una carpeta.",
+                            tipo="success", duracion=4,
+                        )
                 else:
                     self._agregar_log(f"❌ Error: {mensaje}")
+                    self.chk_menu_contextual.blockSignals(True)
                     self.chk_menu_contextual.setChecked(False)
+                    self.chk_menu_contextual.blockSignals(False)
                     QMessageBox.warning(self, "Error", f"No se pudo registrar el menú contextual:\n{mensaje}")
             else:
                 exito, mensaje = self.gestor_menu_contextual.desregistrar_menu_contextual()
