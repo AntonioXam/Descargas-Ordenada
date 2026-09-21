@@ -4,6 +4,16 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.4.0] - 2026-09-21
+
+### 🎨 Rediseño minimalista
+- Nueva pantalla de inicio con lo esencial: automático (Básico/Detallado), cada cuánto y arrancar con el sistema
+- Temas Minimal Claro y Minimal Oscuro, planos y discretos (paleta tipo Apple)
+- Ventana más compacta por defecto y pestañas en formato píldora
+- Ajustes y actividad reunidos en una sola pestaña; sin colores llamativos
+
+---
+
 ## [4.3.0] - 2026-09-21
 
 ### 🧭 Una sola instancia

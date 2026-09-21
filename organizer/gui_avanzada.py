@@ -111,7 +111,11 @@ class OrganizadorAvanzado(QMainWindow):
             self.gestor_temas = obtener_gestor_temas()
             # Cargar tema guardado
             if self.config_portable:
-                tema_guardado = self.config_portable.obtener("tema", "azul_oscuro")
+                tema_guardado = self.config_portable.obtener("tema", "minimal_oscuro")
+                # Migración: los usuarios de la versión anterior venían del tema
+                # azul oscuro por defecto; pasamos al nuevo tema minimalista.
+                if tema_guardado == "azul_oscuro":
+                    tema_guardado = "minimal_oscuro"
                 self.gestor_temas.establecer_tema_actual(tema_guardado)
         else:
             self.gestor_temas = None
@@ -134,7 +138,7 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Configuración ventana
         self.setWindowTitle("🍄 DescargasOrdenadas - Organizador Automático")
-        self.setMinimumSize(760, 560)
+        self.setMinimumSize(640, 520)
         self._ajustar_tamano_inicial()
         
         self._setup_ui()
@@ -173,7 +177,7 @@ class OrganizadorAvanzado(QMainWindow):
                 return
             
             geom = screen.availableGeometry()
-            min_w, min_h = 760, 560
+            min_w, min_h = 640, 520
 
             ventana_guardada = {}
             if self.config_portable:
@@ -187,8 +191,10 @@ class OrganizadorAvanzado(QMainWindow):
                 ancho = min(ancho_guardado, geom.width())
                 alto = min(alto_guardado, geom.height())
             else:
-                ancho = min(max(min_w, int(geom.width() * 0.9)), geom.width())
-                alto = min(max(min_h, int(geom.height() * 0.9)), geom.height())
+                # Ventana compacta por defecto: suficiente para la pantalla
+                # de inicio sin ocupar todo el escritorio.
+                ancho = min(max(min_w, int(geom.width() * 0.52)), geom.width())
+                alto = min(max(min_h, int(geom.height() * 0.68)), geom.height())
 
             self.resize(ancho, alto)
 
@@ -219,219 +225,166 @@ class OrganizadorAvanzado(QMainWindow):
     
     def _aplicar_tema(self):
         """Aplica el tema visual actual."""
-        if self.gestor_temas:
+        nombre = self.gestor_temas.tema_actual if self.gestor_temas else "minimal_oscuro"
+        if nombre in ("minimal_oscuro", "minimal_claro"):
+            # Los temas minimalistas llevan su propio diseño completo
+            self._aplicar_estilos_minimal(claro=(nombre == "minimal_claro"))
+        elif self.gestor_temas:
             tema = self.gestor_temas.obtener_tema_actual()
             self.setStyleSheet(tema.obtener_stylesheet())
         else:
-            # Fallback al tema azul oscuro estático
-            self._aplicar_estilos_modernos()
+            # Fallback: tema minimalista oscuro
+            self._aplicar_estilos_minimal()
     
-    def _aplicar_estilos_modernos(self):
-        """Aplica estilos modernos con tema oscuro mejorado (fallback)."""
-        self.setStyleSheet("""
-            QMainWindow { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #1a1a2e, stop:1 #16213e);
-                color: #ffffff;
+    def _aplicar_estilos_minimal(self, claro=False):
+        """Hoja de estilos minimalista (tema principal de la aplicación)."""
+        if claro:
+            c = {
+                "fondo": "#F5F5F7", "panel": "#FFFFFF", "panel_alt": "#EBEBED",
+                "borde": "#D2D2D7", "borde_fuerte": "#C7C7CC",
+                "texto": "#1D1D1F", "texto_sec": "#6E6E73", "texto_disc": "#AEAEB2",
+                "acento": "#0071E3", "acento_hover": "#0077ED", "acento_pulsado": "#0068D6",
+                "mono": "'SF Mono', 'Menlo', 'Consolas', monospace",
             }
-            QTabWidget::pane {
-                border: 2px solid #0f3460;
-                background-color: #16213e;
-                border-radius: 10px;
-                margin-top: 8px;
-                padding: 5px;
+        else:
+            c = {
+                "fondo": "#1C1C1E", "panel": "#2C2C2E", "panel_alt": "#3A3A3C",
+                "borde": "#38383D", "borde_fuerte": "#48484A",
+                "texto": "#F5F5F7", "texto_sec": "#98989D", "texto_disc": "#636366",
+                "acento": "#0A84FF", "acento_hover": "#409CFF", "acento_pulsado": "#0060DF",
+                "mono": "'SF Mono', 'Menlo', 'Consolas', monospace",
             }
-            QTabBar::tab {
-                padding: 14px 24px;
-                margin-right: 4px;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0f3460, stop:1 #0a2647);
-                border: 1px solid #1a1a2e;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
-                font-weight: bold;
-                color: #b0b0c0;
-                font-size: 13px;
-                min-width: 100px;
-            }
-            QTabBar::tab:selected {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #00d4ff, stop:1 #0084ff);
-                color: #ffffff;
-                border-bottom: 3px solid #00d4ff;
-                padding-bottom: 11px;
-            }
-            QTabBar::tab:hover:!selected {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #16537e, stop:1 #113f67);
-                color: #ffffff;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #0f3460;
+        self.setStyleSheet(f"""
+            QMainWindow {{ background-color: {c['fondo']}; color: {c['texto']}; }}
+            QWidget {{ color: {c['texto']}; font-size: 13px; }}
+            QLabel {{ color: {c['texto']}; font-size: 13px; }}
+            QLabel#etiquetaSecundaria {{ color: {c['texto_sec']}; font-size: 12px; }}
+            QLabel#tarjetaEstado {{
+                padding: 14px;
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 20px;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #1a1a2e, stop:1 #16213e);
-                color: #ffffff;
-                font-size: 14px;
-            }
-            QGroupBox::title {
+                background-color: {c['panel_alt']};
+                border: 1px solid {c['borde']};
+                color: {c['texto']};
+                font-size: 15px;
+                font-weight: 600;
+            }}
+
+            QTabWidget::pane {{
+                border: 1px solid {c['borde']};
+                border-radius: 12px;
+                background-color: {c['fondo']};
+                top: -1px;
+            }}
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollArea > QWidget > QWidget {{ background: transparent; }}
+            QTabBar {{ qproperty-drawBase: 0; }}
+            QTabBar::tab {{
+                background: transparent;
+                color: {c['texto_sec']};
+                padding: 7px 14px;
+                margin-right: 4px;
+                border-radius: 8px;
+                font-size: 12px;
+            }}
+            QTabBar::tab:selected {{ background: {c['acento']}; color: #FFFFFF; font-weight: 600; }}
+            QTabBar::tab:hover:!selected {{ color: {c['texto']}; background: {c['panel']}; }}
+
+            QGroupBox {{
+                font-weight: 600;
+                border: 1px solid {c['borde']};
+                border-radius: 12px;
+                margin-top: 6px;
+                padding: 30px 14px 12px 14px;
+                background-color: {c['panel']};
+                font-size: 13px;
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
-                left: 20px;
-                padding: 0 10px 0 10px;
-                color: #00d4ff;
-                background-color: transparent;
-                font-weight: bold;
-            }
-            QCheckBox {
-                spacing: 10px;
-                font-weight: normal;
-                color: #e0e0e0;
-                font-size: 13px;
-                padding: 5px;
-            }
-            QCheckBox::indicator {
-                width: 20px;
-                height: 20px;
-                border-radius: 5px;
-                border: 2px solid #0f3460;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #16213e, stop:1 #0a2647);
-            }
-            QCheckBox::indicator:checked {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #00d4ff, stop:1 #0084ff);
-                border-color: #00d4ff;
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMy41IDhMNi41IDExTDEyLjUgNSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=);
-            }
-            QCheckBox::indicator:hover {
-                border-color: #00d4ff;
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #1a3a5a, stop:1 #0f2a47);
-            }
-            QLabel {
-                color: #ffffff;
-                font-size: 13px;
-            }
-            QListWidget {
-                border: 2px solid #0f3460;
-                border-radius: 8px;
-                background-color: #0a1929;
-                color: #e0e0e0;
-                padding: 5px;
-                selection-background-color: #00d4ff;
-                selection-color: #000000;
+                subcontrol-position: top left;
+                left: 14px;
+                top: 8px;
+                padding: 0 2px;
+                color: {c['texto_sec']};
                 font-size: 12px;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-radius: 4px;
-                margin: 2px 0;
-            }
-            QListWidget::item:hover {
-                background-color: #16213e;
-            }
-            QTextEdit, QPlainTextEdit {
-                border: 2px solid #0f3460;
-                border-radius: 8px;
-                background-color: #0a1929;
-                color: #e0e0e0;
-                padding: 8px;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 12px;
-                line-height: 1.5;
-            }
-            QSlider::groove:horizontal {
-                border: 1px solid #505050;
-                height: 6px;
-                background: #3d3d3d;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #4CAF50;
-                border: 1px solid #45a049;
-                width: 18px;
+                font-weight: 600;
+            }}
+
+            QCheckBox {{ spacing: 10px; font-size: 13px; }}
+            QCheckBox::indicator {{
+                width: 18px; height: 18px; border-radius: 5px;
+                border: 1.5px solid {c['borde_fuerte']}; background: {c['fondo']};
+            }}
+            QCheckBox::indicator:checked {{ background: {c['acento']}; border-color: {c['acento']}; }}
+            QCheckBox::indicator:hover {{ border-color: {c['acento']}; }}
+
+            QPushButton {{
+                background-color: {c['panel']};
+                color: {c['texto']};
+                border: 1px solid {c['borde']};
+                padding: 9px 16px;
                 border-radius: 9px;
-                margin: -6px 0;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #66BB6A;
-            }
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #00d4ff, stop:1 #0084ff);
-                color: white;
-                border: none;
-                padding: 14px 24px;
-                border-radius: 10px;
-                font-weight: bold;
                 font-size: 13px;
-                min-height: 18px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #00e1ff, stop:1 #00a3ff);
-                box-shadow: 0 6px 8px rgba(0, 212, 255, 0.4);
-            }
-            QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0084ff, stop:1 #0066cc);
-                padding: 16px 24px 12px 24px;
-            }
-            QPushButton:disabled {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #2a2a3e, stop:1 #1a1a2e);
-                color: #666677;
-            }
-            QComboBox {
-                border: 1px solid #505050;
-                border-radius: 6px;
-                padding: 8px 12px;
-                background-color: #3d3d3d;
-                color: #ffffff;
-                font-size: 13px;
-                min-height: 20px;
-            }
-            QComboBox:hover {
-                border-color: #4CAF50;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 30px;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 6px solid transparent;
-                border-right: 6px solid transparent;
-                border-top: 8px solid #ffffff;
-                margin-right: 8px;
-            }
-            QComboBox QAbstractItemView {
-                border: 1px solid #505050;
-                background-color: #3d3d3d;
-                color: #ffffff;
-                selection-background-color: #4CAF50;
-            }
-            QProgressBar {
-                border: 2px solid #0f3460;
-                border-radius: 8px;
-                text-align: center;
-                font-weight: bold;
-                background-color: #0a1929;
-                color: #ffffff;
-                height: 24px;
-                font-size: 12px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                    stop:0 #00d4ff, stop:1 #00a3ff);
-                border-radius: 6px;
-            }
+            }}
+            QPushButton:hover {{ background-color: {c['panel_alt']}; }}
+            QPushButton:pressed {{ background-color: {c['borde_fuerte']}; }}
+            QPushButton:disabled {{ color: {c['texto_disc']}; background-color: {c['panel']}; }}
+            QPushButton#botonPrimario {{
+                background-color: {c['acento']}; border: none; color: #FFFFFF; font-weight: 600;
+            }}
+            QPushButton#botonPrimario:hover {{ background-color: {c['acento_hover']}; }}
+            QPushButton#botonPrimario:pressed {{ background-color: {c['acento_pulsado']}; }}
+            QPushButton#botonPrimario:disabled {{ background-color: {c['panel']}; color: {c['texto_disc']}; }}
+
+            QComboBox {{
+                border: 1px solid {c['borde']}; border-radius: 9px;
+                padding: 8px 12px; background-color: {c['panel']}; color: {c['texto']};
+                min-width: 130px;
+            }}
+            QComboBox:hover {{ border-color: {c['acento']}; }}
+            QComboBox::drop-down {{ border: none; width: 26px; }}
+            QComboBox::down-arrow {{
+                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMCcgaGVpZ2h0PSc2Jz48cGF0aCBkPSdNMSAxbDQgNCA0LTQnIHN0cm9rZT0nJTIzOTg5ODlEJyBzdHJva2Utd2lkdGg9JzEuNScgZmlsbD0nbm9uZScgc3Ryb2tlLWxpbmVjYXA9J3JvdW5kJyBzdHJva2UtbGluZWpvaW49J3JvdW5kJy8+PC9zdmc+);
+                width: 10px; height: 6px;
+                margin-right: 10px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {c['panel']}; color: {c['texto']};
+                selection-background-color: {c['acento']}; border: 1px solid {c['borde']};
+            }}
+
+            QSlider::groove:horizontal {{ height: 4px; background: {c['borde_fuerte']}; border-radius: 2px; }}
+            QSlider::sub-page:horizontal {{ background: {c['acento']}; border-radius: 2px; }}
+            QSlider::handle:horizontal {{
+                width: 18px; height: 18px; margin: -8px 0;
+                background: #FFFFFF; border-radius: 9px;
+            }}
+
+            QProgressBar {{ background: {c['panel']}; border: none; border-radius: 2px; }}
+            QProgressBar::chunk {{ background: {c['acento']}; border-radius: 2px; }}
+
+            QPlainTextEdit, QTextEdit, QListWidget {{
+                border: 1px solid {c['borde']}; border-radius: 10px;
+                background-color: {c['fondo']}; color: {c['texto']};
+                padding: 8px; font-family: {c['mono']}; font-size: 12px;
+            }}
+            QListWidget::item {{ padding: 6px; border-radius: 6px; }}
+            QListWidget::item:selected {{ background-color: {c['acento']}; color: #FFFFFF; }}
+
+            QStatusBar {{ background: transparent; color: {c['texto_sec']}; }}
+            QScrollBar:vertical {{ background: transparent; width: 10px; margin: 0; }}
+            QScrollBar::handle:vertical {{ background: {c['borde_fuerte']}; border-radius: 5px; min-height: 30px; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+            QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 0; }}
+            QScrollBar::handle:horizontal {{ background: {c['borde_fuerte']}; border-radius: 5px; min-width: 30px; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+
+            QToolTip {{
+                background-color: {c['panel']}; color: {c['texto']};
+                border: 1px solid {c['borde_fuerte']}; border-radius: 6px; padding: 6px;
+            }}
         """)
-    
+
+
     def _setup_system_tray(self):
         """Configura bandeja del sistema completa."""
         if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -529,15 +482,6 @@ class OrganizadorAvanzado(QMainWindow):
                 if hasattr(self.date_organizer, 'activo') and self.date_organizer.activo:
                     if hasattr(self, 'lbl_estado_fechas'):
                         self.lbl_estado_fechas.setText("✅ Organización por fechas: ACTIVADA")
-                        self.lbl_estado_fechas.setStyleSheet("""
-                            font-weight: bold; 
-                            padding: 15px; 
-                            color: #ffffff;
-                            background-color: #4CAF50;
-                            border-radius: 8px;
-                            font-size: 15px;
-                            text-align: center;
-                        """)
                         if hasattr(self, 'btn_activar_fechas'):
                             self.btn_activar_fechas.setEnabled(False)
                         if hasattr(self, 'btn_desactivar_fechas'):
@@ -576,12 +520,12 @@ class OrganizadorAvanzado(QMainWindow):
             self.custom_rules = None
             self._agregar_log(f"⚠️ Reglas personalizadas no disponible: {e}")
         
-        # Actualizar estado
-        if hasattr(self, 'lbl_estado'):
-            if funciones:
-                self.lbl_estado.setText("✅ " + " | ".join(funciones))
-            else:
-                self.lbl_estado.setText("❌ Solo funcionalidades básicas")
+        # Informar de los módulos en el log y en la barra de estado
+        # (la tarjeta principal se reserva para el estado de la auto-organización)
+        if funciones:
+            self._agregar_log("Módulos: " + " | ".join(funciones))
+        else:
+            self._agregar_log("Solo funcionalidades básicas disponibles")
         
         self._actualizar_datos()
     
@@ -741,14 +685,6 @@ class OrganizadorAvanzado(QMainWindow):
                     
                 # Actualizar estado visual
                 self.lbl_estado.setText(f"📁 Auto-organización BÁSICA: ACTIVADA ({intervalo_texto})")
-                self.lbl_estado.setStyleSheet("""
-                    font-weight: bold; 
-                    padding: 10px; 
-                    color: #ffffff;
-                    background-color: #4CAF50;
-                    border-radius: 6px;
-                    font-size: 14px;
-                """)
 
                 # Recordar la elección para el próximo arranque
                 self._guardar_preferencia_auto()
@@ -792,14 +728,6 @@ class OrganizadorAvanzado(QMainWindow):
                     
                 # Actualizar estado visual
                 self.lbl_estado.setText(f"🔧 Auto-organización DETALLADA: ACTIVADA ({intervalo_texto})")
-                self.lbl_estado.setStyleSheet("""
-                    font-weight: bold; 
-                    padding: 10px; 
-                    color: #ffffff;
-                    background-color: #2196F3;
-                    border-radius: 6px;
-                    font-size: 14px;
-                """)
 
                 # Recordar la elección para el próximo arranque
                 self._guardar_preferencia_auto()
@@ -831,14 +759,6 @@ class OrganizadorAvanzado(QMainWindow):
                 
             # Actualizar estado visual
             self.lbl_estado.setText("⏸️ Auto-organización: DESACTIVADA")
-            self.lbl_estado.setStyleSheet("""
-                font-weight: bold; 
-                padding: 10px; 
-                color: #ffffff;
-                background-color: #f44336;
-                border-radius: 6px;
-                font-size: 14px;
-            """)
 
     def _deshacer_organizacion(self):
         """Deshace toda la organización moviendo archivos de vuelta a la raíz."""
@@ -1137,52 +1057,44 @@ class OrganizadorAvanzado(QMainWindow):
                     event.ignore()
 
     def _setup_ui(self):
-        """Configura la interfaz principal."""
+        """Configura la interfaz principal (diseño minimalista)."""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        
-        # Header
-        self.header = QLabel(f"🍄 DescargasOrdenadas | 📁 {self.organizador.carpeta_descargas}")
-        self.header.setStyleSheet("""
-            font-weight: bold; 
-            font-size: 14px; 
-            padding: 15px; 
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                stop:0 #4a90e2, stop:1 #67b26f);
-            color: white;
-            border-radius: 8px;
-            margin-bottom: 5px;
-        """)
+        layout.setContentsMargins(20, 16, 20, 12)
+        layout.setSpacing(12)
+
+        # Cabecera compacta
+        self.header = QLabel(f"🍄 DescargasOrdenadas · 📁 {os.path.basename(str(self.organizador.carpeta_descargas))}")
+        self.header.setStyleSheet("font-weight: 600; font-size: 15px;")
+        self.header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(self.header)
-        
+
         # Pestañas
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
-        
-        # Footer con versión
+
+        # Pie discreto
         footer = QLabel(f"v{obtener_version()}")
         footer.setAlignment(Qt.AlignRight)
-        footer.setStyleSheet("""
-            color: #888;
-            font-size: 10px;
-            padding: 5px 10px;
-        """)
+        footer.setStyleSheet(f"color: #98989D; font-size: 11px;")
         layout.addWidget(footer)
-        
+
         self._crear_tab_principal()
         self._crear_tab_ia()
         self._crear_tab_fechas()
         self._crear_tab_duplicados()
         self._crear_tab_estadisticas()
         self._crear_tab_logs()
-        
-        # Barra de progreso
+
+        # Barra de progreso (indeterminada)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(4)
         layout.addWidget(self.progress_bar)
-        
-        self.statusBar().showMessage("🍄 Listo - Todas las funcionalidades cargadas")
+
+        self.statusBar().showMessage("Listo")
 
     def _agregar_tab_con_scroll(self, contenido: QWidget, titulo: str):
         """Agrega una pestaña envuelta en scroll para adaptarse a cualquier resolución."""
@@ -1193,715 +1105,376 @@ class OrganizadorAvanzado(QMainWindow):
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setFrameShape(QScrollArea.NoFrame)
         self.tabs.addTab(scroll, titulo)
-    
+
     def _crear_tab_principal(self):
-        """Pestaña principal de organización."""
+        """Pantalla de inicio: lo esencial, nada más."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Botones principales
-        botones_group = QGroupBox("🚀 Organización")
-        botones_layout = QHBoxLayout(botones_group)
-        
-        btn_reorganizar = QPushButton("🔄  Organizar TODOS los archivos")
-        btn_reorganizar.setStyleSheet("""
-            QPushButton {
-                padding: 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #FF9800, stop:1 #f57c00);
-                color: white; 
-                font-size: 14px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #f57c00, stop:1 #ef6c00);
-            }
-            QPushButton:pressed {
-                background: #ef6c00;
-            }
-        """)
-        btn_reorganizar.clicked.connect(self._reorganizar)
-        botones_layout.addWidget(btn_reorganizar)
-        
-        # Botón deshacer todo
-        btn_deshacer = QPushButton("↩️  Deshacer cambios")
-        btn_deshacer.setStyleSheet("""
-            QPushButton {
-                padding: 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #f44336, stop:1 #d32f2f);
-                color: white; 
-                font-size: 14px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #d32f2f, stop:1 #c62828);
-            }
-            QPushButton:pressed {
-                background: #c62828;
-            }
-        """)
-        btn_deshacer.setToolTip("Saca TODOS los archivos de las carpetas organizadas y los deja en la raíz de Descargas")
-        btn_deshacer.clicked.connect(self._deshacer_organizacion)
-        botones_layout.addWidget(btn_deshacer)
-        
-        layout.addWidget(botones_group)
-        
-        # Configuraciones
-        config_group = QGroupBox("⚙️ Configuración")
-        config_layout = QVBoxLayout(config_group)
-        
-        # Selección de carpeta
-        carpeta_layout = QHBoxLayout()
-        self.lbl_carpeta_actual = QLabel(f"📁 Carpeta actual: {os.path.basename(self.organizador.carpeta_descargas)}")
-        self.lbl_carpeta_actual.setStyleSheet("font-weight: bold; color: #4CAF50;")
-        carpeta_layout.addWidget(self.lbl_carpeta_actual)
-        
-        btn_seleccionar_carpeta = QPushButton("📂  Seleccionar otra carpeta")
-        btn_seleccionar_carpeta.setStyleSheet("""
-            QPushButton {
-                padding: 8px 16px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #2196F3, stop:1 #1976D2);
-                color: white; 
-                font-size: 12px; 
-                font-weight: bold;
-                border-radius: 5px;
-                border: none;
-                max-width: 150px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #1976D2, stop:1 #1565C0);
-            }
-            QPushButton:pressed {
-                background: #1565C0;
-            }
-        """)
-        btn_seleccionar_carpeta.clicked.connect(self._seleccionar_carpeta)
-        carpeta_layout.addWidget(btn_seleccionar_carpeta)
-        
-        btn_reset_carpeta = QPushButton("↻ Descargas")
-        btn_reset_carpeta.setStyleSheet("""
-            QPushButton {
-                padding: 8px 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #757575, stop:1 #616161);
-                color: white; 
-                font-size: 12px; 
-                font-weight: bold;
-                border-radius: 5px;
-                border: none;
-                max-width: 100px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #616161, stop:1 #424242);
-            }
-            QPushButton:pressed {
-                background: #424242;
-            }
-        """)
-        btn_reset_carpeta.setToolTip("Volver a la carpeta de descargas predeterminada")
-        btn_reset_carpeta.clicked.connect(self._reset_carpeta_descargas)
-        carpeta_layout.addWidget(btn_reset_carpeta)
-        
-        config_layout.addLayout(carpeta_layout)
-        
-        # Grupo de inicio automático
-        autostart_layout = QHBoxLayout()
-        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
-        autostart_layout.addWidget(QLabel(f"🚀 Inicio con {nombre_so}:"))
+        layout.setSpacing(14)
 
-        self.chk_autoarranque = QCheckBox("Inicio automático")
-        self.chk_autoarranque.blockSignals(True)
-        self.chk_autoarranque.setChecked(self.gestor_autoarranque.verificar_autoarranque())
-        self.chk_autoarranque.blockSignals(False)
-        self.chk_autoarranque.setToolTip(f"Activa/desactiva el inicio automático al encender {nombre_so}")
-        self.chk_autoarranque.toggled.connect(self._toggle_autoarranque)
-        autostart_layout.addWidget(self.chk_autoarranque)
+        # ---- Estado actual -------------------------------------------------
+        self.lbl_estado = QLabel("⏸️ Auto-organización: DESACTIVADA")
+        self.lbl_estado.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.lbl_estado)
 
-        autostart_layout.addStretch()
-        
-        config_layout.addLayout(autostart_layout)
-        
-        # Grupo de auto-organización con selector de tiempo
-        auto_group = QGroupBox("⚡ Auto-organización Automática")
+        # ---- Organización automática (lo primero que se ve) ---------------
+        auto_group = QGroupBox("Automático")
         auto_layout = QVBoxLayout(auto_group)
-        
-        # Selector de intervalo de tiempo
+        auto_layout.setSpacing(12)
+
+        # Modo: dos "píldoras" en una fila
+        modo_layout = QHBoxLayout()
+        modo_layout.setSpacing(10)
+
+        self.chk_auto_basico = QCheckBox("Básico")
+        self.chk_auto_basico.setToolTip("Carpetas generales:\nDocumentos, Imágenes, Vídeos, Música, Comprimidos")
+        self.chk_auto_basico.toggled.connect(lambda checked: self._toggle_auto_organizacion_basico(checked))
+        modo_layout.addWidget(self.chk_auto_basico)
+
+        self.chk_auto_detallado = QCheckBox("Detallado")
+        self.chk_auto_detallado.setToolTip("Subcarpetas por tipo:\nExcel → Hojas de cálculo/Excel, PNG → Imágenes/PNG")
+        self.chk_auto_detallado.toggled.connect(lambda checked: self._toggle_auto_organizacion_detallado(checked))
+        modo_layout.addWidget(self.chk_auto_detallado)
+
+        modo_layout.addStretch()
+        auto_layout.addLayout(modo_layout)
+
+        # Cada cuánto
         tiempo_layout = QHBoxLayout()
-        tiempo_layout.addWidget(QLabel("⏱️  Revisar cada:"))
-        
+        lbl_tiempo = QLabel("Revisar cada")
+        lbl_tiempo.setStyleSheet(f"color: #98989D;")
+        tiempo_layout.addWidget(lbl_tiempo)
+
         self.combo_intervalo_auto = QComboBox()
-        self.combo_intervalo_auto.addItem("⚡ 30 segundos", 30)
-        self.combo_intervalo_auto.addItem("⚡ 1 minuto", 60)
-        self.combo_intervalo_auto.addItem("🕐 5 minutos", 300)
-        self.combo_intervalo_auto.addItem("🕐 10 minutos", 600)
-        self.combo_intervalo_auto.addItem("🕐 30 minutos", 1800)
-        self.combo_intervalo_auto.addItem("🕒 1 hora", 3600)
-        self.combo_intervalo_auto.addItem("🕕 6 horas", 21600)
-        self.combo_intervalo_auto.addItem("🕘 12 horas", 43200)
-        self.combo_intervalo_auto.addItem("📅 1 día", 86400)
-        self.combo_intervalo_auto.setCurrentIndex(0)  # 30 segundos por defecto
+        for texto, seg in [
+            ("30 segundos", 30), ("1 minuto", 60), ("5 minutos", 300),
+            ("10 minutos", 600), ("30 minutos", 1800), ("1 hora", 3600),
+            ("6 horas", 21600), ("12 horas", 43200), ("1 día", 86400),
+        ]:
+            self.combo_intervalo_auto.addItem(texto, seg)
+        self.combo_intervalo_auto.setCurrentIndex(0)
         self.combo_intervalo_auto.currentIndexChanged.connect(self._cambiar_intervalo_auto)
-        self.combo_intervalo_auto.setStyleSheet("""
-            QComboBox {
-                padding: 8px 12px;
-                border: 2px solid #505050;
-                border-radius: 6px;
-                background-color: #3d3d3d;
-                color: #ffffff;
-                font-size: 13px;
-                min-width: 150px;
-            }
-            QComboBox:hover { border-color: #4CAF50; }
-        """)
         tiempo_layout.addWidget(self.combo_intervalo_auto)
         tiempo_layout.addStretch()
         auto_layout.addLayout(tiempo_layout)
-        
-        self.chk_auto_basico = QCheckBox("📁  Modo BÁSICO - Solo carpetas principales")
-        self.chk_auto_basico.setToolTip("Organiza en carpetas generales:\n\n📄 Documentos\n🖼️ Imágenes\n🎬 Videos\n🎵 Música\n📦 Comprimidos")
-        self.chk_auto_basico.toggled.connect(lambda checked: self._toggle_auto_organizacion_basico(checked))
-        auto_layout.addWidget(self.chk_auto_basico)
-        
-        self.chk_auto_detallado = QCheckBox("🔧  Modo DETALLADO - Con subcarpetas específicas")
-        self.chk_auto_detallado.setToolTip("Organiza con subcarpetas por tipo:\n\n📊 Excel → Hojas de cálculo/Excel\n🖼️ PNG → Imágenes/PNG\n📦 ZIP → Comprimidos/ZIP")
-        self.chk_auto_detallado.toggled.connect(lambda checked: self._toggle_auto_organizacion_detallado(checked))
-        auto_layout.addWidget(self.chk_auto_detallado)
-        
-        config_layout.addWidget(auto_group)
-        
-        self.chk_subcarpetas = QCheckBox("📁 Usar subcarpetas detalladas")
-        self.chk_subcarpetas.setChecked(False)  # MODO BÁSICO por defecto
-        self.chk_subcarpetas.setToolTip("Si no está marcado: organización BÁSICA (Comprimidos, Imágenes, Videos, etc.)\nSi está marcado: organización DETALLADA (Comprimidos/Zip, Imágenes/PNG, etc.)")
-        self.chk_subcarpetas.toggled.connect(self._toggle_subcarpetas)
-        config_layout.addWidget(self.chk_subcarpetas)
-        
-        self.chk_recursivo = QCheckBox("🔍 Buscar en subcarpetas")
-        config_layout.addWidget(self.chk_recursivo)
-        
-        # Notificaciones nativas
-        if NOTIFICACIONES_NATIVAS:
-            self.chk_notificaciones = QCheckBox("🔔 Notificaciones nativas del sistema")
-            self.chk_notificaciones.setChecked(True)
-            self.chk_notificaciones.setToolTip("Muestra notificaciones del sistema cuando se organizan archivos")
-            self.chk_notificaciones.toggled.connect(self._toggle_notificaciones)
-            config_layout.addWidget(self.chk_notificaciones)
-        
-        # Selector de tema
-        if TEMAS_DISPONIBLES:
-            tema_layout = QHBoxLayout()
-            tema_layout.addWidget(QLabel("🎨 Tema visual:"))
-            
-            self.combo_temas = QComboBox()
-            temas_disponibles = self.gestor_temas.obtener_nombres_temas()
-            for tema_nombre in temas_disponibles:
-                # Capitalizar y traducir nombre
-                tema_display = tema_nombre.replace("_", " ").title()
-                self.combo_temas.addItem(tema_display, tema_nombre)
-            
-            # Seleccionar tema actual
-            tema_actual = self.gestor_temas.tema_actual
-            for i in range(self.combo_temas.count()):
-                if self.combo_temas.itemData(i) == tema_actual:
-                    self.combo_temas.setCurrentIndex(i)
-                    break
-            
-            self.combo_temas.currentIndexChanged.connect(self._cambiar_tema)
-            tema_layout.addWidget(self.combo_temas)
-            
-            config_layout.addLayout(tema_layout)
-        
-        # Integración menú contextual (solo Windows)
-        if MENU_CONTEXTUAL_DISPONIBLE:
-            menu_contextual_layout = QHBoxLayout()
-            
-            self.chk_menu_contextual = QCheckBox("🖱️ Menú contextual (Click derecho)")
-            self.chk_menu_contextual.setChecked(self.gestor_menu_contextual.verificar_registro())
-            self.chk_menu_contextual.setToolTip("Añade 'Organizar con DescargasOrdenadas' al menú click derecho")
-            self.chk_menu_contextual.toggled.connect(self._toggle_menu_contextual)
-            menu_contextual_layout.addWidget(self.chk_menu_contextual)
-            
-            config_layout.addLayout(menu_contextual_layout)
-        
-        # Botón verificar actualizaciones
-        if ACTUALIZACIONES_DISPONIBLES:
-            actualizaciones_layout = QHBoxLayout()
-            
-            btn_verificar_actualizaciones = QPushButton("🔄 Buscar Actualizaciones")
-            btn_verificar_actualizaciones.setStyleSheet("""
-                QPushButton {
-                    padding: 10px 20px;
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                        stop:0 #9C27B0, stop:1 #7B1FA2);
-                    color: white;
-                    font-size: 12px;
-                    font-weight: bold;
-                    border-radius: 8px;
-                    border: none;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                        stop:0 #AB47BC, stop:1 #9C27B0);
-                }
-            """)
-            btn_verificar_actualizaciones.clicked.connect(self._verificar_actualizaciones)
-            actualizaciones_layout.addWidget(btn_verificar_actualizaciones)
-            
-            version_actual = self.gestor_actualizaciones.obtener_version_actual()
-            lbl_version = QLabel(f"Versión actual: {version_actual}")
-            lbl_version.setStyleSheet("color: #b0b0c0; font-size: 11px;")
-            actualizaciones_layout.addWidget(lbl_version)
-            
-            actualizaciones_layout.addStretch()
-            
-            config_layout.addLayout(actualizaciones_layout)
-        
-        layout.addWidget(config_group)
-        
-        # Estado de funcionalidades
-        estado_group = QGroupBox("⚡ Funcionalidades Avanzadas")
-        estado_layout = QVBoxLayout(estado_group)
-        
-        self.lbl_estado = QLabel("🔄 Cargando funcionalidades...")
-        estado_layout.addWidget(self.lbl_estado)
-        
-        layout.addWidget(estado_group)
-        
-        # Lista de archivos
-        self.list_archivos = QListWidget()
-        layout.addWidget(self.list_archivos)
-        
-        self._agregar_tab_con_scroll(tab, "🏠 Principal")
-    
+
+        # Iniciar con el sistema
+        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
+        arranque_layout = QHBoxLayout()
+        self.chk_autoarranque = QCheckBox(f"Iniciar al arrancar {nombre_so}")
+        self.chk_autoarranque.blockSignals(True)
+        self.chk_autoarranque.setChecked(self.gestor_autoarranque.verificar_autoarranque())
+        self.chk_autoarranque.blockSignals(False)
+        self.chk_autoarranque.setToolTip(f"La app se abre minimizada cuando enciendas el equipo")
+        self.chk_autoarranque.toggled.connect(self._toggle_autoarranque)
+        arranque_layout.addWidget(self.chk_autoarranque)
+        arranque_layout.addStretch()
+        auto_layout.addLayout(arranque_layout)
+
+        layout.addWidget(auto_group)
+
+        # ---- Acciones manuales -------------------------------------------
+        acciones_group = QGroupBox("Manual")
+        acciones_layout = QVBoxLayout(acciones_group)
+        acciones_layout.setSpacing(10)
+
+        fila_acciones = QHBoxLayout()
+        fila_acciones.setSpacing(10)
+
+        btn_reorganizar = QPushButton("Organizar ahora")
+        btn_reorganizar.setObjectName("botonPrimario")
+        btn_reorganizar.clicked.connect(self._reorganizar)
+        fila_acciones.addWidget(btn_reorganizar, 2)
+
+        btn_deshacer = QPushButton("Deshacer")
+        btn_deshacer.setToolTip("Devuelve los archivos organizados a la raíz de Descargas")
+        btn_deshacer.clicked.connect(self._deshacer_organizacion)
+        fila_acciones.addWidget(btn_deshacer, 1)
+
+        acciones_layout.addLayout(fila_acciones)
+        layout.addWidget(acciones_group)
+
+        layout.addStretch()
+
+        self._agregar_tab_con_scroll(tab, "Inicio")
+
     def _crear_tab_ia(self):
         """Pestaña de IA."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Control IA
-        ia_group = QGroupBox("🤖 Categorización Inteligente con IA")
+
+        ia_group = QGroupBox("Categorización con IA")
         ia_layout = QVBoxLayout(ia_group)
-        
-        self.lbl_ia_estado = QLabel("🔄 Verificando IA...")
+
+        self.lbl_ia_estado = QLabel("Verificando IA…")
         ia_layout.addWidget(self.lbl_ia_estado)
-        
-        # Confianza
+
         confianza_layout = QHBoxLayout()
         confianza_layout.addWidget(QLabel("Nivel de confianza:"))
-        
         self.slider_confianza = QSlider(Qt.Horizontal)
         self.slider_confianza.setRange(30, 95)
         self.slider_confianza.setValue(60)
         self.slider_confianza.valueChanged.connect(self._actualizar_confianza)
         confianza_layout.addWidget(self.slider_confianza)
-        
         self.lbl_confianza = QLabel("60%")
         confianza_layout.addWidget(self.lbl_confianza)
-        
         ia_layout.addLayout(confianza_layout)
-        
-        # Botones IA
+
         botones_ia = QHBoxLayout()
-        
-        btn_entrenar = QPushButton("🧠 Entrenar IA")
+        btn_entrenar = QPushButton("Entrenar IA")
         btn_entrenar.clicked.connect(self._entrenar_ia)
         botones_ia.addWidget(btn_entrenar)
-        
-        btn_reset = QPushButton("🔄 Reiniciar")
+        btn_reset = QPushButton("Reiniciar")
         btn_reset.clicked.connect(self._reset_ia)
         botones_ia.addWidget(btn_reset)
-        
+        botones_ia.addStretch()
         ia_layout.addLayout(botones_ia)
         layout.addWidget(ia_group)
-        
-        # Patrones
+
         self.text_patrones = QTextEdit()
         self.text_patrones.setMaximumHeight(300)
         self.text_patrones.setReadOnly(True)
         layout.addWidget(self.text_patrones)
-        
-        self._agregar_tab_con_scroll(tab, "🤖 IA")
-    
+
+        self._agregar_tab_con_scroll(tab, "IA")
+
     def _crear_tab_fechas(self):
         """Pestaña de organización por fechas."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Control fechas
-        fechas_group = QGroupBox("📅 Organización por Fechas")
-        fechas_layout = QVBoxLayout(fechas_group)
-        
-        # Estado actual
-        self.lbl_estado_fechas = QLabel("❌ Organización por fechas: DESACTIVADA")
-        self.lbl_estado_fechas.setStyleSheet("""
-            font-weight: bold; 
-            padding: 15px; 
-            color: #ffffff;
-            background-color: #f44336;
-            border-radius: 8px;
-            font-size: 15px;
-            text-align: center;
-        """)
-        fechas_layout.addWidget(self.lbl_estado_fechas)
-        
-        # Botones de control
+
+        self.lbl_estado_fechas = QLabel("Organización por fechas: DESACTIVADA")
+        self.lbl_estado_fechas.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.lbl_estado_fechas)
+
         botones_fechas_layout = QHBoxLayout()
-        
-        self.btn_activar_fechas = QPushButton("✅ ACTIVAR Organización por Fechas")
-        self.btn_activar_fechas.setStyleSheet("""
-            QPushButton {
-                padding: 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #2196F3, stop:1 #1976D2);
-                color: white; 
-                font-size: 13px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-height: 20px;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #42A5F5, stop:1 #2196F3);
-            }
-        """)
+        self.btn_activar_fechas = QPushButton("Activar")
         self.btn_activar_fechas.clicked.connect(self._activar_fechas)
         botones_fechas_layout.addWidget(self.btn_activar_fechas)
-        
-        self.btn_desactivar_fechas = QPushButton("❌ DESACTIVAR Organización por Fechas")
-        self.btn_desactivar_fechas.setStyleSheet("""
-            QPushButton {
-                padding: 12px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #f44336, stop:1 #d32f2f);
-                color: white; 
-                font-size: 13px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-height: 20px;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #EF5350, stop:1 #f44336);
-            }
-        """)
+
+        self.btn_desactivar_fechas = QPushButton("Desactivar")
         self.btn_desactivar_fechas.clicked.connect(self._desactivar_fechas)
         self.btn_desactivar_fechas.setEnabled(False)
         botones_fechas_layout.addWidget(self.btn_desactivar_fechas)
-        
-        fechas_layout.addLayout(botones_fechas_layout)
-        
-        # Configuración de patrón con descripción
-        patron_group = QGroupBox("🗓️ Configuración de Patrón")
+        botones_fechas_layout.addStretch()
+        layout.addLayout(botones_fechas_layout)
+
+        patron_group = QGroupBox("Patrón de organización")
         patron_layout = QVBoxLayout(patron_group)
-        
-        # Selector de patrón
-        patron_selector_layout = QHBoxLayout()
-        patron_selector_layout.addWidget(QLabel("Patrón de organización:"))
-        
+        patron_layout.addWidget(QLabel("Patrón:"))
         self.combo_patron = QComboBox()
-        self.combo_patron.setStyleSheet("""
-            QComboBox {
-                padding: 8px;
-                border: 2px solid #505050;
-                border-radius: 6px;
-                background-color: #3d3d3d;
-                color: #ffffff;
-                font-size: 13px;
-                min-width: 200px;
-            }
-            QComboBox:hover {
-                border-color: #4CAF50;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 30px;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid #ffffff;
-                margin-right: 5px;
-            }
-        """)
-        
-        # Agregar opciones con descripciones
         patrones = [
             ("YYYY/MM-Mes", "2024/12-Diciembre (Año/Mes con nombre)"),
             ("YYYY/MM", "2024/12 (Año/Mes numérico)"),
             ("YYYY", "2024 (Solo año)"),
             ("MM-YYYY", "12-2024 (Mes-Año)"),
-            ("Mes-YYYY", "Diciembre-2024 (Nombre mes-Año)")
+            ("Mes-YYYY", "Diciembre-2024 (Nombre mes-Año)"),
         ]
-        
         for patron, descripcion in patrones:
             self.combo_patron.addItem(f"{patron} - {descripcion}", patron)
-        
         self.combo_patron.currentTextChanged.connect(self._actualizar_ejemplo_fecha)
-        patron_selector_layout.addWidget(self.combo_patron)
-        patron_layout.addLayout(patron_selector_layout)
-        
-        # Vista previa dinámica
-        self.lbl_ejemplo = QLabel("📁 Ejemplo: Downloads/Fechas/2024/12-Diciembre/Documentos/PDFs/")
-        self.lbl_ejemplo.setStyleSheet("""
-            padding: 12px; 
-            background-color: #2d2d2d; 
-            border: 2px solid #4CAF50;
-            border-radius: 6px; 
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
-            color: #4CAF50;
-        """)
+        patron_layout.addWidget(self.combo_patron)
+
+        self.lbl_ejemplo = QLabel("Ejemplo: Downloads/Fechas/2024/12-Diciembre/Documentos/PDFs/")
+        self.lbl_ejemplo.setWordWrap(True)
         patron_layout.addWidget(self.lbl_ejemplo)
-        
-        # Información adicional
-        info_fechas = QLabel("""
-ℹ️  <b>Información sobre Organización por Fechas:</b><br/>
-• Los archivos se organizan por su fecha de modificación<br/>
-• Se mantiene la estructura de categorías y subcategorías<br/>
-• Solo afecta archivos organizados después de la activación<br/>
-• Se puede revertir la organización en cualquier momento
-        """)
-        info_fechas.setStyleSheet("""
-            color: #cccccc; 
-            font-size: 11px; 
-            padding: 10px;
-            background-color: #2d2d2d;
-            border-radius: 6px;
-            border-left: 4px solid #2196F3;
-        """)
-        info_fechas.setWordWrap(True)
-        patron_layout.addWidget(info_fechas)
-        
-        fechas_layout.addWidget(patron_group)
-        
-        # Acciones adicionales
-        acciones_group = QGroupBox("🔧 Acciones Avanzadas")
+
+        layout.addWidget(patron_group)
+
+        acciones_group = QGroupBox("Acciones")
         acciones_layout = QHBoxLayout(acciones_group)
-        
-        # Revertir
-        btn_revertir = QPushButton("↩️ Revertir Organización por Fechas")
-        btn_revertir.setStyleSheet("""
-            QPushButton {
-                padding: 10px 15px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #9C27B0, stop:1 #7B1FA2);
-                color: white; 
-                font-size: 12px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-height: 16px;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #AB47BC, stop:1 #9C27B0);
-            }
-        """)
+        btn_revertir = QPushButton("Revertir")
         btn_revertir.clicked.connect(self._revertir_fechas)
         acciones_layout.addWidget(btn_revertir)
-        
-        # Previsualizar
-        btn_previsualizar = QPushButton("👀 Previsualizar Organización")
-        btn_previsualizar.setStyleSheet("""
-            QPushButton {
-                padding: 10px 15px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #FF9800, stop:1 #F57C00);
-                color: white; 
-                font-size: 12px; 
-                font-weight: bold;
-                border-radius: 6px;
-                border: none;
-                min-height: 16px;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #FFB74D, stop:1 #FF9800);
-            }
-        """)
+        btn_previsualizar = QPushButton("Previsualizar")
         btn_previsualizar.clicked.connect(self._previsualizar_organizacion_fechas)
         acciones_layout.addWidget(btn_previsualizar)
-        
-        fechas_layout.addWidget(acciones_group)
-        
-        layout.addWidget(fechas_group)
-        
-        # Actualizar ejemplo inicial
+        acciones_layout.addStretch()
+        layout.addWidget(acciones_group)
+
+        layout.addStretch()
         self._actualizar_ejemplo_fecha()
-        
-        self._agregar_tab_con_scroll(tab, "📅 Fechas")
-    
+        self._agregar_tab_con_scroll(tab, "Fechas")
+
     def _crear_tab_duplicados(self):
         """Pestaña de duplicados."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Controles
-        dup_group = QGroupBox("🔍 Detector de Duplicados")
-        dup_layout = QVBoxLayout(dup_group)
-        
+
         botones = QHBoxLayout()
-        
-        btn_buscar = QPushButton("🔍 Buscar Duplicados")
+        btn_buscar = QPushButton("Buscar duplicados")
         btn_buscar.clicked.connect(self._buscar_duplicados)
         botones.addWidget(btn_buscar)
-        
-        btn_eliminar = QPushButton("🗑️ Eliminar Duplicados")
+        btn_eliminar = QPushButton("Eliminar duplicados")
         btn_eliminar.clicked.connect(self._eliminar_duplicados)
         botones.addWidget(btn_eliminar)
-        
-        dup_layout.addLayout(botones)
-        layout.addWidget(dup_group)
-        
-        # Resultados
+        botones.addStretch()
+        layout.addLayout(botones)
+
         self.text_duplicados = QPlainTextEdit()
-        self.text_duplicados.setPlaceholderText("Los duplicados aparecerán aquí...")
+        self.text_duplicados.setPlaceholderText("Los duplicados aparecerán aquí…")
         layout.addWidget(self.text_duplicados)
-        
-        self._agregar_tab_con_scroll(tab, "🔍 Duplicados")
-    
+
+        self._agregar_tab_con_scroll(tab, "Duplicados")
+
     def _crear_tab_estadisticas(self):
         """Pestaña de estadísticas."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Control
-        btn_actualizar = QPushButton("🔄 Actualizar Estadísticas")
+
+        fila = QHBoxLayout()
+        btn_actualizar = QPushButton("Actualizar")
         btn_actualizar.clicked.connect(self._actualizar_estadisticas)
-        layout.addWidget(btn_actualizar)
-        
-        # Estadísticas
+        fila.addWidget(btn_actualizar)
+        fila.addStretch()
+        layout.addLayout(fila)
+
         self.text_stats = QPlainTextEdit()
         self.text_stats.setReadOnly(True)
         layout.addWidget(self.text_stats)
-        
-        self._agregar_tab_con_scroll(tab, "📊 Stats")
-    
+
+        self._agregar_tab_con_scroll(tab, "Estadísticas")
+
     def _crear_tab_logs(self):
-        """Pestaña de logs y consola interna."""
+        """Pestaña de actividad y ajustes."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
-        # Grupo de control de consola
-        consola_group = QGroupBox("🖥️ Control de Consola")
-        consola_layout = QVBoxLayout()
-        
-        # Botones de control de consola
-        consola_buttons_layout = QHBoxLayout()
-        
-        self.btn_ocultar_consola = QPushButton("🔇 Ocultar Consola")
-        self.btn_ocultar_consola.setToolTip("Oculta la ventana de consola externa (solo Windows)")
-        self.btn_ocultar_consola.clicked.connect(self._ocultar_consola)
-        consola_buttons_layout.addWidget(self.btn_ocultar_consola)
-        
-        self.btn_mostrar_consola = QPushButton("🔊 Mostrar Consola")
-        self.btn_mostrar_consola.setToolTip("Muestra la ventana de consola externa (solo Windows)")
-        self.btn_mostrar_consola.clicked.connect(self._mostrar_consola)
-        consola_buttons_layout.addWidget(self.btn_mostrar_consola)
-        
-        self.btn_reiniciar_sin_consola = QPushButton("🔄 Reiniciar sin Consola")
-        self.btn_reiniciar_sin_consola.setToolTip("Reinicia la aplicación sin ventana de consola")
-        self.btn_reiniciar_sin_consola.clicked.connect(self._crear_proceso_sin_consola)
-        consola_buttons_layout.addWidget(self.btn_reiniciar_sin_consola)
-        
-        # Deshabilitar botones en sistemas no Windows
-        if sys.platform != "win32":
-            self.btn_ocultar_consola.setEnabled(False)
-            self.btn_mostrar_consola.setEnabled(False)
-            self.btn_reiniciar_sin_consola.setEnabled(False)
-        
-        consola_layout.addLayout(consola_buttons_layout)
-        
-        # Información sobre consola
-        info_consola = QLabel("ℹ️  La consola externa se puede ocultar, pero algunos logs seguirán apareciendo aquí.")
-        info_consola.setWordWrap(True)
-        info_consola.setStyleSheet("color: #cccccc; font-size: 11px; font-style: italic; padding: 10px;")
-        consola_layout.addWidget(info_consola)
-        
-        consola_group.setLayout(consola_layout)
-        layout.addWidget(consola_group)
-        
-        # Controles
-        controles_layout = QHBoxLayout()
-        
-        btn_limpiar = QPushButton("🗑️ Limpiar Logs")
-        btn_limpiar.setStyleSheet("""
-            QPushButton {
-                padding: 8px 15px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #6c757d, stop:1 #5a6268);
-                color: white; 
-                font-size: 11px; 
-                font-weight: bold;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover { background: #5a6268; }
-        """)
+
+        # --- Ajustes -------------------------------------------------------
+        ajustes_group = QGroupBox("Ajustes")
+        ajustes_layout = QVBoxLayout(ajustes_group)
+        ajustes_layout.setSpacing(10)
+
+        # Carpeta
+        carpeta_layout = QHBoxLayout()
+        self.lbl_carpeta_actual = QLabel(f"Carpeta: {os.path.basename(str(self.organizador.carpeta_descargas))}")
+        carpeta_layout.addWidget(self.lbl_carpeta_actual)
+        carpeta_layout.addStretch()
+        btn_seleccionar_carpeta = QPushButton("Cambiar…")
+        btn_seleccionar_carpeta.clicked.connect(self._seleccionar_carpeta)
+        carpeta_layout.addWidget(btn_seleccionar_carpeta)
+        btn_reset_carpeta = QPushButton("Restablecer")
+        btn_reset_carpeta.setToolTip("Volver a la carpeta de descargas predeterminada")
+        btn_reset_carpeta.clicked.connect(self._reset_carpeta_descargas)
+        carpeta_layout.addWidget(btn_reset_carpeta)
+        ajustes_layout.addLayout(carpeta_layout)
+
+        # Opciones de organización
+        self.chk_subcarpetas = QCheckBox("Usar subcarpetas detalladas")
+        self.chk_subcarpetas.setChecked(False)
+        self.chk_subcarpetas.setToolTip(
+            "Sin marcar: organización BÁSICA (Comprimidos, Imágenes, Vídeos…)\n"
+            "Marcado: organización DETALLADA (Comprimidos/Zip, Imágenes/PNG…)"
+        )
+        self.chk_subcarpetas.toggled.connect(self._toggle_subcarpetas)
+        ajustes_layout.addWidget(self.chk_subcarpetas)
+
+        self.chk_recursivo = QCheckBox("Buscar en subcarpetas")
+        ajustes_layout.addWidget(self.chk_recursivo)
+
+        if NOTIFICACIONES_NATIVAS:
+            self.chk_notificaciones = QCheckBox("Notificaciones del sistema")
+            self.chk_notificaciones.setChecked(True)
+            self.chk_notificaciones.setToolTip("Notifica cuando se organizan archivos")
+            self.chk_notificaciones.toggled.connect(self._toggle_notificaciones)
+            ajustes_layout.addWidget(self.chk_notificaciones)
+
+        fila_tema = QHBoxLayout()
+        fila_tema_lbl = QLabel("Tema")
+        fila_tema_lbl.setStyleSheet("color: #98989D;")
+        fila_tema_lbl.setObjectName("etiquetaSecundaria")
+        fila_tema_lbl.setStyleSheet("color: #98989D; font-size: 12px;")
+        fila_tema = fila_tema_lbl
+        fila_tema_row = fila_tema
+        fila_tema_widget = fila_tema_lbl
+        fila_tema_lbl_final = fila_tema_lbl
+        tema_label = fila_tema_lbl
+        tema_label2 = QLabel("Tema")
+        tema_label2.setStyleSheet("color: #98989D; font-size: 12px;")
+        tema_layout = QHBoxLayout()
+        tema_layout.addWidget(tema_label2)
+        if TEMAS_DISPONIBLES:
+            self.combo_temas = QComboBox()
+            for tema_nombre in self.gestor_temas.obtener_nombres_temas():
+                display = tema_nombre.replace("_", " ").replace("minimal", "Minimal").title()
+                self.combo_temas.addItem(display, tema_nombre)
+            tema_actual = self.gestor_temas.tema_actual
+            for i in range(self.combo_temas.count()):
+                if self.combo_temas.itemData(i) == tema_actual:
+                    self.combo_temas.setCurrentIndex(i)
+                    break
+            self.combo_temas.currentIndexChanged.connect(self._cambiar_tema)
+            tema_layout.addWidget(self.combo_temas)
+        tema_layout.addStretch()
+        ajustes_layout.addLayout(tema_layout)
+
+        if MENU_CONTEXTUAL_DISPONIBLE:
+            self.chk_menu_contextual = QCheckBox("Añadir al menú contextual (clic derecho)")
+            self.chk_menu_contextual.setChecked(self.gestor_menu_contextual.verificar_registro())
+            self.chk_menu_contextual.toggled.connect(self._toggle_menu_contextual)
+            ajustes_layout.addWidget(self.chk_menu_contextual)
+
+        if ACTUALIZACIONES_DISPONIBLES:
+            fila_actualizaciones = QHBoxLayout()
+            btn_verificar_actualizaciones = QPushButton("Buscar actualizaciones")
+            btn_verificar_actualizaciones.clicked.connect(self._verificar_actualizaciones)
+            fila_actualizaciones.addWidget(btn_verificar_actualizaciones)
+            lbl_version = QLabel(f"Versión {self.gestor_actualizaciones.obtener_version_actual()}")
+            lbl_version.setStyleSheet("color: #98989D; font-size: 11px;")
+            fila_actualizaciones.addWidget(lbl_version)
+            fila_actualizaciones.addStretch()
+            ajustes_layout.addLayout(fila_actualizaciones)
+
+        layout.addWidget(ajustes_group)
+
+        # --- Consola (solo Windows) ---------------------------------------
+        if sys.platform == "win32":
+            consola_group = QGroupBox("Consola")
+            consola_layout = QHBoxLayout(consola_group)
+            self.btn_ocultar_consola = QPushButton("Ocultar")
+            self.btn_ocultar_consola.setToolTip("Oculta la ventana de consola externa")
+            self.btn_ocultar_consola.clicked.connect(self._ocultar_consola)
+            consola_layout.addWidget(self.btn_ocultar_consola)
+            self.btn_mostrar_consola = QPushButton("Mostrar")
+            self.btn_mostrar_consola.setToolTip("Muestra la ventana de consola externa")
+            self.btn_mostrar_consola.clicked.connect(self._mostrar_consola)
+            consola_layout.addWidget(self.btn_mostrar_consola)
+            self.btn_reiniciar_sin_consola = QPushButton("Reiniciar sin consola")
+            self.btn_reiniciar_sin_consola.setToolTip("Reinicia la aplicación sin ventana de consola")
+            self.btn_reiniciar_sin_consola.clicked.connect(self._crear_proceso_sin_consola)
+            consola_layout.addWidget(self.btn_reiniciar_sin_consola)
+            consola_layout.addStretch()
+            self.chk_mostrar_consola = QCheckBox("Mostrar consola externa")
+            self.chk_mostrar_consola.setChecked(False)
+            self.chk_mostrar_consola.toggled.connect(self._toggle_consola_externa)
+            consola_layout.addWidget(self.chk_mostrar_consola)
+            layout.addWidget(consola_group)
+
+        # --- Actividad -----------------------------------------------------
+        fila_logs = QHBoxLayout()
+        btn_limpiar = QPushButton("Limpiar")
         btn_limpiar.clicked.connect(self._limpiar_logs)
-        controles_layout.addWidget(btn_limpiar)
-        
-        btn_exportar = QPushButton("💾 Exportar Logs")
-        btn_exportar.setStyleSheet("""
-            QPushButton {
-                padding: 8px 15px; 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #17a2b8, stop:1 #138496);
-                color: white; 
-                font-size: 11px; 
-                font-weight: bold;
-                border-radius: 4px;
-                border: none;
-            }
-            QPushButton:hover { background: #138496; }
-        """)
+        fila_logs.addWidget(btn_limpiar)
+        btn_exportar = QPushButton("Exportar")
         btn_exportar.clicked.connect(self._exportar_logs)
-        controles_layout.addWidget(btn_exportar)
-        
-        controles_layout.addStretch()
-        
-        # Checkbox para mostrar/ocultar consola externa
-        self.chk_mostrar_consola = QCheckBox("🖥️ Mostrar consola externa")
-        self.chk_mostrar_consola.setChecked(False)
-        self.chk_mostrar_consola.toggled.connect(self._toggle_consola_externa)
-        controles_layout.addWidget(self.chk_mostrar_consola)
-        
-        layout.addLayout(controles_layout)
-        
-        # Área de logs
+        fila_logs.addWidget(btn_exportar)
+        fila_logs.addStretch()
+        layout.addLayout(fila_logs)
+
+        self.list_archivos = QListWidget()
+        self.list_archivos.setMaximumHeight(120)
+        layout.addWidget(self.list_archivos)
+
         self.text_logs = QPlainTextEdit()
         self.text_logs.setReadOnly(True)
-        self.text_logs.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 11px;
-                border: 1px solid #454545;
-                border-radius: 6px;
-                padding: 5px;
-            }
-        """)
-        self.text_logs.setPlainText("🍄 DescargasOrdenadas - Sistema de Logs\n" + "="*60 + "\n")
-        layout.addWidget(self.text_logs)
-        
-        self._agregar_tab_con_scroll(tab, "📋 Logs")
+        self.text_logs.setPlainText("DescargasOrdenadas\n" + "-" * 40 + "\n")
+        layout.addWidget(self.text_logs, 1)
+
+        self._agregar_tab_con_scroll(tab, "Actividad")
 
         # Configurar captura de logs
         self._setup_log_capture()
-    
+
     def _setup_log_capture(self):
         """Configura la captura de logs en la pestaña interna."""
         import logging
@@ -2424,14 +1997,6 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar estado visual
                 self.lbl_estado_fechas.setText("✅ Organización por fechas: ACTIVADA")
-                self.lbl_estado_fechas.setStyleSheet("""
-                    font-weight: bold; 
-                    padding: 10px; 
-                    color: #ffffff;
-                    background-color: #4CAF50;
-                    border-radius: 6px;
-                    font-size: 14px;
-                """)
                 self.btn_activar_fechas.setEnabled(False)
                 self.btn_desactivar_fechas.setEnabled(True)
                 
@@ -2468,14 +2033,6 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 # Actualizar estado visual
                 self.lbl_estado_fechas.setText("❌ Organización por fechas: DESACTIVADA")
-                self.lbl_estado_fechas.setStyleSheet("""
-                    font-weight: bold; 
-                    padding: 10px; 
-                    color: #ffffff;
-                    background-color: #f44336;
-                    border-radius: 6px;
-                    font-size: 14px;
-                """)
                 self.btn_activar_fechas.setEnabled(True)
                 self.btn_desactivar_fechas.setEnabled(False)
                 
@@ -2581,25 +2138,7 @@ class OrganizadorAvanzado(QMainWindow):
             self.lbl_ejemplo.setText(f"📁 Ejemplo: {ejemplo}")
             
             # Cambiar color según patrón para mejor visualización
-            colores_patron = {
-                "YYYY/MM-Mes": "#4CAF50",  # Verde
-                "YYYY/MM": "#2196F3",      # Azul
-                "YYYY": "#FF9800",         # Naranja
-                "MM-YYYY": "#9C27B0",      # Púrpura
-                "Mes-YYYY": "#F44336"      # Rojo
-            }
-            
-            color = colores_patron.get(patron_actual, "#4CAF50")
-            
-            self.lbl_ejemplo.setStyleSheet(f"""
-                padding: 12px; 
-                background-color: #2d2d2d; 
-                border: 2px solid {color};
-                border-radius: 6px; 
-                font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 12px;
-                color: {color};
-            """)
+            self.lbl_ejemplo.setObjectName("etiquetaSecundaria")
             
         except Exception as e:
             logger.debug(f"Error actualizando ejemplo de fecha: {e}")
@@ -3080,58 +2619,8 @@ class OrganizadorAvanzado(QMainWindow):
             )
 
     # ═══════════════════════════════════════════════════════════════
-    # MÉTODOS v3.1
-    # ═══════════════════════════════════════════════════════════════
-    
-    def _toggle_notificaciones(self, activo):
-        """Activa/desactiva notificaciones nativas."""
-        if self.notificador:
-            if activo:
-                self.notificador.habilitar()
-            else:
-                self.notificador.deshabilitar()
-            
-            if self.config_portable:
-                self.config_portable.establecer("notificaciones_habilitadas", activo)
-    
-    def _cambiar_tema(self, index):
-        """Cambia el tema visual."""
-        if not self.gestor_temas:
-            return
-        
-        tema_nombre = self.combo_temas.itemData(index)
-        if tema_nombre:
-            self.gestor_temas.establecer_tema_actual(tema_nombre)
-            tema_obj = self.gestor_temas.obtener_tema_actual()
-            self.setStyleSheet(tema_obj.obtener_stylesheet())
-            
-            if self.config_portable:
-                self.config_portable.establecer("tema", tema_nombre)
-    
-    def _aplicar_tema(self):
-        """Aplica el tema actual."""
-        if self.gestor_temas:
-            tema_obj = self.gestor_temas.obtener_tema_actual()
-            self.setStyleSheet(tema_obj.obtener_stylesheet())
-    
-    def _toggle_menu_contextual(self, activo):
-        """Activa/desactiva menú contextual."""
-        if not self.gestor_menu_contextual:
-            return
-        
-        try:
-            if activo:
-                exito, mensaje = self.gestor_menu_contextual.registrar_menu_contextual("carpetas")
-                if not exito:
-                    self.chk_menu_contextual.setChecked(False)
-                    QMessageBox.warning(self, "Error", f"No se pudo registrar: {mensaje}")
-            else:
-                self.gestor_menu_contextual.desregistrar_menu_contextual()
-        except Exception as e:
-            self.chk_menu_contextual.setChecked(False)
-            QMessageBox.critical(self, "Error", str(e))
-    
-
+    # Los métodos de notificaciones, tema y menú contextual están definidos
+    # una sola vez más arriba (versión actual).
 
 def run_advanced_gui(
     directorio=None,

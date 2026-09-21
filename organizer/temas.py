@@ -186,7 +186,7 @@ class GestorTemas:
     def __init__(self):
         self.temas = {}
         self._cargar_temas_predefinidos()
-        self.tema_actual = "azul_oscuro"
+        self.tema_actual = "minimal_oscuro"
     
     def _cargar_temas_predefinidos(self):
         """Carga los temas predefinidos."""
@@ -243,6 +243,32 @@ class GestorTemas:
             'deshabilitado_1': '#3e2e2a', 'deshabilitado_2': '#2e1f1a'
         })
         
+        # Tema Minimal Claro (estilo Apple)
+        self.temas["minimal_claro"] = Tema("Minimal Claro", {
+            'fondo_1': '#F5F5F7', 'fondo_2': '#F5F5F7', 'fondo_panel': '#FFFFFF',
+            'fondo_oscuro': '#FFFFFF', 'borde': '#D2D2D7',
+            'tab_inactivo_1': '#E8E8ED', 'tab_inactivo_2': '#E8E8ED',
+            'acento_1': '#0071E3', 'acento_2': '#0071E3',
+            'acento_hover': '#0077ED', 'acento_pressed': '#0068D6',
+            'hover_1': '#EBEBED', 'hover_2': '#EBEBED',
+            'texto': '#1D1D1F', 'texto_secundario': '#6E6E73',
+            'texto_deshabilitado': '#AEAEB2',
+            'deshabilitado_1': '#E8E8ED', 'deshabilitado_2': '#E8E8ED'
+        })
+
+        # Tema Minimal Oscuro (estilo Apple)
+        self.temas["minimal_oscuro"] = Tema("Minimal Oscuro", {
+            'fondo_1': '#1C1C1E', 'fondo_2': '#1C1C1E', 'fondo_panel': '#2C2C2E',
+            'fondo_oscuro': '#2C2C2E', 'borde': '#38383D',
+            'tab_inactivo_1': '#2C2C2E', 'tab_inactivo_2': '#2C2C2E',
+            'acento_1': '#0A84FF', 'acento_2': '#0A84FF',
+            'acento_hover': '#409CFF', 'acento_pressed': '#0060DF',
+            'hover_1': '#3A3A3C', 'hover_2': '#3A3A3C',
+            'texto': '#F5F5F7', 'texto_secundario': '#98989D',
+            'texto_deshabilitado': '#636366',
+            'deshabilitado_1': '#2C2C2E', 'deshabilitado_2': '#2C2C2E'
+        })
+
         # Tema Gris
         self.temas["gris"] = Tema("Gris", {
             'fondo_1': '#2b2b2b', 'fondo_2': '#1e1e1e', 'fondo_panel': '#2d2d2d',
@@ -258,7 +284,7 @@ class GestorTemas:
     
     def obtener_tema(self, nombre: str):
         """Obtiene un tema por nombre."""
-        return self.temas.get(nombre, self.temas["azul_oscuro"])
+        return self.temas.get(nombre, self.temas["minimal_oscuro"])
     
     def obtener_nombres_temas(self) -> list:
         """Obtiene lista de nombres de temas."""
