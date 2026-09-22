@@ -185,6 +185,96 @@ class GestorActualizacionesMejorado:
         except Exception:
             return False
     
+    def _asset_instalador_para_este_sistema(self, assets: list) -> Optional[str]:
+        """Devuelve el instalador nativo (exe/pkg/deb) para el sistema actual."""
+        es_windows = sys.platform == "win32"
+        es_mac = sys.platform == "darwin"
+        es_linux = sys.platform.startswith("linux")
+
+        candidatos = []
+        for asset in assets:
+            nombre = (asset.get("name") or "").lower()
+            url = asset.get("browser_download_url")
+            if not url:
+                continue
+            if es_windows and nombre.endswith(".exe"):
+                candidatos.append(url)
+            elif es_mac and nombre.endswith(".pkg"):
+                candidatos.append(url)
+            elif es_linux and nombre.endswith(".deb"):
+                candidatos.append(url)
+        return candidatos[0] if candidatos else None
+
+    def descargar_instalador_nativo(self, info: Dict, callback_progreso=None) -> Tuple[bool, str]:
+        """Descarga el instalador del sistema (.exe/.pkg/.deb) para actualizar."""
+        if not REQUESTS_DISPONIBLE:
+            return False, "requests no disponible"
+
+        # Si la info no trae assets, releer la release para buscarlos
+        url_descarga = None
+        try:
+            headers = {'Accept': 'application/vnd.github.v3+json'}
+            response = requests.get(self._api_latest, headers=headers, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            url_descarga = self._asset_instalador_para_este_sistema(data.get("assets", []))
+        except Exception as e:
+            logger.warning(f"No se pudo releer la release: {e}")
+
+        if not url_descarga:
+            # Fallback: descargar el zip del código (comportamiento antiguo)
+            return self.descargar_actualizacion(info, callback_progreso)
+
+        try:
+            if getattr(sys, 'frozen', False):
+                base_dir = Path(sys.executable).parent
+            else:
+                base_dir = Path(__file__).parent.parent
+            temp_dir = base_dir / ".temp_update"
+            temp_dir.mkdir(exist_ok=True)
+
+            version = info.get('version', 'latest')
+            extension = ".pkg" if sys.platform == "darwin" else (".deb" if sys.platform.startswith("linux") else ".exe")
+            destino = temp_dir / f"DescargasOrdenadas-v{version}{extension}"
+
+            logger.info(f"Descargando instalador desde: {url_descarga}")
+            response = requests.get(url_descarga, stream=True, timeout=30)
+            response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            with open(destino, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=65536):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if callback_progreso and total_size:
+                            callback_progreso(int(downloaded * 100 / total_size))
+
+            return True, str(destino)
+        except Exception as e:
+            logger.error(f"Error descargando instalador: {e}")
+            return False, f"Error descargando: {e}"
+
+    def abrir_instalador(self, ruta: str) -> Tuple[bool, str]:
+        """Lanza el instalador descargado con el mecanismo de cada sistema."""
+        ruta = Path(ruta)
+        if not ruta.exists():
+            return False, f"No existe: {ruta}"
+        try:
+            if sys.platform == "darwin":
+                # Abrir el .pkg (el instalador de macOS pide permisos y instala)
+                subprocess.Popen(["open", str(ruta)])
+                return True, "Instalador abierto. Sigue los pasos y vuelve a abrir la app."
+            if sys.platform == "win32":
+                os.startfile(str(ruta))  # type: ignore[attr-defined]
+                return True, "Instalador abierto. Sigue los pasos del asistente."
+            # Linux
+            subprocess.Popen(["xdg-open", str(ruta.parent)])
+            return True, f"Instalador en: {ruta}. Instálalo con: sudo apt install {ruta}"
+        except Exception as e:
+            return False, f"No se pudo abrir el instalador: {e}"
+
     def descargar_actualizacion(self, info: Dict, callback_progreso=None) -> Tuple[bool, str]:
         """
         Descarga la actualización desde GitHub.

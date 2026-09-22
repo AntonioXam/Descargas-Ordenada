@@ -215,16 +215,16 @@ def obtener_carpeta_descargas():
 
 def leer_preferencias_autoarranque() -> dict:
     """Devuelve el modo y el intervalo de auto-organización guardados."""
-    preferencias = {"auto_organizacion": False, "modo": "detallado", "intervalo": 30}
+    preferencias = {"auto_organizacion": False, "modo": "basico", "intervalo": 3600}
     try:
         from organizer.portable_config import obtener_config
         config = obtener_config()
         preferencias["auto_organizacion"] = bool(config.obtener("auto_organizacion", False))
-        modo_guardado = config.obtener("auto_modo", "detallado")
+        modo_guardado = config.obtener("auto_modo", "basico")
         if modo_guardado in ("basico", "detallado"):
             preferencias["modo"] = modo_guardado
         try:
-            intervalo = int(config.obtener("auto_intervalo", 30) or 30)
+            intervalo = int(config.obtener("auto_intervalo", 3600) or 3600)
             preferencias["intervalo"] = max(30, intervalo)
         except (TypeError, ValueError):
             pass
@@ -302,7 +302,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.7.0"
+            version = "4.8.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     

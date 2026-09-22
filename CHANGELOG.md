@@ -4,6 +4,23 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.8.0] - 2026-09-22
+
+### 🐛 Automático fiable al arrancar
+- La organización automática se activa justo al abrir si estaba activada (sin el retardo que fallaba)
+- La tarjeta de estado muestra el estado real desde el primer segundo
+- Corregido el modo guardado por defecto (Básico) y el intervalo (1 hora)
+
+### ⬇️ Actualización "Descargar e Instalar" arreglada
+- Ahora descarga el instalador nativo de tu sistema (.exe / .pkg / .deb) y lo abre
+- Ya no intenta instalar un ZIP del código (fuente del error)
+
+### 🖱️ Menú contextual (Windows)
+- Comando corregido para que organice la carpeta seleccionada con `--auto`
+- Verificado el registro en macOS (Acción rápida) y Linux (Nautilus / Abrir con)
+
+---
+
 ## [4.7.0] - 2026-09-22
 
 ### 🎛️ Automático tal como lo dejaste

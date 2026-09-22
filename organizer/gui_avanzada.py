@@ -201,7 +201,7 @@ class OrganizadorAvanzado(QMainWindow):
         self._setup_system_tray()
         self._inicializar_modulos()
         
-        # Timer para organización automática
+        # Timer para organización automática (siempre existe)
         self.timer_auto = QTimer()
         self.timer_auto.timeout.connect(self._organizar_automatico)
         
@@ -213,9 +213,13 @@ class OrganizadorAvanzado(QMainWindow):
         # tenía la organización automática activada, arrancar con ella.
         self._restaurar_preferencias_auto()
 
-        if auto_organizacion:
-            # Pequeña espera para que la ventana esté completamente lista
-            QTimer.singleShot(3000, self._activar_auto_guardada)
+        auto_activa_guardada = auto_organizacion
+        if not auto_activa_guardada and self.config_portable:
+            auto_activa_guardada = bool(self.config_portable.obtener("auto_organizacion", False))
+
+        if auto_activa_guardada:
+            # Activar en cuanto la ventana está construida (sin esperas)
+            self._activar_auto_guardada()
         
         # Verificar actualizaciones al inicio (después de 10 segundos)
         if self.gestor_actualizaciones:
@@ -878,8 +882,19 @@ class OrganizadorAvanzado(QMainWindow):
             self.chk_auto_principal.blockSignals(False)
 
     def _actualizar_estado_auto_organizacion(self):
-        """Actualiza el estado visual cuando no hay auto-organización activa."""
-        # Verificar si algún modo sigue activo
+        """Actualiza la tarjeta de estado según los controles actuales."""
+        modo = None
+        if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
+            modo = "DETALLADO"
+        elif hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
+            modo = "BÁSICO"
+
+        if modo and hasattr(self, 'timer_auto') and self.timer_auto.isActive():
+            intervalo_texto = self.combo_intervalo_auto.currentText() if hasattr(self, 'combo_intervalo_auto') else ""
+            icono = "🔧" if modo == "DETALLADO" else "📁"
+            self.lbl_estado.setText(f"{icono} Auto-organización {modo}: ACTIVADA ({intervalo_texto})")
+            return
+
         auto_activa = False
         if hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
             auto_activa = True
@@ -1976,13 +1991,13 @@ class OrganizadorAvanzado(QMainWindow):
             QApplication.processEvents()
         
         try:
-            # Descargar
+            # Descargar el instalador nativo (.exe/.pkg/.deb)
             self._agregar_log(f"⬇️ Descargando v{version}...")
-            exito, resultado = self.gestor_actualizaciones.descargar_actualizacion(
+            exito, resultado = self.gestor_actualizaciones.descargar_instalador_nativo(
                 info,
                 callback_progreso=actualizar_progreso
             )
-            
+
             if not exito:
                 progress.close()
                 QMessageBox.critical(
@@ -1991,37 +2006,22 @@ class OrganizadorAvanzado(QMainWindow):
                     f"❌ Error descargando actualización:\n\n{resultado}"
                 )
                 return
-            
-            # Instalar
-            progress.setLabelText("Instalando actualización...")
-            progress.setValue(100)
-            self._agregar_log(f"📦 Instalando v{version}...")
-            
-            exito_instalacion, mensaje = self.gestor_actualizaciones.instalar_actualizacion(resultado)
+
             progress.close()
-            
-            if exito_instalacion:
-                # Mostrar mensaje de éxito
+
+            # Abrir el instalador del sistema (pide permisos e instala encima)
+            exito_apertura, mensaje = self.gestor_actualizaciones.abrir_instalador(resultado)
+            self._agregar_log(f"📦 Instalador: {resultado}")
+
+            if exito_apertura:
+                self._agregar_log("✅ Actualización preparada - sigue el asistente")
                 QMessageBox.information(
                     self,
-                    "✅ Actualización Completada",
-                    f"{mensaje}\n\n🔄 La aplicación se reiniciará automáticamente en 3 segundos..."
+                    "Actualización lista",
+                    f"{mensaje}\n\nCuando termine el asistente, la app quedará actualizada."
                 )
-                
-                self._agregar_log("✅ Actualización completada - Reiniciando...")
-                
-                # Reiniciar automáticamente
-                QApplication.processEvents()
-                import time
-                time.sleep(1)
-                
-                self.gestor_actualizaciones.reiniciar_aplicacion()
             else:
-                QMessageBox.critical(
-                    self,
-                    "Error de Instalación",
-                    f"❌ Error instalando actualización:\n\n{mensaje}"
-                )
+                QMessageBox.warning(self, "Error", f"❌ {mensaje}")
         
         except Exception as e:
             progress.close()
@@ -2743,17 +2743,20 @@ class OrganizadorAvanzado(QMainWindow):
                 self.chk_auto_principal.setChecked(True)
                 self.chk_auto_principal.blockSignals(False)
 
-            # Marcar el modo guardado (con señales, para que arranque el timer)
+            # Marcar el modo guardado (con señales para refrescar la tarjeta)
             if modo == "basico" and hasattr(self, "chk_auto_basico"):
                 if not self.chk_auto_basico.isChecked():
                     self.chk_auto_basico.setChecked(True)
             elif hasattr(self, "chk_auto_detallado") and not self.chk_auto_detallado.isChecked():
                 self.chk_auto_detallado.setChecked(True)
-            else:
-                # El modo ya estaba marcado; arrancar el timer manualmente
+
+            # Garantizar el timer activo con el intervalo actual
+            if hasattr(self, "timer_auto"):
                 intervalo_seg = int(self.combo_intervalo_auto.currentData() or 3600)
-                self.timer_auto.start(intervalo_seg * 1000)
-                self._actualizar_estado_auto_organizacion()
+                self.timer_auto.start(max(30, intervalo_seg) * 1000)
+            intervalo_texto = self.combo_intervalo_auto.currentText() if hasattr(self, "combo_intervalo_auto") else ""
+            self._agregar_log(f"⚡ Auto-organización ACTIVADA al abrir ({modo}, cada {intervalo_texto})")
+            self._actualizar_estado_auto_organizacion()
         except Exception as e:
             logger.debug(f"No se pudo activar la auto-organización guardada: {e}")
 
