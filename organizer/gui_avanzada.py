@@ -19,7 +19,7 @@ try:
         QPushButton, QLabel, QCheckBox, QListWidget, QProgressBar,
         QMessageBox, QSystemTrayIcon, QTabWidget, QTextEdit, QSlider,
         QGroupBox, QComboBox, QPlainTextEdit, QInputDialog, QMenu,
-        QFileDialog, QScrollArea
+        QFileDialog, QScrollArea, QProgressDialog
     )
 except ImportError:
     print("❌ PySide6 no instalado. Ejecuta: pip install PySide6")
@@ -69,6 +69,60 @@ except ImportError:
         ACTUALIZACIONES_DISPONIBLES = False
 
 logger = logging.getLogger('organizador.gui_avanzada')
+
+class Switch(QCheckBox):
+    """Interruptor encendido/apagado estilo iOS (sobre QCheckBox)."""
+
+    def __init__(self, texto="", parent=None):
+        super().__init__(texto, parent)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def paintEvent(self, event):
+        from PySide6.QtGui import QPainter, QColor
+        from PySide6.QtCore import QRectF, QPointF
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        fm = self.fontMetrics()
+        texto_w = fm.horizontalAdvance(self.text()) if self.text() else 0
+        gap = 10 if self.text() else 0
+        alto = 24
+        ancho_pill = 44
+        y = (self.height() - alto) / 2
+
+        activo = self.isChecked()
+        habilitado = self.isEnabled()
+
+        if habilitado:
+            color_on = QColor("#0A84FF")
+            color_off = QColor("#48484A")
+        else:
+            color_on = QColor("#48484A")
+            color_off = QColor("#3A3A3C")
+
+        p.setPen(Qt.NoPen)
+        p.setBrush(color_on if activo else color_off)
+        p.drawRoundedRect(QRectF(gap, y, ancho_pill, alto), alto / 2, alto / 2)
+
+        # Círculo deslizante
+        r = alto - 6
+        x_circ = gap + 3 if not activo else gap + ancho_pill - r - 3
+        p.setBrush(QColor("#FFFFFF"))
+        p.drawEllipse(QPointF(x_circ + r / 2, self.height() / 2), r / 2, r / 2)
+
+        if self.text():
+            p.setPen(QColor("#F5F5F7" if habilitado else "#636366"))
+            p.drawText(QRectF(gap + ancho_pill + 8, 0, texto_w + 4, self.height()),
+                       Qt.AlignVCenter | Qt.AlignLeft, self.text())
+        p.end()
+
+    def sizeHint(self):
+        fm = self.fontMetrics()
+        ancho = (10 + 44 + 18 + fm.horizontalAdvance(self.text())) if self.text() else 60
+        from PySide6.QtCore import QSize
+        return QSize(ancho, 30)
+
 
 class OrganizadorAvanzado(QMainWindow):
     """GUI completa con todas las funcionalidades avanzadas."""
@@ -155,8 +209,8 @@ class OrganizadorAvanzado(QMainWindow):
         self.timer_actualizaciones = QTimer()
         self.timer_actualizaciones.timeout.connect(self._verificar_actualizaciones_silencioso)
         
-        # Restaurar el modo y el intervalo guardados y, si procede, arrancar
-        # la auto-organización con esa misma configuración.
+        # Restaurar el modo y el intervalo guardados y, si la configuración
+        # tenía la organización automática activada, arrancar con ella.
         self._restaurar_preferencias_auto()
 
         if auto_organizacion:
@@ -692,12 +746,37 @@ class OrganizadorAvanzado(QMainWindow):
         except:
             pass
     
+    def _toggle_auto_principal(self, activo):
+        """Interruptor general de la organización automática."""
+        if getattr(self, "_sincronizando_controles", False):
+            return
+        if activo:
+            # Activar con el modo guardado (o Básico por defecto)
+            modo = getattr(self, "_auto_modo_guardado", "basico")
+            if modo == "detallado" and hasattr(self, "chk_auto_detallado"):
+                self.chk_auto_detallado.setChecked(True)
+            elif hasattr(self, "chk_auto_basico"):
+                self.chk_auto_basico.setChecked(True)
+        else:
+            # Apagar: detiene el timer y limpia la preferencia
+            if hasattr(self, "timer_auto") and self.timer_auto:
+                self.timer_auto.stop()
+            if hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked():
+                self.chk_auto_basico.blockSignals(True)
+                self.chk_auto_basico.setChecked(False)
+                self.chk_auto_basico.blockSignals(False)
+            if hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked():
+                self.chk_auto_detallado.blockSignals(True)
+                self.chk_auto_detallado.setChecked(False)
+                self.chk_auto_detallado.blockSignals(False)
+            self._agregar_log("⏸️ Auto-organización DESACTIVADA")
+            self._olvidar_preferencia_auto()
+            self._actualizar_estado_auto_organizacion()
+
     def _toggle_auto_organizacion(self, activo):
-        """Activa/desactiva la organización automática (mantener compatibilidad)."""
-        # Esta función mantiene compatibilidad con código existente
-        # Activa el modo básico por defecto
-        if hasattr(self, 'chk_auto_basico'):
-            self.chk_auto_basico.setChecked(activo)
+        """Activa/desactiva la organización automática (compatibilidad)."""
+        if hasattr(self, "chk_auto_principal"):
+            self.chk_auto_principal.setChecked(activo)
     
     @Slot(bool)
     def _toggle_auto_organizacion_basico(self, activo):
@@ -720,6 +799,7 @@ class OrganizadorAvanzado(QMainWindow):
                 intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
                 self._agregar_log(f"⚡ Auto-organización BÁSICA ACTIVADA ({intervalo_texto})")
+                self._sincronizar_switch_principal(True)
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
@@ -736,6 +816,7 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 self._agregar_log("⏸️ Auto-organización BÁSICA DESACTIVADA")
                 self._olvidar_preferencia_auto()
+                self._sincronizar_switch_principal(False)
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
@@ -763,6 +844,7 @@ class OrganizadorAvanzado(QMainWindow):
                 intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
                 self._agregar_log(f"⚡ Auto-organización DETALLADA ACTIVADA ({intervalo_texto})")
+                self._sincronizar_switch_principal(True)
                 
                 # Actualizar tooltip de la bandeja
                 if self.tray_icon:
@@ -779,12 +861,22 @@ class OrganizadorAvanzado(QMainWindow):
                 
                 self._agregar_log("⏸️ Auto-organización DETALLADA DESACTIVADA")
                 self._olvidar_preferencia_auto()
+                self._sincronizar_switch_principal(False)
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
             self._agregar_log(f"❌ Error configurando auto-organización detallada: {e}")
             QMessageBox.critical(self, "Error", f"❌ Error: {e}")
     
+    def _sincronizar_switch_principal(self, activo):
+        """Mantiene el interruptor general coherente con los modos."""
+        if getattr(self, "_sincronizando_controles", False):
+            return
+        if hasattr(self, "chk_auto_principal"):
+            self.chk_auto_principal.blockSignals(True)
+            self.chk_auto_principal.setChecked(activo)
+            self.chk_auto_principal.blockSignals(False)
+
     def _actualizar_estado_auto_organizacion(self):
         """Actualiza el estado visual cuando no hay auto-organización activa."""
         # Verificar si algún modo sigue activo
@@ -1163,7 +1255,16 @@ class OrganizadorAvanzado(QMainWindow):
         auto_layout = QVBoxLayout(auto_group)
         auto_layout.setSpacing(12)
 
-        # Modo: dos "píldoras" en una fila
+        # Interruptor general encendido/apagado
+        fila_switch = QHBoxLayout()
+        self.chk_auto_principal = Switch("Organización automática")
+        self.chk_auto_principal.setToolTip("Organiza la carpeta sola, cada cierto tiempo")
+        self.chk_auto_principal.toggled.connect(self._toggle_auto_principal)
+        fila_switch.addWidget(self.chk_auto_principal)
+        fila_switch.addStretch()
+        auto_layout.addLayout(fila_switch)
+
+        # Modo: dos opciones en una fila (solo tiene efecto si está activado)
         modo_layout = QHBoxLayout()
         modo_layout.setSpacing(10)
 
@@ -1193,7 +1294,7 @@ class OrganizadorAvanzado(QMainWindow):
             ("6 horas", 21600), ("12 horas", 43200), ("1 día", 86400),
         ]:
             self.combo_intervalo_auto.addItem(texto, seg)
-        self.combo_intervalo_auto.setCurrentIndex(0)
+        self.combo_intervalo_auto.setCurrentIndex(5)  # 1 hora por defecto
         self.combo_intervalo_auto.currentIndexChanged.connect(self._cambiar_intervalo_auto)
         tiempo_layout.addWidget(self.combo_intervalo_auto)
         tiempo_layout.addStretch()
@@ -1202,7 +1303,7 @@ class OrganizadorAvanzado(QMainWindow):
         # Iniciar con el sistema
         nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
         arranque_layout = QHBoxLayout()
-        self.chk_autoarranque = QCheckBox(f"Iniciar al arrancar {nombre_so}")
+        self.chk_autoarranque = Switch(f"Iniciar al arrancar {nombre_so}")
         self.chk_autoarranque.blockSignals(True)
         self.chk_autoarranque.setChecked(self.gestor_autoarranque.verificar_autoarranque())
         self.chk_autoarranque.blockSignals(False)
@@ -2403,27 +2504,77 @@ class OrganizadorAvanzado(QMainWindow):
             str(self.organizador.carpeta_descargas)
         )
         if nueva_carpeta:
-            # Actualizar el organizador con la nueva carpeta
-            self.organizador.carpeta_descargas = Path(nueva_carpeta)
-            self.organizador.carpeta_config = self.organizador.carpeta_descargas / ".config"
-            
-            # Actualizar la interfaz
-            self.lbl_carpeta_actual.setText(f"📁 Carpeta actual: {os.path.basename(nueva_carpeta)}")
-            
-            # Actualizar el header
-            if hasattr(self, 'header'):
-                self.header.setText(f"DescargasOrdenadas · 📁 {nueva_carpeta}")
-            
-            # Reinitializar módulos avanzados con la nueva carpeta
-            self._inicializar_modulos()
-            self._actualizar_datos()
-            
-            # Mostrar mensaje de confirmación
-            QMessageBox.information(
-                self, 
-                "Carpeta Cambiada", 
-                f"✅ Carpeta de trabajo cambiada a:\n{nueva_carpeta}"
-            )
+            carpeta_anterior = Path(self.organizador.carpeta_descargas)
+            self._cambiar_carpeta_y_organizar(Path(nueva_carpeta), carpeta_anterior)
+
+    def _cambiar_carpeta_y_organizar(self, nueva_carpeta: Path, carpeta_anterior: Path):
+        """Cambia a la carpeta elegida, la organiza y vuelve a la anterior."""
+        # Guardamos el modo actual de subcarpetas para no alterar la config
+        usar_subcarpetas = self.chk_subcarpetas.isChecked() if hasattr(self, "chk_subcarpetas") else True
+
+        progreso = QProgressDialog(
+            f"Organizando:\n{nueva_carpeta}",
+            None, 0, 0, self
+        )
+        progreso.setWindowTitle("DescargasOrdenadas")
+        progreso.setWindowModality(Qt.WindowModal)
+        progreso.setCancelButton(None)
+        progreso.setMinimumDuration(0)
+        progreso.setFixedWidth(420)
+        progreso.show()
+        QApplication.processEvents()
+
+        # Pausar la auto-organización mientras trabajamos con otra carpeta
+        timer_estaba_activo = bool(getattr(self, "timer_auto", None) and self.timer_auto.isActive())
+        if timer_estaba_activo and hasattr(self, "timer_auto"):
+            self.timer_auto.stop()
+
+        class HiloCambioCarpeta(QThread):
+            terminado = Signal(bool, str)
+
+            def __init__(self, carpeta, subcarpetas, padre):
+                super().__init__(padre)
+                self.carpeta = carpeta
+                self.subcarpetas = subcarpetas
+                self.padre = padre
+
+            def run(self):
+                try:
+                    from .file_organizer import OrganizadorArchivos
+                    organizador_temporal = OrganizadorArchivos(
+                        carpeta_descargas=str(self.carpeta),
+                        usar_subcarpetas=self.subcarpetas,
+                    )
+                    organizador_temporal.organizar()
+                    self.terminado.emit(True, str(self.carpeta))
+                except Exception as e:
+                    self.terminado.emit(False, str(e))
+
+        def al_terminar(exito, detalle):
+            progreso.close()
+            if exito:
+                self._agregar_log(f"✅ Carpeta organizada: {nueva_carpeta}")
+                if self.notificador:
+                    self.notificador.mostrar(
+                        "Carpeta organizada",
+                        f"{nueva_carpeta.name} lista.",
+                        tipo="success", duracion=4,
+                    )
+            else:
+                self._agregar_log(f"❌ Error organizando {nueva_carpeta}: {detalle}")
+                QMessageBox.warning(self, "Error", f"No se pudo organizar la carpeta:\n{detalle}")
+
+        hilo = HiloCambioCarpeta(nueva_carpeta, usar_subcarpetas, self)
+        hilo.terminado.connect(al_terminar)
+        self._hilo_cambio_carpeta = hilo  # evitar que lo recoja el recolector
+        hilo.start()
+
+        # Restaurar la carpeta de trabajo anterior y la interfaz
+        self.organizador.carpeta_descargas = carpeta_anterior
+        self.organizador.carpeta_config = carpeta_anterior / ".config"
+        self.lbl_carpeta_actual.setText(os.path.basename(str(carpeta_anterior)))
+        if hasattr(self, "header"):
+            self.header.setText(f"DescargasOrdenadas · 📁 {carpeta_anterior}")
     
     def _reset_carpeta_descargas(self):
         """Restablece la carpeta de descargas a la predeterminada."""
@@ -2527,14 +2678,14 @@ class OrganizadorAvanzado(QMainWindow):
             if self.config_portable:
                 if intervalo is None:
                     try:
-                        intervalo = int(self.config_portable.obtener("auto_intervalo", 30) or 30)
+                        intervalo = int(self.config_portable.obtener("auto_intervalo", 3600) or 3600)
                     except (TypeError, ValueError):
-                        intervalo = 30
+                        intervalo = 3600
                 if modo not in ("basico", "detallado"):
-                    modo = self.config_portable.obtener("auto_modo", "detallado")
+                    modo = self.config_portable.obtener("auto_modo", "basico")
 
             if modo not in ("basico", "detallado"):
-                modo = "detallado"
+                modo = "basico"
 
             # Seleccionar el intervalo guardado en el desplegable
             if hasattr(self, "combo_intervalo_auto") and intervalo:
@@ -2543,6 +2694,14 @@ class OrganizadorAvanzado(QMainWindow):
                     self.combo_intervalo_auto.setCurrentIndex(indice)
 
             self._auto_modo_guardado = modo
+
+            # El interruptor general arranca apagado; si la configuración tenía
+            # la organización automática activada, _activar_auto_guardada lo
+            # enciende al poco de abrir la ventana.
+            if hasattr(self, "chk_auto_principal"):
+                self.chk_auto_principal.blockSignals(True)
+                self.chk_auto_principal.setChecked(False)
+                self.chk_auto_principal.blockSignals(False)
 
             # Marcar la casilla correspondiente sin disparar el timer todavía
             if modo == "basico" and hasattr(self, "chk_auto_basico"):
@@ -2568,12 +2727,33 @@ class OrganizadorAvanzado(QMainWindow):
 
     def _activar_auto_guardada(self):
         """Arranca la auto-organización con el modo previamente guardado."""
-        modo = getattr(self, "_auto_modo_guardado", "detallado")
+        modo = getattr(self, "_auto_modo_guardado", "basico")
         try:
+            if hasattr(self, "timer_auto") and self.timer_auto is None:
+                pass
+            # Asegurar el timer
+            if not hasattr(self, "timer_auto") or self.timer_auto is None:
+                from PySide6.QtCore import QTimer as _QTimer
+                self.timer_auto = _QTimer()
+                self.timer_auto.timeout.connect(self._organizar_automatico)
+
+            # Activar primero el interruptor general (sin señales para no reentrar)
+            if hasattr(self, "chk_auto_principal"):
+                self.chk_auto_principal.blockSignals(True)
+                self.chk_auto_principal.setChecked(True)
+                self.chk_auto_principal.blockSignals(False)
+
+            # Marcar el modo guardado (con señales, para que arranque el timer)
             if modo == "basico" and hasattr(self, "chk_auto_basico"):
-                self.chk_auto_basico.setChecked(True)
-            elif hasattr(self, "chk_auto_detallado"):
+                if not self.chk_auto_basico.isChecked():
+                    self.chk_auto_basico.setChecked(True)
+            elif hasattr(self, "chk_auto_detallado") and not self.chk_auto_detallado.isChecked():
                 self.chk_auto_detallado.setChecked(True)
+            else:
+                # El modo ya estaba marcado; arrancar el timer manualmente
+                intervalo_seg = int(self.combo_intervalo_auto.currentData() or 3600)
+                self.timer_auto.start(intervalo_seg * 1000)
+                self._actualizar_estado_auto_organizacion()
         except Exception as e:
             logger.debug(f"No se pudo activar la auto-organización guardada: {e}")
 
@@ -2586,12 +2766,13 @@ class OrganizadorAvanzado(QMainWindow):
         try:
             modo = "detallado" if (hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked()) else "basico"
             if hasattr(self, "combo_intervalo_auto"):
-                intervalo = int(self.combo_intervalo_auto.currentData() or 30)
+                intervalo = int(self.combo_intervalo_auto.currentData() or 3600)
             else:
                 intervalo = 30
             self.config_portable.establecer("auto_modo", modo)
             self.config_portable.establecer("auto_intervalo", intervalo)
-            self.config_portable.establecer("auto_organizacion", True)
+            activo_general = self.chk_auto_principal.isChecked() if hasattr(self, "chk_auto_principal") else True
+            self.config_portable.establecer("auto_organizacion", bool(activo_general))
             self._sincronizar_autoarranque(modo)
         except Exception as e:
             logger.debug(f"No se pudieron guardar las preferencias de auto-organización: {e}")
@@ -2644,7 +2825,7 @@ class OrganizadorAvanzado(QMainWindow):
         """Cambia el intervalo de auto-organización."""
         if self.config_portable:
             try:
-                self.config_portable.establecer("auto_intervalo", int(self.combo_intervalo_auto.currentData() or 30))
+                self.config_portable.establecer("auto_intervalo", int(self.combo_intervalo_auto.currentData() or 3600))
             except Exception:
                 pass
 

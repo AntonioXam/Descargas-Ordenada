@@ -200,24 +200,25 @@ class GestorMenuContextual:
             scripts = Path.home() / ".local" / "share" / "nautilus" / "scripts"
             scripts.mkdir(parents=True, exist_ok=True)
             script = scripts / "Organizar con DescargasOrdenadas"
-            cuerpo = "\n".join([
+            cuerpo = chr(10).join([
                 "#!/usr/bin/env bash",
                 "# Organiza las carpetas seleccionadas con DescargasOrdenadas",
-                'IFS="\n"',
+                'IFS="' + chr(10) + '"',
                 "for f in $NAUTILUS_SCRIPT_SELECTED_FILE_PATHS; do",
-                "  " + self._comando_linux().replace("%f", '\"$f\"') + " &",
+                "  " + self._comando_linux() + " \"$f\" &",
                 "done",
                 "",
             ])
             script = scripts / "Organizar con DescargasOrdenadas"
-            script.write_text(cuerpo, encoding="utf-8")
+            script.write_text(cuerpo + chr(10), encoding="utf-8")
             script.chmod(0o755)
         except Exception as e:
             logger.debug(f"No se pudo crear el script de Nautilus: {e}")
 
-        # Refrescar la base de datos de aplicaciones si existe
-        subprocess.run(["update-desktop-database", str(ruta.parent)],
-                       capture_output=True, check=False)
+        # Refrescar la base de datos de aplicaciones si existe (solo Linux)
+        if sys.platform.startswith("linux"):
+            subprocess.run(["update-desktop-database", str(ruta.parent)],
+                           capture_output=True, check=False)
         return True, "Menú contextual de Linux instalado"
 
     def _desregistrar_linux(self) -> Tuple[bool, str]:

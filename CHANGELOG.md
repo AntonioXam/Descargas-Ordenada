@@ -4,6 +4,23 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [4.7.0] - 2026-09-22
+
+### 🎛️ Automático tal como lo dejaste
+- Nuevo interruptor encendido/apagado para la organización automática (y para arrancar con el sistema)
+- Por defecto: Básico y 1 hora; la elección se restaura al abrir la app sin tocar nada
+- Añadida la opción de apagar la organización automática cuando quieras
+
+### 🖱️ Menú contextual
+- Corregido el script de Nautilus (Linux) que lanzaba la ordenación sin la carpeta
+- Verificado en macOS (Acción rápida de Finder) y Linux (script y "Abrir con")
+
+### 📂 Cambiar carpeta
+- Al elegir otra carpeta, se organiza en segundo plano con aviso de progreso
+- La carpeta de trabajo vuelve a ser la anterior al terminar
+
+---
+
 ## [4.6.1] - 2026-09-21
 
 ### 🐛 Corrección de crash al arrancar (macOS)

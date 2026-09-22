@@ -302,7 +302,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.6.1"
+            version = "4.7.0"
         print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
         print("=" * 50)
     
