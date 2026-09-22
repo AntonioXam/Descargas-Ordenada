@@ -50,11 +50,12 @@ class ConfigPortable:
     def _obtener_config_por_defecto(self) -> Dict[str, Any]:
         """Obtiene la configuración por defecto."""
         return {
-            "tema": "minimal_oscuro",
+            "tema": "auto",
             "notificaciones_habilitadas": True,
             "auto_organizacion": False,
             "auto_modo": "basico",
             "auto_intervalo": 3600,
+            "carpeta_base": None,
             "autoarranque": False,
             "usar_subcarpetas": True,
             "organizar_recursivo": False,

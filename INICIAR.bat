@@ -1,50 +1,52 @@
 @echo off
 REM ===================================================================
-REM 🍄 DescargasOrdenadas v3.2 - Launcher
-REM Creado por Champi 🍄
+REM DescargasOrdenadas - Lanzador de Windows
 REM ===================================================================
+setlocal
 
 REM Cambiar al directorio del script
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
-REM Preferir python3 del sistema (donde están instaladas las dependencias)
-where python3.exe > nul 2>&1
-if %errorlevel% equ 0 (
-    REM Usar pythonw3 si existe para no mostrar consola; si no, python3
-    where pythonw3.exe > nul 2>&1
-    if %errorlevel% equ 0 (
-        start "" pythonw3.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
-    ) else (
-        start "" python3.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
-    )
-    goto :fin
+REM Elegir el intérprete: primero el entorno virtual, luego pythonw (sin
+REM consola), y por último python del sistema.
+set "PYTHON="
+if exist "%SCRIPT_DIR%.venv\Scripts\pythonw.exe" set "PYTHON=%SCRIPT_DIR%.venv\Scripts\pythonw.exe"
+if not defined PYTHON (
+    where pythonw3.exe > nul 2>&1 && set "PYTHON=pythonw3.exe"
+)
+if not defined PYTHON (
+    where pythonw.exe > nul 2>&1 && set "PYTHON=pythonw.exe"
+)
+if not defined PYTHON (
+    where python3.exe > nul 2>&1 && set "PYTHON=python3.exe"
+)
+if not defined PYTHON (
+    where python.exe > nul 2>&1 && set "PYTHON=python.exe"
 )
 
-REM Fallback a pythonw.exe / python.exe
-where pythonw.exe > nul 2>&1
-if %errorlevel% equ 0 (
-    start "" pythonw.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
-    goto :fin
+if not defined PYTHON (
+    echo ERROR: Python no esta instalado
+    echo.
+    echo Instalalo desde:
+    echo https://www.python.org/downloads/
+    echo.
+    echo Marca la casilla "Add Python to PATH" durante la instalacion.
+    echo.
+    pause
+    exit /b 1
 )
 
-where python.exe > nul 2>&1
-if %errorlevel% equ 0 (
-    start "" python.exe "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
-    goto :fin
+REM Detectar si es una orden del menu contextual (no debe abrir nada visible)
+set "MODO_SILENCIOSO="
+echo %* | find /I "--organizar-carpeta" >nul && set "MODO_SILENCIOSO=1"
+
+if defined MODO_SILENCIOSO (
+    REM Organizar una carpeta en segundo plano: sin consola y sin esperar
+    start "" /B "%PYTHON%" "%SCRIPT_DIR%organizer\INICIAR.py" %*
+    exit /b 0
 )
 
-REM Mostrar error si Python no está instalado
-echo ❌ ERROR: Python no está instalado
-echo.
-echo Por favor instala Python desde:
-echo https://www.python.org/downloads/
-echo.
-echo Asegúrate de marcar "Add Python to PATH"
-echo.
-pause
-exit /b 1
-
-:fin
-REM Salir inmediatamente
+REM Arranque normal de la interfaz
+start "" "%PYTHON%" "%SCRIPT_DIR%organizer\INICIAR.py" --gui %*
 exit /b 0

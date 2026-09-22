@@ -275,6 +275,171 @@ class GestorActualizacionesMejorado:
         except Exception as e:
             return False, f"No se pudo abrir el instalador: {e}"
 
+    # ------------------------------------------------------- actualización
+
+    def _comando_reabrir(self, minimizado: bool = True) -> list:
+        """Comando para volver a abrir la app (tras instalar la nueva versión)."""
+        argumentos = ["--minimizado"] if minimizado else []
+        if getattr(sys, "frozen", False):
+            return [sys.executable, *argumentos]
+        iniciar_py = Path(__file__).resolve().parent / "INICIAR.py"
+        return [sys.executable, str(iniciar_py), *argumentos]
+
+    def _script_actualizacion_windows(self, ruta_instalador: Path) -> Path:
+        """Genera un .bat que espera el cierre, instala en silencio y reabre la app.
+
+        Windows no permite reemplazar un .exe en uso, así que el único orden
+        fiable es: cerrar → instalar encima → reabrir. El script se ejecuta
+        desacoplado de la app para sobrevivir a su cierre.
+        """
+        base_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent.parent
+        script = base_dir / ".temp_actualizar.bat"
+        log = base_dir / ".temp_actualizar.log"
+
+        lineas = [
+            "@echo off",
+            "rem DescargasOrdenadas: actualiza sin dejar dos copias abiertas",
+            "setlocal",
+            f'set "INSTALADOR={ruta_instalador}"',
+            f'set "LOG={log}"',
+            "rem Esperar a que la aplicación termine (máximo 60 s)",
+            "for /L %%i in (1,1,60) do (",
+            '  tasklist /FI "IMAGENAME eq DescargasOrdenadas.exe" | find /I "DescargasOrdenadas.exe" >nul',
+            "  if errorlevel 1 goto instalar",
+            "  timeout /t 1 /nobreak >nul",
+            ")",
+            ":instalar",
+            'echo [%date% %time%] Lanzando instalador >> "%LOG%"',
+            f'"%INSTALADOR%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS >> "%LOG%" 2>&1',
+            'echo [%date% %time%] Instalador terminado >> "%LOG%"',
+            "rem Reabrir la aplicación actualizada",
+            'start "" "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            'del "%~f0"',
+            "endlocal",
+        ]
+        script.write_text("\r\n".join(lineas) + "\r\n", encoding="latin-1", errors="replace")
+        return script
+
+    def _script_actualizacion_unix(self, ruta_instalador: Path) -> Path:
+        """Script para macOS/Linux: espera el cierre, instala y reabre.
+
+        En macOS, el .pkg se instala con ``installer -pkg`` sobre /Applications;
+        en Linux, el .deb se instala con el gestor del sistema pidiendo permisos
+        de forma explícita (pkexec o sudo en una terminal).
+        """
+        base_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent.parent
+        script = base_dir / ".temp_actualizar.sh"
+        log = base_dir / ".temp_actualizar.log"
+        reabrir = " ".join(f'"{parte}"' for parte in self._comando_reabrir())
+
+        if sys.platform == "darwin":
+            instalacion = (
+                f'installer -pkg "{ruta_instalador}" -target / >>"{log}" 2>&1'
+            )
+        else:
+            instalacion = (
+                f'if command -v pkexec >/dev/null 2>&1; then '
+                f'pkexec apt-get install -y "{ruta_instalador}" >>"{log}" 2>&1; '
+                f'else xdg-terminal-exec sudo apt-get install -y "{ruta_instalador}" >>"{log}" 2>&1; fi'
+            )
+
+        cuerpo = chr(10).join([
+            "#!/usr/bin/env bash",
+            "# DescargasOrdenadas: actualiza sin dejar dos copias abiertas",
+            f'LOG="{log}"',
+            'echo "[$(date)] Esperando a que la aplicación se cierre" >>"$LOG"',
+            "for _ in $(seq 1 60); do",
+            "  if ! pgrep -f DescargasOrdenadas >/dev/null 2>&1; then break; fi",
+            "  sleep 1",
+            "done",
+            'echo "[$(date)] Instalando la nueva versión" >>"$LOG"',
+            instalacion,
+            'echo "[$(date)] Instalación terminada; reabriendo" >>"$LOG"',
+            f"nohup {reabrir} >/dev/null 2>&1 &",
+            'rm -f -- "$0"',
+            "",
+        ])
+        script.write_text(cuerpo, encoding="utf-8")
+        script.chmod(0o755)
+        return script
+
+    def actualizar_e_instalar(self, ruta_instalador: str, cerrar_app=None) -> Tuple[bool, str]:
+        """Actualiza de forma segura: cierra la app, instala encima y reabre.
+
+        Args:
+            ruta_instalador: ruta del .exe/.pkg/.deb descargado.
+            cerrar_app: función opcional que cierra la aplicación actual de
+                forma ordenada (la GUI pasa la suya). Si no se indica, se usa
+                ``sys.exit``.
+
+        Returns:
+            (exito, mensaje) con instrucciones claras para el usuario.
+        """
+        ruta = Path(ruta_instalador)
+        if not ruta.exists():
+            return False, f"No se encuentra el instalador descargado: {ruta}"
+
+        if getattr(sys, "frozen", False) is False and sys.platform != "darwin":
+            # En modo desarrollo no tiene sentido reemplazar la instalación
+            pass
+
+        try:
+            if sys.platform == "win32":
+                if ruta.suffix.lower() != ".exe":
+                    return False, f"El instalador de Windows debe ser .exe y es: {ruta.name}"
+                script = self._script_actualizacion_windows(ruta)
+                subprocess.Popen(
+                    ["cmd", "/c", str(script)],
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
+                )
+            else:
+                if not ruta.name.endswith((".pkg", ".deb")):
+                    return False, f"El instalador de este sistema debe ser .pkg o .deb y es: {ruta.name}"
+                script = self._script_actualizacion_unix(ruta)
+                subprocess.Popen(
+                    ["/bin/bash", str(script)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+        except Exception as e:
+            logger.error(f"No se pudo preparar la actualización: {e}")
+            return False, f"No se pudo preparar la actualización: {e}"
+
+        # Cerrar la aplicación para que el instalador no encuentre archivos en uso
+        QTimer_salida = None
+        try:
+            from PySide6.QtCore import QTimer as _QTimer
+
+            QTimer_salida = _QTimer
+        except Exception:
+            pass
+
+        def _cerrar():
+            if cerrar_app is not None:
+                try:
+                    cerrar_app()
+                    return
+                except Exception as e:
+                    logger.debug(f"El cierre ordenado falló: {e}")
+            sys.exit(0)
+
+        if QTimer_salida is not None:
+            # Pequeña espera para que el mensaje se pueda leer y el script arranque
+            QTimer_salida.singleShot(1200, _cerrar)
+        else:
+            _cerrar()
+
+        return True, (
+            "La aplicación se cerrará, el instalador se ejecutará en segundo plano "
+            "y volverá a abrirse automáticamente al terminar."
+        )
+
     def descargar_actualizacion(self, info: Dict, callback_progreso=None) -> Tuple[bool, str]:
         """
         Descarga la actualización desde GitHub.

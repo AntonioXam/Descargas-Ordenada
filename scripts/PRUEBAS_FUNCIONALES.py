@@ -10,6 +10,7 @@ import tempfile
 import os
 import subprocess
 import shutil
+import time
 from pathlib import Path
 
 # Añadir raíz del proyecto al path
@@ -20,6 +21,8 @@ from organizer.file_organizer import OrganizadorArchivos
 from organizer.duplicate_detector import DetectorDuplicados
 from organizer.portable_config import ConfigPortable
 from organizer.version import obtener_version
+from organizer import estilos
+from organizer.single_instance import InstanciaUnica, hay_instancia_activa
 import organizer.autostart  # noqa: F401 - regresión: debe importar en cualquier SO
 
 
@@ -51,6 +54,22 @@ def test_organizacion_basica():
     shutil.rmtree(base, ignore_errors=True)
 
 
+def test_no_toca_descargas_en_curso():
+    """Los archivos a medio descargar (.part, .crdownload) no deben moverse."""
+    base = Path(tempfile.mkdtemp(prefix="do_parcial_"))
+    (base / "video.mp4.part").write_text("a medias")
+    (base / "paquete.crdownload").write_text("a medias")
+    (base / "completo.pdf").write_text("listo")
+    org = OrganizadorArchivos(carpeta_descargas=str(base), usar_subcarpetas=False)
+    resultados, errores = org.organizar()
+    assert not errores, f"Errores: {errores}"
+    assert (base / "video.mp4.part").exists(), "Se movió una descarga en curso (.part)"
+    assert (base / "paquete.crdownload").exists(), "Se movió una descarga en curso (.crdownload)"
+    assert (base / "PDFs" / "completo.pdf").exists(), "No se organizó el archivo completo"
+    print("✅ Las descargas en curso se respetan")
+    shutil.rmtree(base, ignore_errors=True)
+
+
 def test_proteccion_carpeta_programa():
     try:
         OrganizadorArchivos(carpeta_descargas=str(project_root), usar_subcarpetas=True)
@@ -76,22 +95,34 @@ def test_lanzadores_multiplataforma():
     for nombre in esperados:
         ruta = project_root / nombre
         assert ruta.exists(), f"Falta el lanzador: {nombre}"
-        import os
         assert os.access(ruta, os.X_OK), f"El lanzador {nombre} no es ejecutable"
     print("✅ Lanzadores multiplataforma presentes y ejecutables")
 
 
 def test_configuracion_autoarranque():
-    """Verifica que la preferencia de autoarranque esté presente en la configuración base."""
+    """Verifica que las claves base existan en la configuración por defecto."""
     config = ConfigPortable.__new__(ConfigPortable)
     valores = config._obtener_config_por_defecto()
-    assert "autoarranque" in valores, "Falta la clave de autoarranque en la configuración"
+    assert "autoarranque" in valores, "Falta la clave de autoarranque"
     assert valores["autoarranque"] is False, "El autoarranque debe estar desactivado por defecto"
-    print("✅ Preferencia de autoarranque guardada en la configuración")
+    assert valores["tema"] == "auto", "El tema por defecto debe seguir al sistema"
+    assert "carpeta_base" in valores, "Falta la clave de carpeta principal"
+    print("✅ Configuración por defecto correcta")
+
+
+def test_estilos_multiplataforma():
+    """La hoja de estilo se genera en claro, oscuro y automático, sin fallar."""
+    for nombre in ("claro", "oscuro", "auto"):
+        hoja = estilos.hoja_estilo(nombre)
+        assert "QPushButton" in hoja and "QListWidget[rol=\"lateral\"]" in hoja, f"Hoja incompleta: {nombre}"
+    colores = estilos.hoja_estilo_switch("oscuro")
+    assert colores["on"] and colores["off"] and colores["thumb"]
+    assert estilos.familias_sistema(), "Sin familias tipográficas"
+    print("✅ Sistema de estilos tipo Apple operativo")
 
 
 def test_gui_responsive():
-    """Verifica que la ventana sea adaptable y que todas las pestañas usen scroll."""
+    """La ventana es adaptable: barra lateral + vistas con scroll."""
     try:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication, QScrollArea
@@ -106,14 +137,87 @@ def test_gui_responsive():
 
     assert ventana.minimumSize().width() <= 800, "El ancho mínimo es demasiado grande"
     assert ventana.minimumSize().height() <= 600, "El alto mínimo es demasiado grande"
-    assert ventana.tabs.count() == 4, "No hay 4 pestañas (Inicio, Actividad, Ajustes, Avanzado)"
+    assert ventana.stack.count() == 4, "Debe haber 4 vistas (Inicio, Actividad, Ajustes, Avanzado)"
+    assert ventana.lista_lateral.count() == 4, "La barra lateral debe tener 4 entradas"
 
-    for indice in range(ventana.tabs.count()):
-        pestaña = ventana.tabs.widget(indice)
-        assert isinstance(pestaña, QScrollArea), f"La pestaña {indice} no tiene scroll"
-        assert pestaña.widgetResizable(), f"La pestaña {indice} no es redimensionable"
+    for indice in range(ventana.stack.count()):
+        contenedor = ventana.stack.widget(indice)
+        assert isinstance(contenedor, QScrollArea), f"La vista {indice} no tiene scroll"
+        assert contenedor.widgetResizable(), f"La vista {indice} no es redimensionable"
 
-    print("✅ GUI adaptable con scroll en todas las pestañas")
+    # Interruptores con altura correcta (no aplastados por el layout)
+    assert ventana.chk_subcarpetas.sizeHint().height() >= 24
+
+    # Cambio de tema sin excepciones
+    ventana._cambiar_tema(1)
+    ventana._cambiar_tema(0)
+
+    print("✅ GUI adaptable con barra lateral y scroll")
+
+
+def test_tema_segun_sistema():
+    """El tema automático se resuelve siempre a claro u oscuro."""
+    from organizer.gui_avanzada import OrganizadorAvanzado
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    ventana = OrganizadorAvanzado()
+    ventana._tema = "auto"
+    assert ventana._tema_efectivo() in ("claro", "oscuro")
+    ventana._tema = "claro"
+    assert ventana._tema_efectivo() == "claro"
+    print("✅ Tema automático según el sistema")
+
+
+def test_instancia_unica():
+    """El bloqueo impide dos copias y el canal JSON envía órdenes."""
+    nombre = f"PruebaUnica{os.getpid()}"
+    primera = InstanciaUnica(nombre)
+    assert primera.adquirir(), "La primera instancia debe adquirir el bloqueo"
+    try:
+        segunda = InstanciaUnica(nombre)
+        assert not segunda.adquirir(), "La segunda instancia no debe adquirir el bloqueo"
+        assert hay_instancia_activa(nombre) is not None, "Debería detectar la instancia activa"
+    finally:
+        primera.liberar()
+    assert hay_instancia_activa(nombre) is None, "Tras liberar, no debe haber instancia activa"
+    print("✅ Control de instancia única funciona")
+
+
+def test_menu_contextual_multiplataforma():
+    """El gestor genera comandos con --organizar-carpeta en los tres sistemas."""
+    from organizer.context_menu import GestorMenuContextual
+    gestor = GestorMenuContextual()
+    comando = gestor._comando_base()
+    assert "--organizar-carpeta" in comando, f"Comando sin acción de organizar: {comando}"
+    assert sys.executable in comando or "python" in comando.lower()
+    # El estado de registro debe consultarse sin lanzar excepciones
+    gestor.verificar_registro()
+    print("✅ Menú contextual preparado para los tres sistemas")
+
+
+def test_flujo_organizar_carpeta_cli():
+    """La CLI organiza una carpeta concreta y avisa si no tiene permisos."""
+    base = Path(tempfile.mkdtemp(prefix="do_cli_"))
+    (base / "foto.png").write_text("png")
+    resultado = subprocess.run(
+        [sys.executable, str(project_root / "organizer" / "INICIAR.py"),
+         "--organizar-carpeta", str(base)],
+        capture_output=True, text=True, timeout=90
+    )
+    assert (base / "Imágenes" / "foto.png").exists(), (
+        f"No se organizó la carpeta por CLI:\n{resultado.stdout}\n{resultado.stderr}"
+    )
+
+    inexistente = subprocess.run(
+        [sys.executable, str(project_root / "organizer" / "INICIAR.py"),
+         "--organizar-carpeta", str(base / "no_existe")],
+        capture_output=True, text=True, timeout=90
+    )
+    assert inexistente.returncode != 0, "Debe devolver error con una carpeta inexistente"
+    assert "no existe" in inexistente.stdout.lower(), inexistente.stdout
+    print("✅ Flujo de menú contextual por CLI funciona")
+    shutil.rmtree(base, ignore_errors=True)
 
 
 def test_cli_diagnostico():
@@ -137,11 +241,17 @@ def test_cli_diagnostico():
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
+    test_no_toca_descargas_en_curso()
     test_proteccion_carpeta_programa()
     test_duplicados_pequeños()
     test_lanzadores_multiplataforma()
     test_configuracion_autoarranque()
+    test_estilos_multiplataforma()
     test_gui_responsive()
+    test_tema_segun_sistema()
+    test_instancia_unica()
+    test_menu_contextual_multiplataforma()
+    test_flujo_organizar_carpeta_cli()
     test_cli_diagnostico()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 

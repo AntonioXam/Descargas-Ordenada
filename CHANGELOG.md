@@ -4,6 +4,72 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [5.0.0] - 2026-09-22
+
+### 🎨 Diseño nuevo tipo Apple
+- La interfaz pasa de pestañas superiores a **barra lateral** con secciones Inicio,
+  Actividad, Ajustes y Avanzado
+- Nuevo sistema de estilos centralizado (`organizer/estilos.py`): paleta clara y
+  oscura de macOS, tipografía nativa de cada sistema, tarjetas, esquinas
+  redondeadas, separadores finos y transiciones suaves
+- **Tema automático**: sigue el tema claro/oscuro del sistema (Windows, macOS y
+  Linux) y se puede forzar Claro u Oscuro en Ajustes
+- Cabecera con la carpeta actual y botón principal; animación corta al cambiar de
+  sección; los interruptores tienen el tamaño correcto en cualquier resolución
+
+### 🧭 Una sola instancia, siempre
+- Bloqueo por archivo + **mutex con nombre en Windows** compartido con el
+  instalador: es imposible tener dos copias abiertas
+- El canal entre instancias ahora habla JSON y admite órdenes: mostrar la ventana
+  u organizar una carpeta
+- Si arrancas la app dos veces, la segunda no abre nada: trae al frente la que ya
+  está abierta (o le pide el trabajo)
+
+### 🖱️ Menú contextual que por fin funciona
+- Nuevo `--organizar-carpeta RUTA`: organiza esa carpeta **sin abrir ventana**
+- Si la app ya está abierta, el menú contextual **delega** en ella; si no, lo hace
+  por su cuenta y termina
+- Windows: se registra en `HKEY_CURRENT_USER` (sin permisos de administrador) y
+  también en carpetas y en el fondo de carpeta
+- macOS: Acción rápida de Finder, con aviso de los permisos que macOS pida
+- Linux: entrada `.desktop` para «Abrir con…» y script de Nautilus, todo en la
+  carpeta del usuario (compatible con Flatpak/Snap)
+- Los problemas de permisos se avisan de forma clara, nunca revientan
+
+### ⬇️ Actualizar sin dejar copias sueltas
+- «Descargar e Instalar» ahora hace el ciclo completo: descarga el instalador
+  nativo, **cierra la app**, instala encima y **vuelve a abrirla** actualizada
+- Windows: asistente en modo silencioso con `/CLOSEAPPLICATIONS` y mutex
+  compartido; macOS: `installer -pkg`; Linux: instalación con permisos explícitos
+- Se elimina el riesgo de dos instancias durante la actualización
+
+### 📂 Organización más segura
+- Detección de la carpeta de descargas real: registro de Windows, XDG en Linux y
+  ~/Downloads en macOS, con creación automática si no existe
+- **No se tocan las descargas a medias**: `.part`, `.crdownload`, `.tmp`… se quedan
+  donde están para no corromperlas
+- Avisos de permisos legibles con pasos concretos según el sistema
+- «Cambiar carpeta» ahora permite organizarla una vez o **usarla como carpeta
+  principal**, y esa elección se recuerda entre reinicios
+
+### 🚀 Arranque con el sistema
+- Linux: se usa el estándar **XDG autostart** (funciona en GNOME, KDE, XFCE…),
+  con systemd de usuario como complemento opcional
+- macOS: LaunchAgent más robusto (recarga limpia, límite de sesión Aqua, registro
+  de errores en /tmp)
+
+### 🪟 Instalador Windows
+- `AppMutex` compartido con la aplicación: el asistente nunca se ejecuta con la
+  app abierta
+- `CloseApplications` / `RestartApplications` para cerrar y reabrir sin duplicados
+- Registro de instalación activado para diagnosticar problemas
+
+### 🧪 Pruebas
+- 13 pruebas funcionales: organización, descargas en curso, permisos, estilos,
+  barra lateral, tema automático, instancia única, menú contextual y CLI
+
+---
+
 ## [4.8.0] - 2026-09-22
 
 ### 🐛 Automático fiable al arrancar

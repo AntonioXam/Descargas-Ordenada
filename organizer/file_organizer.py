@@ -7,11 +7,14 @@ import json
 import shutil
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
 import logging
 
 # Importar nuevos módulos
+from .app_paths import obtener_directorio_configuracion
+
 try:
     from .smart_detection import DetectorInteligente
     SMART_DETECTION_AVAILABLE = True
@@ -301,9 +304,21 @@ class OrganizadorArchivos:
                 "Selecciona una carpeta de usuario como Descargas."
             )
         
-        # Cambiar la ubicación del archivo de huella a una carpeta oculta dentro de Descargas
+        # Ubicación del archivo de huella: dentro de la propia carpeta, en una
+        # subcarpeta oculta. Si no se puede escribir ahí (permisos, disco de
+        # solo lectura…), se usa la carpeta de configuración de la aplicación
+        # para no dejar el organizador sin memoria.
         self.carpeta_config = self.carpeta_descargas / ".config"
-        self.carpeta_config.mkdir(exist_ok=True)
+        try:
+            self.carpeta_config.mkdir(exist_ok=True)
+        except OSError as e:
+            logger.warning(f"No se pudo crear {self.carpeta_config}: {e}. Se usará la configuración de la app.")
+            self.carpeta_config = obtener_directorio_configuracion() / "huellas"
+            try:
+                self.carpeta_config.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                self.carpeta_config = Path(tempfile.gettempdir()) / "descargasordenadas_huellas"
+                self.carpeta_config.mkdir(parents=True, exist_ok=True)
         self.archivo_huella = self.carpeta_config / 'organized.json'
         self.archivos_procesados: Dict[str, str] = {}
         self.usar_subcarpetas = usar_subcarpetas
@@ -353,20 +368,120 @@ oaming\\microsoft" in ruta_str:
         return False
     
     def _detectar_carpeta_descargas(self) -> Path:
-        """Detecta automáticamente la carpeta de descargas según el sistema operativo."""
+        """Detecta la carpeta de descargas real de cada sistema.
+
+        - Windows: pregunta al registro (Shell Folders) y fallback a ~/Downloads.
+        - macOS: usa ``NSSearchPathForDirectoriesInDomains`` vía Spotlight/plutil
+          y fallback a ~/Downloads.
+        - Linux: usa XDG_DOWNLOAD_DIR de ``user-dirs.dirs`` y fallback a
+          ~/Downloads o ~/Descargas.
+
+        Si la carpeta detectada no existe, se crea cuando se pueda; si no, se
+        devuelve igualmente para que el organizador avise con claridad.
+        """
+        candidatas = []
+
         if sys.platform == 'win32':
-            # Windows
-            return Path(os.path.expanduser('~')) / 'Downloads'
+            try:
+                import winreg
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders',
+                ) as key:
+                    valor, _ = winreg.QueryValueEx(key, '{374DE290-123F-4565-9164-39C4925E467B}')
+                    if valor:
+                        candidatas.append(Path(os.path.expandvars(valor)))
+            except Exception:
+                pass
+            candidatas.append(Path(os.path.expanduser('~')) / 'Downloads')
+
         elif sys.platform == 'darwin':
-            # macOS
-            return Path(os.path.expanduser('~')) / 'Downloads'
+            candidatas.append(Path(os.path.expanduser('~')) / 'Downloads')
+
         else:
-            # Linux y otros sistemas Unix
-            # Intentamos primero la carpeta estándar, luego la traducida
-            descargas = Path(os.path.expanduser('~')) / 'Downloads'
-            if not descargas.exists():
-                descargas = Path(os.path.expanduser('~')) / 'Descargas'
-            return descargas
+            # Linux y otros Unix: respetar XDG
+            candidatas.append(self._leer_xdg_descargas())
+            candidatas.append(Path(os.path.expanduser('~')) / 'Downloads')
+            candidatas.append(Path(os.path.expanduser('~')) / 'Descargas')
+
+        for candidata in candidatas:
+            if candidata and candidata.is_dir():
+                return candidata
+
+        # Ninguna existe: intentamos crear la primera y, si no se puede,
+        # devolvemos la primera propuesta para que el aviso sea comprensible.
+        for candidata in candidatas:
+            if not candidata:
+                continue
+            try:
+                candidata.mkdir(parents=True, exist_ok=True)
+                return candidata
+            except OSError:
+                continue
+
+        return candidatas[0]
+
+    def _leer_xdg_descargas(self) -> Optional[Path]:
+        """Lee ~/.config/user-dirs.dirs para obtener la carpeta de descargas."""
+        try:
+            archivo = Path.home() / ".config" / "user-dirs.dirs"
+            if not archivo.exists():
+                return None
+            for linea in archivo.read_text(encoding="utf-8", errors="ignore").splitlines():
+                linea = linea.strip()
+                if linea.startswith("XDG_DOWNLOAD_DIR="):
+                    valor = linea.split("=", 1)[1].strip().strip('"')
+                    valor = valor.replace("$HOME", str(Path.home()))
+                    return Path(os.path.expandvars(valor))
+        except Exception as e:
+            logger.debug(f"No se pudo leer user-dirs.dirs: {e}")
+        return None
+
+    def _comprobar_acceso(self) -> Optional[str]:
+        """Comprueba el acceso a la carpeta y devuelve un aviso legible o None."""
+        carpeta = self.carpeta_descargas
+        if not carpeta.exists():
+            return f"La carpeta no existe: {carpeta}"
+        if not carpeta.is_dir():
+            return f"La ruta no es una carpeta: {carpeta}"
+        if not os.access(carpeta, os.R_OK):
+            return (
+                f"Sin permisos de lectura sobre {carpeta}. "
+                + (
+                    "Concede acceso a DescargasOrdenadas en Ajustes del sistema → "
+                    "Privacidad y seguridad → Archivos y carpetas."
+                    if sys.platform == "darwin"
+                    else "Revisa los permisos de la carpeta."
+                )
+            )
+        if not os.access(carpeta, os.W_OK):
+            return (
+                f"Sin permisos de escritura sobre {carpeta}. "
+                + (
+                    "Concede acceso total al disco o elige una carpeta de tu usuario."
+                    if sys.platform == "darwin"
+                    else "Elige una carpeta de tu usuario."
+                )
+            )
+        return None
+
+    # Extensiones que aún se están descargando: moverlas corrompe el archivo
+    EXTENSIONES_EN_CURSO = {
+        '.crdownload', '.part', '.partial', '.download', '.downloading',
+        '.tmp', '.temp', '.opdownload', '.aria2', '.!qb',
+    }
+
+    def _esta_descargando(self, archivo: Path) -> bool:
+        """Heurística para no tocar archivos que aún se están descargando.
+
+        Se apoya en la extensión temporal y, si el archivo acaba de cambiar de
+        tamaño, también se considera en curso.
+        """
+        if archivo.suffix.lower() in self.EXTENSIONES_EN_CURSO:
+            return True
+        if archivo.name.endswith('.part'):
+            return True
+        return False
     
     def _cargar_huella(self) -> None:
         """Carga el archivo de huella si existe."""
@@ -509,9 +624,10 @@ oaming\\microsoft" in ruta_str:
         Returns:
             Tupla con un diccionario de archivos movidos por categoría/subcategoría y una lista de errores.
         """
-        if not self.carpeta_descargas.exists():
-            logger.error(f"La carpeta de descargas no existe: {self.carpeta_descargas}")
-            return {}, [f"La carpeta de descargas no existe: {self.carpeta_descargas}"]
+        aviso_acceso = self._comprobar_acceso()
+        if aviso_acceso:
+            logger.error(aviso_acceso)
+            return {}, [aviso_acceso]
         
         logger.info("🔄 Iniciando reorganización completa de todos los archivos...")
         
@@ -532,6 +648,9 @@ oaming\\microsoft" in ruta_str:
                     if item.is_file():
                         # Ignorar archivos del sistema y configuración
                         if not item.name.startswith('.') and item.name not in ['desktop.ini', 'Thumbs.db']:
+                            # Tampoco tocar descargas a medias
+                            if self._esta_descargando(item):
+                                continue
                             todos_los_archivos.append(item)
                     elif item.is_dir():
                         # No procesar carpetas del sistema o configuración
@@ -731,9 +850,10 @@ oaming\\microsoft" in ruta_str:
         Returns:
             Tupla con un diccionario de archivos movidos por categoría/subcategoría y una lista de errores.
         """
-        if not self.carpeta_descargas.exists():
-            logger.error(f"La carpeta de descargas no existe: {self.carpeta_descargas}")
-            return {}, [f"La carpeta de descargas no existe: {self.carpeta_descargas}"]
+        aviso_acceso = self._comprobar_acceso()
+        if aviso_acceso:
+            logger.error(aviso_acceso)
+            return {}, [aviso_acceso]
         
         # Diccionario para almacenar los resultados
         archivos_movidos: Dict[str, Dict[str, List[str]]] = {}
@@ -817,6 +937,11 @@ oaming\\microsoft" in ruta_str:
             for item in [i for i in items if i.is_file()]:
                 # Ignorar el archivo de huella y archivos ocultos
                 if item.name.startswith('.') or (self.carpeta_config in item.parents and self.carpeta_config is not None):
+                    continue
+
+                # No tocar archivos que aún se están descargando
+                if self._esta_descargando(item):
+                    logger.debug(f"Se omite (descarga en curso): {item.name}")
                     continue
                 
                 # Calcular ruta relativa desde la carpeta de descargas

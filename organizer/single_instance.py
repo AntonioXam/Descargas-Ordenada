@@ -2,22 +2,29 @@
 # -*- coding: utf-8 -*-
 """Control de instancia única para DescargasOrdenadas (Windows, macOS y Linux).
 
-Evita que la aplicación se abra dos veces. Es el caso típico de que el
-autoarranque ya la haya lanzado y el usuario vuelva a pulsar el icono: en lugar
-de abrir una segunda copia, se muestra la ventana de la que ya está abierta.
+Garantiza que la aplicación nunca se abra dos veces, ni a mano ni por
+autoarranque, y sirve además como canal para pedirle cosas a la copia que ya
+está en marcha (por ejemplo, organizar una carpeta desde el menú contextual).
 
-Se usan dos capas independientes:
+Capas independientes (si una falla, las demás siguen funcionando):
 
-1. Bloqueo de archivo gestionado por el sistema operativo. No necesita Qt y el
-   propio sistema lo libera al terminar el proceso, incluso si la aplicación se
-   cierra a la fuerza o se queda colgada.
-2. Canal local de Qt (QLocalServer / QLocalSocket) para pedirle a la instancia
-   que ya está en marcha que saque su ventana al frente.
+1. Bloqueo del sistema operativo sobre un archivo (``flock``/``msvcrt``). El
+   propio sistema lo libera al terminar el proceso, incluso si se cierra a la
+   fuerza.
+2. Mutex con nombre en Windows, que además comparten los instaladores, para que
+   el asistente de actualización nunca se ejecute con la app abierta.
+3. Canal local de Qt (``QLocalServer``/``QLocalSocket``) para pedirle a la
+   instancia viva que muestre su ventana o que organice una carpeta.
+
+El protocolo del canal es JSON: ``{"accion": "mostrar"}`` o
+``{"accion": "organizar", "carpeta": "/ruta"}``. Se mantiene la compatibilidad
+con el mensaje de texto plano anterior ("mostrar").
 """
 
 import os
 import re
 import sys
+import json
 import getpass
 import logging
 from pathlib import Path
@@ -28,6 +35,8 @@ from .app_paths import obtener_directorio_configuracion
 logger = logging.getLogger('organizador.single_instance')
 
 MENSAJE_MOSTRAR = "mostrar"
+ACCION_ORGANIZAR = "organizar"
+NOMBRE_MUTEX_WINDOWS = "Global\\DescargasOrdenadas_InstanciaUnica"
 
 
 class BloqueoProceso:
@@ -85,6 +94,14 @@ class BloqueoProceso:
         except Exception:
             pass
 
+    def pid_bloqueante(self) -> Optional[int]:
+        """Lee el PID del proceso que tiene el bloqueo (si se puede)."""
+        try:
+            with open(self._ruta, "r", encoding="utf-8") as f:
+                return int(f.read().strip() or 0) or None
+        except Exception:
+            return None
+
     def liberar(self):
         """Suelta el bloqueo."""
         if not self._archivo:
@@ -106,14 +123,55 @@ class BloqueoProceso:
         self._archivo = None
 
 
+class MutexWindows:
+    """Mutex con nombre de Windows, compartido con el instalador (AppMutex)."""
+
+    def __init__(self, nombre: str = NOMBRE_MUTEX_WINDOWS):
+        self.nombre = nombre
+        self._handle = None
+
+    def adquirir(self) -> bool:
+        if sys.platform != "win32":
+            return True
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.CreateMutexW(None, True, self.nombre)
+            if not handle:
+                return True
+            if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+                kernel32.CloseHandle(handle)
+                return False
+            self._handle = handle
+            return True
+        except Exception as e:
+            logger.debug(f"Mutex de Windows no disponible: {e}")
+            return True
+
+    def liberar(self):
+        if self._handle is None:
+            return
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.ReleaseMutex(self._handle)
+            ctypes.windll.kernel32.CloseHandle(self._handle)
+        except Exception:
+            pass
+        self._handle = None
+
+
 class InstanciaUnica:
     """Coordina una única ejecución de la aplicación."""
 
     def __init__(self, nombre_app: str = "DescargasOrdenadas"):
         self.nombre_app = nombre_app
         self._bloqueo = BloqueoProceso(nombre_app)
+        self._mutex = MutexWindows()
         self._servidor = None
-        self._callback: Optional[Callable[[], None]] = None
+        self._callbacks: dict[str, Callable] = {}
         self._bloqueo_conseguido = False
 
     # ---------------------------------------------------------------- bloqueo
@@ -124,12 +182,25 @@ class InstanciaUnica:
         Devuelve True si somos la primera instancia o si no se puede comprobar
         (en ese caso es preferible que la aplicación funcione).
         """
+        if not self._mutex.adquirir():
+            logger.info("Ya existe una instancia (mutex de Windows activo)")
+            self._bloqueo_conseguido = False
+            return False
+
         self._bloqueo_conseguido = self._bloqueo.adquirir()
+        if not self._bloqueo_conseguido:
+            # Devolvemos el mutex: no somos la instancia principal
+            self._mutex.liberar()
         return self._bloqueo_conseguido
 
     @property
     def somos_principal(self) -> bool:
         return self._bloqueo_conseguido
+
+    @property
+    def pid_existente(self) -> Optional[int]:
+        """PID de la instancia que ya está en marcha (si se conoce)."""
+        return self._bloqueo.pid_bloqueante()
 
     # ------------------------------------------------- canal local (activar)
 
@@ -143,7 +214,7 @@ class InstanciaUnica:
         return limpio[:100]
 
     def iniciar_servidor(self):
-        """Escucha peticiones para mostrar la ventana. Requiere un QApplication."""
+        """Escucha peticiones. Requiere un QApplication en marcha."""
         if self._servidor is not None:
             return
         try:
@@ -155,7 +226,7 @@ class InstanciaUnica:
         try:
             servidor = QLocalServer()
             servidor.setSocketOptions(QLocalServer.UserAccessOption)
-            # Limpiamos restos de un cierre anterior que dejase el socket colgado
+            # Limpiamos restos de un cierre anterior que dejasen el socket colgado
             QLocalServer.removeServer(self._nombre_canal())
             if not servidor.listen(self._nombre_canal()):
                 logger.debug(f"No se pudo escuchar en el canal local: {servidor.errorString()}")
@@ -167,7 +238,11 @@ class InstanciaUnica:
 
     def conectar_activacion(self, callback: Callable[[], None]):
         """Registra la función que mostrará la ventana principal."""
-        self._callback = callback
+        self._callbacks[MENSAJE_MOSTRAR] = callback
+
+    def conectar_accion(self, accion: str, callback: Callable[[dict], None]):
+        """Registra una acción adicional (por ejemplo, organizar una carpeta)."""
+        self._callbacks[accion] = callback
 
     def _atender_conexion(self):
         if self._servidor is None:
@@ -183,14 +258,43 @@ class InstanciaUnica:
             datos = bytes(conexion.readAll()).decode("utf-8", "ignore").strip()
         except Exception:
             datos = ""
-        if datos == MENSAJE_MOSTRAR and self._callback:
-            try:
-                self._callback()
-            except Exception as e:
-                logger.debug(f"Error mostrando la ventana existente: {e}")
+        if not datos:
+            return
 
-    def avisar_instancia_existente(self, mensaje: str = MENSAJE_MOSTRAR) -> bool:
-        """Pide a la instancia que ya está abierta que muestre su ventana."""
+        accion = MENSAJE_MOSTRAR
+        carga: dict = {}
+        try:
+            mensaje = json.loads(datos)
+            if isinstance(mensaje, dict):
+                accion = str(mensaje.get("accion") or MENSAJE_MOSTRAR)
+                carga = mensaje
+        except (ValueError, TypeError):
+            # Compatibilidad con el protocolo antiguo de texto plano
+            accion = MENSAJE_MOSTRAR if datos == MENSAJE_MOSTRAR else datos
+            carga = {"accion": accion}
+
+        callback = self._callbacks.get(accion)
+        if callback is None:
+            # Si piden organizar y no hay manejador, al menos mostramos la app
+            callback = self._callbacks.get(MENSAJE_MOSTRAR)
+            carga = {}
+        if callback is None:
+            return
+        try:
+            if carga:
+                callback(carga)
+            else:
+                callback()
+        except TypeError:
+            try:
+                callback()
+            except Exception as e:
+                logger.debug(f"Error ejecutando la acción '{accion}': {e}")
+        except Exception as e:
+            logger.debug(f"Error ejecutando la acción '{accion}': {e}")
+
+    def enviar(self, mensaje: dict, espera_ms: int = 500) -> bool:
+        """Envía una orden JSON a la instancia que ya está abierta."""
         try:
             from PySide6.QtCore import QCoreApplication
             from PySide6.QtNetwork import QLocalSocket
@@ -208,23 +312,31 @@ class InstanciaUnica:
         try:
             socket = QLocalSocket()
             socket.connectToServer(self._nombre_canal())
-            if not socket.waitForConnected(400):
+            if not socket.waitForConnected(espera_ms):
                 return False
-            socket.write(mensaje.encode("utf-8"))
+            socket.write(json.dumps(mensaje).encode("utf-8"))
             socket.flush()
-            socket.waitForBytesWritten(400)
+            socket.waitForBytesWritten(espera_ms)
             socket.disconnectFromServer()
             return True
         except Exception as e:
-            logger.debug(f"No se pudo avisar a la otra instancia: {e}")
+            logger.debug(f"No se pudo enviar la orden a la otra instancia: {e}")
             return False
         finally:
             del app_temporal
 
+    def avisar_instancia_existente(self, mensaje: str = MENSAJE_MOSTRAR) -> bool:
+        """Pide a la instancia que ya está abierta que muestre su ventana."""
+        return self.enviar({"accion": mensaje})
+
+    def enviar_organizar(self, carpeta: str) -> bool:
+        """Pide a la instancia abierta que organice una carpeta concreta."""
+        return self.enviar({"accion": ACCION_ORGANIZAR, "carpeta": str(carpeta)})
+
     # ----------------------------------------------------------------- cierre
 
     def liberar(self):
-        """Libera canal y bloqueo."""
+        """Libera canal, bloqueo y mutex."""
         if self._servidor is not None:
             try:
                 self._servidor.close()
@@ -234,4 +346,20 @@ class InstanciaUnica:
                 pass
             self._servidor = None
         self._bloqueo.liberar()
+        self._mutex.liberar()
         self._bloqueo_conseguido = False
+
+
+def hay_instancia_activa(nombre_app: str = "DescargasOrdenadas") -> Optional[int]:
+    """Comprueba si ya hay una instancia en marcha sin interferir con ella.
+
+    Devuelve el PID de la instancia activa o None. Se usa, por ejemplo, antes
+    de lanzar un instalador o para informar al usuario.
+    """
+    bloqueo = BloqueoProceso(nombre_app)
+    if bloqueo.adquirir():
+        # Nadie tenía el bloqueo: somos los únicos
+        pid = None
+        bloqueo.liberar()
+        return pid
+    return bloqueo.pid_bloqueante()

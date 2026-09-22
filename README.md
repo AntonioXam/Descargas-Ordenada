@@ -1,8 +1,8 @@
-# 🍄 DescargasOrdenadas v4.2
+# DescargasOrdenadas v5.0
 
-**Organiza automáticamente tu carpeta de descargas** con inteligencia artificial, temas personalizables y actualización automática.
+**Organiza automáticamente tu carpeta de descargas** con una interfaz moderna tipo Apple, menú contextual en los tres sistemas y actualización integrada.
 
-![Versión](https://img.shields.io/badge/versión-4.2.0-blue)
+![Versión](https://img.shields.io/badge/versión-5.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
@@ -75,6 +75,15 @@ Si necesitas instalar en un PC sin internet:
 ---
 
 ## ✨ Características Principales
+
+### 🆕 Novedades v5.0
+- **Diseño tipo Apple** - Barra lateral, tarjetas, tipografía del sistema y **tema automático** (sigue al del sistema operativo)
+- **Menú contextual que funciona** - Clic derecho sobre una carpeta → organizar en segundo plano, sin abrir ventana
+- **Una sola instancia, siempre** - Es imposible tener dos copias abiertas; si arrancas dos veces, se trae al frente la que ya está
+- **Actualización sin restos** - «Descargar e Instalar» cierra la app, instala encima y la vuelve a abrir actualizada
+- **Arranque seguro** - Linux con XDG autostart, macOS con LaunchAgent robusto, Windows con registro
+- **Descargas en curso respetadas** - Los archivos `.part`, `.crdownload`, etc. no se mueven para no corromperlos
+- **Permisos claros** - Si el sistema bloquea una carpeta, se explica qué hacer, sin errores crípticos
 
 ### 🆕 Novedades v3.3
 - 🔧 **Actualizaciones Corregidas** - Ahora apunta al repositorio correcto de GitHub

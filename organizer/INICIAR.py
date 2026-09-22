@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🍄 DescargasOrdenadas v3.0 - Edición Portable
-Creado por Champi 🍄
+DescargasOrdenadas - Organizador automático de descargas
 
 Punto de entrada único para la aplicación de organización automática de archivos.
 """
@@ -182,6 +181,65 @@ def verificar_y_crear_acceso_directo():
         # Fallos silenciosos para no interrumpir el flujo principal
         pass
 
+def flujo_organizar_carpeta(args) -> int:
+    """Organiza una carpeta concreta (menú contextual) sin abrir la interfaz.
+
+    - Si ya hay una instancia abierta, le delega el trabajo para aprovechar
+      sus preferencias y no competir por los archivos.
+    - Si no hay nadie, organiza directamente y termina.
+    - Los problemas de permisos se avisan con claridad, nunca revientan.
+    """
+    carpeta_destino = Path(args.organizar_carpeta).expanduser()
+
+    # Modo guardado por el usuario (básico/detallado) o el de la línea de órdenes
+    preferencias = leer_preferencias_autoarranque()
+    modo_efectivo = args.modo or preferencias["modo"]
+
+    permitir_duplicada = (
+        args.nueva_instancia
+        or os.environ.get("DESCARGASORDENADAS_NUEVA_INSTANCIA") == "1"
+    )
+
+    if not permitir_duplicada:
+        guardia = preparar_instancia_unica(permitir_duplicada)
+        if not guardia.adquirir():
+            # Ya hay una copia viva: que sea ella la que organice
+            if guardia.enviar_organizar(str(carpeta_destino)):
+                if not args_silencioso():
+                    print(f"DescargasOrdenadas ya estaba abierto: organizando {carpeta_destino}")
+                return 0
+            if not args_silencioso():
+                print("No se pudo avisar a la instancia abierta; se organiza por separado")
+
+    ok, mensaje = comprobar_permisos_carpeta(carpeta_destino)
+    if not ok:
+        print(f"⚠️ {mensaje}")
+        if not ok and "permisos" in mensaje.lower():
+            _avisar_permisos_denegados(carpeta_destino)
+        else:
+            _avisar_usuario("No se pudo organizar la carpeta", mensaje)
+        return 1
+
+    if args.usar_como_base:
+        from organizer.portable_config import obtener_config
+
+        obtener_config().establecer("carpeta_base", str(carpeta_destino))
+        if not args_silencioso():
+            print(f"✅ Carpeta principal establecida: {carpeta_destino}")
+
+    codigo = organizar_carpeta_cli(
+        carpeta_destino, modo_efectivo, args.recursivo, args.dry_run
+    )
+
+    # El guardia (si lo teníamos) se libera al terminar
+    if not permitir_duplicada:
+        try:
+            guardia.liberar()
+        except Exception:
+            pass
+    return codigo
+
+
 def configurar_logger():
     """Configura el sistema de logging."""
     logger = logging.getLogger('DescargasOrdenadas')
@@ -196,20 +254,37 @@ def configurar_logger():
     return logger
 
 def obtener_carpeta_descargas():
-    """Obtiene la carpeta de descargas del sistema."""
-    if sys.platform == "win32":
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders') as key:
-                return Path(winreg.QueryValueEx(key, '{374DE290-123F-4565-9164-39C4925E467B}')[0])
-        except:
-            pass
-    
+    """Obtiene la carpeta de descargas real del sistema.
+
+    Respeta la carpeta guardada por el usuario en la configuración y, si no
+    hay ninguna, detecta la del sistema (registro en Windows, XDG en Linux,
+    ~/Downloads en macOS) con las mismas reglas que el organizador.
+    """
+    # ¿El usuario eligió una carpeta base en Ajustes o en el menú contextual?
+    try:
+        from organizer.portable_config import obtener_config
+
+        guardada = obtener_config().obtener("carpeta_base", None)
+        if guardada:
+            ruta = Path(str(guardada)).expanduser()
+            if ruta.is_dir():
+                return ruta
+    except Exception:
+        pass
+
+    try:
+        from organizer.file_organizer import OrganizadorArchivos
+
+        organizador = OrganizadorArchivos.__new__(OrganizadorArchivos)
+        detectada = organizador._detectar_carpeta_descargas()
+        if detectada:
+            return detectada
+    except Exception:
+        pass
+
     downloads_path = Path.home() / "Downloads"
     if not downloads_path.exists():
         downloads_path = Path.home() / "Descargas"
-    
     return downloads_path
 
 
@@ -229,13 +304,139 @@ def leer_preferencias_autoarranque() -> dict:
         except (TypeError, ValueError):
             pass
     except Exception as e:
-        logger.debug(f"No se pudieron leer las preferencias guardadas: {e}")
+        logging.getLogger('DescargasOrdenadas').debug(
+            f"No se pudieron leer las preferencias guardadas: {e}"
+        )
     return preferencias
 
 
 def preparar_instancia_unica(permitir_duplicada: bool):
     """Crea el control de instancia única de la aplicación."""
     return InstanciaUnica("DescargasOrdenadas")
+
+
+def comprobar_permisos_carpeta(carpeta: Path) -> tuple[bool, str]:
+    """Comprueba que la carpeta existe y se puede leer y escribir en ella.
+
+    Devuelve (ok, mensaje). El mensaje es legible y explica qué falta, sin
+    lanzar excepciones: es mejor avisar que fallar.
+    """
+    try:
+        if not carpeta.exists():
+            return False, f"La carpeta no existe: {carpeta}"
+        if not carpeta.is_dir():
+            return False, f"La ruta no es una carpeta: {carpeta}"
+    except OSError as e:
+        return False, f"No se puede acceder a la carpeta ({e}): {carpeta}"
+
+    if not os.access(carpeta, os.R_OK):
+        return False, (
+            f"Sin permisos de lectura sobre:\n{carpeta}\n\n"
+            "Abre Ajustes del sistema → Privacidad y seguridad → Archivos y carpetas "
+            "y concede acceso a DescargasOrdenadas."
+            if sys.platform == "darwin"
+            else f"Sin permisos de lectura sobre:\n{carpeta}"
+        )
+
+    if not os.access(carpeta, os.W_OK):
+        mensaje = f"Sin permisos de escritura sobre:\n{carpeta}"
+        if sys.platform == "darwin":
+            mensaje += "\n\nConcede acceso completo al disco en Privacidad y seguridad."
+        elif sys.platform.startswith("linux"):
+            mensaje += "\n\nRevisa el propietario de la carpeta o usa una carpeta de tu usuario."
+        else:
+            mensaje += "\n\nPrueba con una carpeta dentro de tu perfil de usuario."
+        return False, mensaje
+
+    return True, ""
+
+
+def organizar_carpeta_cli(carpeta: Path, modo: str, recursivo: bool = False, dry_run: bool = False) -> int:
+    """Organiza una carpeta concreta sin GUI. Devuelve el código de salida."""
+    ok, mensaje = comprobar_permisos_carpeta(carpeta)
+    if not ok:
+        print(f"⚠️ {mensaje}")
+        _avisar_usuario("No se pudo organizar la carpeta", mensaje)
+        return 1
+
+    if not (args_silencioso()):
+        print(f"📂 Organizando: {carpeta}")
+
+    try:
+        from organizer.file_organizer import OrganizadorArchivos
+
+        usar_subcarpetas = modo == "detallado"
+        organizador = OrganizadorArchivos(
+            carpeta_descargas=str(carpeta), usar_subcarpetas=usar_subcarpetas
+        )
+        resultados, errores = organizador.organizar(
+            organizar_subcarpetas=recursivo, simular=dry_run
+        )
+        total = sum(len(files) for cat in resultados.values() for files in cat.values())
+
+        if errores and total == 0:
+            detalle = "\n".join(errores[:3])
+            print(f"⚠️ No se pudo completar la organización:\n{detalle}")
+            _avisar_usuario("No se pudo organizar la carpeta", detalle)
+            return 1
+
+        if not args_silencioso():
+            print(f"✅ {total} archivos organizados")
+            if errores:
+                print(f"⚠️ {len(errores)} avisos (algún archivo no se pudo mover)")
+        if total > 0:
+            _avisar_usuario(
+                "Carpeta organizada",
+                f"{total} archivo{'s' if total != 1 else ''} en {carpeta.name}",
+            )
+        return 0
+    except PermissionError as e:
+        print(f"⚠️ Sin permisos para organizar {carpeta}: {e}")
+        _avisar_usuario("Sin permisos", str(e))
+        return 1
+    except Exception as e:
+        print(f"❌ Error organizando {carpeta}: {e}")
+        _avisar_usuario("Error al organizar", str(e))
+        return 1
+
+
+def _avisar_usuario(titulo: str, mensaje: str):
+    """Muestra una notificación nativa si es posible (nunca falla)."""
+    try:
+        from organizer.native_notifications import NotificadorNativo
+
+        NotificadorNativo().mostrar(titulo, mensaje, tipo="info", duracion=5)
+    except Exception:
+        pass
+
+
+def _avisar_permisos_denegados(carpeta: Path):
+    """Aviso claro y específico cuando el sistema bloquea el acceso a la carpeta."""
+    if sys.platform == "darwin":
+        mensaje = (
+            f"macOS está bloqueando el acceso a {carpeta}.\n\n"
+            "Ve a Ajustes del sistema → Privacidad y seguridad → Archivos y carpetas "
+            "y activa el acceso para DescargasOrdenadas."
+        )
+    elif sys.platform == "win32":
+        mensaje = (
+            f"Windows está bloqueando el acceso a {carpeta}.\n\n"
+            "Prueba a ejecutar la aplicación como administrador o elige una carpeta "
+            "dentro de tu perfil de usuario."
+        )
+    else:
+        mensaje = (
+            f"El sistema está bloqueando el acceso a {carpeta}.\n\n"
+            "Revisa los permisos de la carpeta con: ls -ld "
+            f"'{carpeta}'"
+        )
+    print(f"⚠️ {mensaje}")
+    _avisar_usuario("Permisos necesarios", mensaje)
+
+
+def args_silencioso() -> bool:
+    """Indica si la ejecución actual debe evitar la salida por consola."""
+    return os.environ.get("DESCARGASORDENADAS_SILENCIOSO") == "1"
 
 def main():
     parser = argparse.ArgumentParser(description="Organiza automáticamente los archivos de descargas")
@@ -252,6 +453,14 @@ def main():
     parser.add_argument("--modo", choices=["basico", "detallado"], default=None, help="Modo de organización (por defecto, el guardado en la configuración)")
     parser.add_argument("--recursivo", action="store_true", help="Organizar también archivos dentro de subcarpetas")
     parser.add_argument("--nueva-instancia", action="store_true", help="Permitir una segunda copia aunque ya haya una abierta")
+    parser.add_argument(
+        "--organizar-carpeta", type=str, metavar="RUTA",
+        help="Organizar una carpeta concreta y salir (usado por el menú contextual)",
+    )
+    parser.add_argument(
+        "--usar-como-base", action="store_true",
+        help="Guardar la carpeta de --organizar-carpeta como carpeta principal",
+    )
     
     args = parser.parse_args()
 
@@ -266,7 +475,7 @@ def main():
         except Exception:
             estado = {}
 
-        print("🍄 DescargasOrdenadas - Información del sistema")
+        print("DescargasOrdenadas - Información del sistema")
         print("=" * 55)
         print(f"Versión: {obtener_version()}")
         print(f"Sistema: {platform.system()} {platform.release()}")
@@ -286,6 +495,12 @@ def main():
                 print(f"  {'✅' if disponible else '❌'} {nombre}")
         return
     
+    # ------------------------------------------------- flujo menú contextual
+    # Se atiende antes de cargar la interfaz: organizar una carpeta desde el
+    # clic derecho no debe abrir ninguna ventana.
+    if args.organizar_carpeta:
+        return flujo_organizar_carpeta(args)
+
     # Ocultar consola ANTES de cualquier print si se solicita
     if args.sin_consola or args.autostart or args.minimizado:
         if sys.platform == "win32":
@@ -302,8 +517,8 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "4.8.0"
-        print(f"🍄 DescargasOrdenadas v{version} - Edición Portable")
+            version = "5.0.0"
+        print(f"DescargasOrdenadas v{version}")
         print("=" * 50)
     
     # Solo configurar logger con salida a consola si NO es modo silencioso
@@ -358,13 +573,17 @@ def main():
     except (TypeError, ValueError):
         gui_acepta_preferencias = False
 
-    # Control de instancia única (evita el doble arranque del ejecutable)
+    # ---------------------------------------------------------------- guardia
+    # Control de instancia única: nunca debe haber dos copias abiertas. Si ya
+    # hay una, en vez de lanzar otra se le pide que haga lo que haga falta
+    # (mostrarse o organizar una carpeta del menú contextual).
     permitir_duplicada = args.nueva_instancia or os.environ.get("DESCARGASORDENADAS_NUEVA_INSTANCIA") == "1"
     guardia = None
     if not permitir_duplicada:
         guardia = preparar_instancia_unica(permitir_duplicada)
         if not guardia.adquirir():
             logger.info("ℹ️ Ya hay una instancia abierta; no se lanza una segunda copia")
+
             if not (args.minimizado or args.autostart):
                 # Si el usuario la ha abierto a mano, sacamos la ventana existente
                 if not guardia.avisar_instancia_existente():
@@ -449,7 +668,12 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        # Los flujos de consola (organizar carpeta, auto, info) devuelven un
+        # código de salida real para que scripts y menús contextuales puedan
+        # saber si el trabajo se hizo o no.
+        resultado = main()
+        if isinstance(resultado, int):
+            sys.exit(resultado)
     except KeyboardInterrupt:
         print("\n🛑 Aplicación cerrada por el usuario")
         # Salir silenciosamente en interrupciones de teclado

@@ -16,6 +16,17 @@ try:
 except ImportError:
     PLYER_AVAILABLE = False
 
+
+def _usar_metodo_nativo() -> bool:
+    """En macOS y Linux el método del sistema es más fiable que plyer.
+
+    En macOS plyer depende de pyobjus (no siempre instalado) y en Linux
+    requiere que exista un demonio de notificaciones; en ambos casos el
+    comando nativo da mejor resultado y no ensucia la salida de errores.
+    """
+    return sys.platform == "darwin" or sys.platform.startswith("linux")
+
+
 class NotificadorNativo:
     """Gestor de notificaciones nativas multiplataforma."""
     
@@ -39,13 +50,17 @@ class NotificadorNativo:
         if not self.habilitado:
             return
 
+        if _usar_metodo_nativo():
+            self._notificar_sistema(titulo, mensaje)
+            return
+
         if not PLYER_AVAILABLE:
             self._notificar_sistema(titulo, mensaje)
             return
         
         try:
             notification.notify(
-                title=f"🍄 {self.app_name} - {titulo}",
+                title=f"{self.app_name} - {titulo}",
                 message=mensaje,
                 app_name=self.app_name,
                 app_icon=self.icono_path if self.icono_path else None,
@@ -55,7 +70,7 @@ class NotificadorNativo:
             logger.debug(f"Error mostrando notificación: {e}")
             # plyer falló (p.ej. en macOS no tiene implementación): usar el método nativo
             self._notificar_sistema(titulo, mensaje)
-
+    
     def _notificar_sistema(self, titulo, mensaje):
         """Fallback nativo cuando plyer no está disponible o falla."""
         try:
@@ -71,7 +86,7 @@ class NotificadorNativo:
                                check=True, capture_output=True)
             elif sys.platform.startswith("linux"):
                 subprocess.run(
-                    ['notify-send', '🍄 DescargasOrdenadas', titulo, mensaje],
+                    ['notify-send', 'DescargasOrdenadas', titulo, mensaje],
                     check=True, capture_output=True
                 )
         except Exception as e:

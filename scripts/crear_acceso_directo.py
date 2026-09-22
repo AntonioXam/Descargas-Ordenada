@@ -12,7 +12,7 @@ import subprocess
 try:
     import win32com.client
 except ImportError:
-    print("❌ Se requiere pywin32. Instálalo con: pip install pywin32")
+    print("Se requiere pywin32. Instálalo con: pip install pywin32")
     sys.exit(1)
 
 
@@ -25,7 +25,7 @@ def crear_acceso_directo_appid(ruta_destino: Path, nombre: str) -> Path:
         ico_path = project_dir / "resources" / "icon.png"
 
     if not script_path.exists():
-        print(f"❌ No se encontró {script_path}")
+        print(f"No se encontró {script_path}")
         sys.exit(1)
 
     # Buscar pythonw3 (sin consola) o python3 del sistema donde están las dependencias
@@ -49,7 +49,7 @@ def crear_acceso_directo_appid(ruta_destino: Path, nombre: str) -> Path:
             continue
 
     if not python_exe:
-        print("❌ No se encontró un pythonw/python3 adecuado")
+        print("No se encontró un pythonw/python3 adecuado")
         sys.exit(1)
 
     ruta_destino.mkdir(parents=True, exist_ok=True)
@@ -60,7 +60,7 @@ def crear_acceso_directo_appid(ruta_destino: Path, nombre: str) -> Path:
     shortcut.TargetPath = str(python_exe)
     shortcut.Arguments = f'"{script_path}" --gui'
     shortcut.WorkingDirectory = str(project_dir)
-    shortcut.Description = "DescargasOrdenadas v3.2 - Organizador automático de descargas"
+    shortcut.Description = "DescargasOrdenadas - Organizador automático de descargas"
     shortcut.IconLocation = str(ico_path)
     shortcut.save()
 
@@ -71,18 +71,18 @@ def main():
     escritorio = Path.home() / "Desktop"
     menu_inicio = Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs"
 
-    print("🍄 Creando accesos directos de DescargasOrdenadas...")
+    print("Creando accesos directos de DescargasOrdenadas...")
 
     lnk_escritorio = crear_acceso_directo_appid(escritorio, "DescargasOrdenadas")
-    print(f"✅ Escritorio: {lnk_escritorio}")
+    print(f"Escritorio: {lnk_escritorio}")
 
     lnk_menu = crear_acceso_directo_appid(menu_inicio, "DescargasOrdenadas")
-    print(f"✅ Menú Inicio: {lnk_menu}")
+    print(f"Menú Inicio: {lnk_menu}")
 
-    print("\n📌 Para anclar a la barra de tareas:")
+    print("\nPara anclar a la barra de tareas:")
     print("   1. Haz clic derecho sobre el acceso directo del Escritorio")
     print("   2. Selecciona 'Anclar a la barra de tareas'")
-    print("\n🚀 También puedes arrastrar el acceso directo directamente a la barra de tareas.")
+    print("\nTambién puedes arrastrar el acceso directo directamente a la barra de tareas.")
 
 
 if __name__ == "__main__":

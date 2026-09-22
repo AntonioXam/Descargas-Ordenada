@@ -8,26 +8,36 @@ GUI Avanzada para DescargasOrdenadas v3.0 con todas las funcionalidades
 import sys
 import os
 import logging
+import tempfile
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 try:
-    from PySide6.QtCore import Qt, Signal, Slot, QThread, QTimer, QEvent
-    from PySide6.QtGui import QIcon, QAction, QPixmap, QPainter, QGuiApplication
+    from PySide6.QtCore import (
+        Qt, Signal, Slot, QThread, QTimer, QEvent, QSize, QPropertyAnimation,
+        QEasingCurve, QRectF, QPointF,
+    )
+    from PySide6.QtGui import (
+        QIcon, QAction, QPixmap, QPainter, QGuiApplication, QColor, QPen,
+        QFont, QCursor,
+    )
     from PySide6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-        QPushButton, QLabel, QCheckBox, QListWidget, QProgressBar,
-        QMessageBox, QSystemTrayIcon, QTabWidget, QTextEdit, QSlider,
-        QGroupBox, QComboBox, QPlainTextEdit, QInputDialog, QMenu,
-        QFileDialog, QScrollArea, QProgressDialog
+        QPushButton, QLabel, QCheckBox, QListWidget, QListWidgetItem,
+        QProgressBar, QMessageBox, QSystemTrayIcon, QTabWidget, QTextEdit,
+        QSlider, QGroupBox, QComboBox, QPlainTextEdit, QInputDialog, QMenu,
+        QFileDialog, QScrollArea, QProgressDialog, QFrame, QStackedWidget,
+        QGraphicsOpacityEffect, QSizePolicy, QSplitter, QRadioButton
     )
 except ImportError:
-    print("❌ PySide6 no instalado. Ejecuta: pip install PySide6")
+    print("PySide6 no instalado. Ejecuta: pip install PySide6")
     sys.exit(1)
 
 from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
 from .version import obtener_version
+from . import estilos
 
 # Importar notificaciones nativas
 try:
@@ -70,58 +80,81 @@ except ImportError:
 
 logger = logging.getLogger('organizador.gui_avanzada')
 
+
 class Switch(QCheckBox):
     """Interruptor encendido/apagado estilo iOS (sobre QCheckBox)."""
 
     def __init__(self, texto="", parent=None):
         super().__init__(texto, parent)
         self.setCursor(Qt.PointingHandCursor)
+        from PySide6.QtWidgets import QSizePolicy as _QSizePolicy
+        self.setSizePolicy(_QSizePolicy.Preferred, _QSizePolicy.Fixed)
+        self.setMinimumHeight(26)
+        self.setMinimumWidth(self.sizeHint().width())
 
     def paintEvent(self, event):
-        from PySide6.QtGui import QPainter, QColor
-        from PySide6.QtCore import QRectF, QPointF
-
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
 
         fm = self.fontMetrics()
         texto_w = fm.horizontalAdvance(self.text()) if self.text() else 0
-        gap = 10 if self.text() else 0
-        alto = 24
-        ancho_pill = 44
+        gap = 0
+        alto = 22
+        ancho_pill = 40
         y = (self.height() - alto) / 2
 
         activo = self.isChecked()
         habilitado = self.isEnabled()
 
+        colores = estilos.hoja_estilo_switch(self._tema)
         if habilitado:
-            color_on = QColor("#0A84FF")
-            color_off = QColor("#48484A")
+            color_on = QColor(colores["on"])
+            color_off = QColor(colores["off"])
         else:
-            color_on = QColor("#48484A")
-            color_off = QColor("#3A3A3C")
+            color_on = QColor(colores["on_disabled"])
+            color_off = QColor(colores["off_disabled"])
 
         p.setPen(Qt.NoPen)
         p.setBrush(color_on if activo else color_off)
         p.drawRoundedRect(QRectF(gap, y, ancho_pill, alto), alto / 2, alto / 2)
 
         # Círculo deslizante
-        r = alto - 6
-        x_circ = gap + 3 if not activo else gap + ancho_pill - r - 3
-        p.setBrush(QColor("#FFFFFF"))
+        r = alto - 4
+        margen = 2
+        x_circ = gap + margen if not activo else gap + ancho_pill - r - margen
+        p.setBrush(QColor(colores["thumb"]))
         p.drawEllipse(QPointF(x_circ + r / 2, self.height() / 2), r / 2, r / 2)
 
         if self.text():
-            p.setPen(QColor("#F5F5F7" if habilitado else "#636366"))
-            p.drawText(QRectF(gap + ancho_pill + 8, 0, texto_w + 4, self.height()),
+            p.setPen(QColor(colores["texto"] if habilitado else colores["texto_disabled"]))
+            p.drawText(QRectF(gap + ancho_pill + 10, 0, texto_w + 4, self.height()),
                        Qt.AlignVCenter | Qt.AlignLeft, self.text())
         p.end()
 
     def sizeHint(self):
         fm = self.fontMetrics()
-        ancho = (10 + 44 + 18 + fm.horizontalAdvance(self.text())) if self.text() else 60
-        from PySide6.QtCore import QSize
-        return QSize(ancho, 30)
+        ancho = (40 + 10 + fm.horizontalAdvance(self.text())) if self.text() else 44
+        return QSize(ancho, 26)
+
+    _tema = "auto"
+
+
+class Tarjeta(QFrame):
+    """Tarjeta con esquinas redondeadas al estilo macOS."""
+
+    def __init__(self, parent=None, destacada=False):
+        super().__init__(parent)
+        self.setProperty("rol", "tarjeta_destacada" if destacada else "tarjeta")
+        self.setFrameShape(QFrame.NoFrame)
+
+
+class Separador(QFrame):
+    """Línea divisoria fina."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("rol", "separador")
+        self.setFixedHeight(1)
 
 
 class OrganizadorAvanzado(QMainWindow):
@@ -160,20 +193,15 @@ class OrganizadorAvanzado(QMainWindow):
         else:
             self.config_portable = None
         
-        # Inicializar sistema de temas
+        # Inicializar sistema de temas (claro / oscuro / automático del sistema)
+        self.gestor_temas = None
+        self._tema = self._cargar_preferencia_tema()
+        Switch._tema = self._tema
         if TEMAS_DISPONIBLES:
             self.gestor_temas = obtener_gestor_temas()
-            # Cargar tema guardado
-            if self.config_portable:
-                tema_guardado = self.config_portable.obtener("tema", "minimal_oscuro")
-                # Solo existen temas minimalistas; cualquier valor antiguo
-                # (azul_oscuro, verde_oscuro, purpura, naranja, gris…) cae al
-                # tema oscuro minimalista.
-                if tema_guardado not in ("minimal_oscuro", "minimal_claro"):
-                    tema_guardado = "minimal_oscuro"
-                self.gestor_temas.establecer_tema_actual(tema_guardado)
-        else:
-            self.gestor_temas = None
+            # Los temas antiguos (minimal_*) migran al sistema nuevo
+            if self._tema not in ("claro", "oscuro", "auto"):
+                self._tema = "auto"
         
         # Inicializar notificaciones nativas
         if NOTIFICACIONES_NATIVAS:
@@ -190,14 +218,15 @@ class OrganizadorAvanzado(QMainWindow):
         self.en_bandeja = False
         self.cerrar_completamente = False
         self._sincronizando_controles = False
+        self._vista_actual = 0
         
         # Configuración ventana
         self.setWindowTitle("DescargasOrdenadas")
-        self.setMinimumSize(640, 520)
+        self.setMinimumSize(760, 560)
         self._ajustar_tamano_inicial()
         
         self._setup_ui()
-        self._aplicar_tema()  # Aplicar tema (reemplaza _aplicar_estilos_modernos)
+        self._aplicar_tema()
         self._setup_system_tray()
         self._inicializar_modulos()
         
@@ -232,11 +261,11 @@ class OrganizadorAvanzado(QMainWindow):
         try:
             screen = QGuiApplication.primaryScreen()
             if not screen:
-                self.resize(1200, 850)
+                self.resize(1040, 720)
                 return
             
             geom = screen.availableGeometry()
-            min_w, min_h = 640, 520
+            min_w, min_h = 760, 560
 
             ventana_guardada = {}
             if self.config_portable:
@@ -250,21 +279,21 @@ class OrganizadorAvanzado(QMainWindow):
                 ancho = min(ancho_guardado, geom.width())
                 alto = min(alto_guardado, geom.height())
             else:
-                # Ventana compacta por defecto: suficiente para la pantalla
-                # de inicio sin ocupar todo el escritorio.
-                ancho = min(max(min_w, int(geom.width() * 0.52)), geom.width())
-                alto = min(max(min_h, int(geom.height() * 0.68)), geom.height())
+                # Ventana cómoda por defecto, sin ocupar todo el escritorio.
+                ancho = min(max(min_w, int(geom.width() * 0.60)), geom.width())
+                alto = min(max(min_h, int(geom.height() * 0.74)), geom.height())
 
             self.resize(ancho, alto)
 
             if maximizada:
                 self.setWindowState(Qt.WindowMaximized)
             else:
+                # Un pelín por encima del centro: se percibe mejor equilibrado
                 x = geom.x() + (geom.width() - ancho) // 2
-                y = geom.y() + (geom.height() - alto) // 2
+                y = geom.y() + max(0, (geom.height() - alto) // 2 - 20)
                 self.move(x, y)
         except Exception:
-            self.resize(1200, 850)
+            self.resize(1040, 720)
 
     def _guardar_geometria_ventana(self):
         """Guarda el tamaño y estado de la ventana para restaurarlos después."""
@@ -282,172 +311,54 @@ class OrganizadorAvanzado(QMainWindow):
         except Exception as e:
             logger.debug(f"No se pudo guardar la geometría de la ventana: {e}")
     
+    def _cargar_preferencia_tema(self) -> str:
+        """Devuelve el tema guardado ('claro', 'oscuro' o 'auto')."""
+        guardado = None
+        if self.config_portable:
+            guardado = self.config_portable.obtener("tema", None)
+        if guardado in ("claro", "oscuro", "auto"):
+            return guardado
+        # Compatibilidad con las claves antiguas
+        if guardado in ("minimal_claro",):
+            return "claro"
+        if guardado in ("minimal_oscuro",):
+            return "oscuro"
+        return "auto"
+
+    def _tema_efectivo(self) -> str:
+        """Tema realmente aplicado (resuelve 'auto' con el del sistema)."""
+        if self._tema == "auto":
+            return estilos.tema_del_sistema()
+        return self._tema
+
     def _aplicar_tema(self):
-        """Aplica el tema visual actual."""
-        nombre = self.gestor_temas.tema_actual if self.gestor_temas else "minimal_oscuro"
-        if nombre in ("minimal_oscuro", "minimal_claro"):
-            # Los temas minimalistas llevan su propio diseño completo
-            self._aplicar_estilos_minimal(claro=(nombre == "minimal_claro"))
-        elif self.gestor_temas:
-            tema = self.gestor_temas.obtener_tema_actual()
-            self.setStyleSheet(tema.obtener_stylesheet())
+        """Aplica la hoja de estilo tipo Apple según el tema actual."""
+        tema_efectivo = self._tema_efectivo()
+        Switch._tema = tema_efectivo
+        self.setStyleSheet(estilos.hoja_estilo(tema_efectivo))
+        # Repintar los interruptores dibujados a mano
+        for interruptor in self.findChildren(Switch):
+            interruptor.update()
+        self._actualizar_indicadores_tema()
+
+    def _actualizar_indicadores_tema(self):
+        """Ajusta a mano lo que la hoja de estilo no puede expresar."""
+        tema = self._tema_efectivo()
+        try:
+            self._lbl_estado_tema.setText("Automático (sistema)" if self._tema == "auto"
+                                          else ("Claro" if self._tema == "claro" else "Oscuro"))
+        except Exception:
+            pass
+        if tema == "oscuro":
+            self._color_cabecera = "#1C1C1E"
         else:
-            # Fallback: tema minimalista oscuro
-            self._aplicar_estilos_minimal()
-    
-    def _aplicar_estilos_minimal(self, claro=False):
-        """Hoja de estilos minimalista (tema principal de la aplicación)."""
-        if claro:
-            c = {
-                "fondo": "#F5F5F7", "panel": "#FFFFFF", "panel_alt": "#EBEBED",
-                "borde": "#D2D2D7", "borde_fuerte": "#C7C7CC",
-                "texto": "#1D1D1F", "texto_sec": "#6E6E73", "texto_disc": "#AEAEB2",
-                "acento": "#0071E3", "acento_hover": "#0077ED", "acento_pulsado": "#0068D6",
-                "mono": "'SF Mono', 'Menlo', 'Consolas', monospace",
-            }
-        else:
-            c = {
-                "fondo": "#1C1C1E", "panel": "#2C2C2E", "panel_alt": "#3A3A3C",
-                "borde": "#38383D", "borde_fuerte": "#48484A",
-                "texto": "#F5F5F7", "texto_sec": "#98989D", "texto_disc": "#636366",
-                "acento": "#0A84FF", "acento_hover": "#409CFF", "acento_pulsado": "#0060DF",
-                "mono": "'SF Mono', 'Menlo', 'Consolas', monospace",
-            }
-        self.setStyleSheet(f"""
-            QMainWindow {{ background-color: {c['fondo']}; color: {c['texto']}; }}
-            QWidget {{ color: {c['texto']}; font-size: 13px; }}
-            QLabel {{ color: {c['texto']}; font-size: 13px; }}
-            QLabel#etiquetaSecundaria {{ color: {c['texto_sec']}; font-size: 12px; }}
-            QLabel#tarjetaEstado {{
-                padding: 14px;
-                border-radius: 12px;
-                background-color: {c['panel_alt']};
-                border: 1px solid {c['borde']};
-                color: {c['texto']};
-                font-size: 15px;
-                font-weight: 600;
-            }}
-
-            QTabWidget::pane {{
-                border: 1px solid {c['borde']};
-                border-radius: 12px;
-                background-color: {c['fondo']};
-                top: -1px;
-            }}
-            QScrollArea {{ background: transparent; border: none; }}
-            QScrollArea > QWidget > QWidget {{ background: transparent; }}
-            QTabBar {{ qproperty-drawBase: 0; }}
-            QTabBar::tab {{
-                background: transparent;
-                color: {c['texto_sec']};
-                padding: 7px 14px;
-                margin-right: 4px;
-                border-radius: 8px;
-                font-size: 12px;
-            }}
-            QTabBar::tab:selected {{ background: {c['acento']}; color: #FFFFFF; font-weight: 600; }}
-            QTabBar::tab:hover:!selected {{ color: {c['texto']}; background: {c['panel']}; }}
-
-            QGroupBox {{
-                font-weight: 600;
-                border: 1px solid {c['borde']};
-                border-radius: 12px;
-                margin-top: 6px;
-                padding: 30px 14px 12px 14px;
-                background-color: {c['panel']};
-                font-size: 13px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                left: 14px;
-                top: 8px;
-                padding: 0 2px;
-                color: {c['texto_sec']};
-                font-size: 12px;
-                font-weight: 600;
-            }}
-
-            QCheckBox {{ spacing: 10px; font-size: 13px; }}
-            QCheckBox::indicator {{
-                width: 18px; height: 18px; border-radius: 5px;
-                border: 1.5px solid {c['borde_fuerte']}; background: {c['fondo']};
-            }}
-            QCheckBox::indicator:checked {{ background: {c['acento']}; border-color: {c['acento']}; }}
-            QCheckBox::indicator:hover {{ border-color: {c['acento']}; }}
-
-            QPushButton {{
-                background-color: {c['panel']};
-                color: {c['texto']};
-                border: 1px solid {c['borde']};
-                padding: 9px 16px;
-                border-radius: 9px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{ background-color: {c['panel_alt']}; }}
-            QPushButton:pressed {{ background-color: {c['borde_fuerte']}; }}
-            QPushButton:disabled {{ color: {c['texto_disc']}; background-color: {c['panel']}; }}
-            QPushButton#botonPrimario {{
-                background-color: {c['acento']}; border: none; color: #FFFFFF; font-weight: 600;
-            }}
-            QPushButton#botonPrimario:hover {{ background-color: {c['acento_hover']}; }}
-            QPushButton#botonPrimario:pressed {{ background-color: {c['acento_pulsado']}; }}
-            QPushButton#botonPrimario:disabled {{ background-color: {c['panel']}; color: {c['texto_disc']}; }}
-
-            QComboBox {{
-                border: 1px solid {c['borde']}; border-radius: 9px;
-                padding: 8px 12px; background-color: {c['panel']}; color: {c['texto']};
-                min-width: 130px;
-            }}
-            QComboBox:hover {{ border-color: {c['acento']}; }}
-            QComboBox::drop-down {{ border: none; width: 26px; }}
-            QComboBox::down-arrow {{
-                image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMCcgaGVpZ2h0PSc2Jz48cGF0aCBkPSdNMSAxbDQgNCA0LTQnIHN0cm9rZT0nJTIzOTg5ODlEJyBzdHJva2Utd2lkdGg9JzEuNScgZmlsbD0nbm9uZScgc3Ryb2tlLWxpbmVjYXA9J3JvdW5kJyBzdHJva2UtbGluZWpvaW49J3JvdW5kJy8+PC9zdmc+);
-                width: 10px; height: 6px;
-                margin-right: 10px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {c['panel']}; color: {c['texto']};
-                selection-background-color: {c['acento']}; border: 1px solid {c['borde']};
-            }}
-
-            QSlider::groove:horizontal {{ height: 4px; background: {c['borde_fuerte']}; border-radius: 2px; }}
-            QSlider::sub-page:horizontal {{ background: {c['acento']}; border-radius: 2px; }}
-            QSlider::handle:horizontal {{
-                width: 18px; height: 18px; margin: -8px 0;
-                background: #FFFFFF; border-radius: 9px;
-            }}
-
-            QProgressBar {{ background: {c['panel']}; border: none; border-radius: 2px; }}
-            QProgressBar::chunk {{ background: {c['acento']}; border-radius: 2px; }}
-
-            QPlainTextEdit, QTextEdit, QListWidget {{
-                border: 1px solid {c['borde']}; border-radius: 10px;
-                background-color: {c['fondo']}; color: {c['texto']};
-                padding: 8px; font-family: {c['mono']}; font-size: 12px;
-            }}
-            QListWidget::item {{ padding: 6px; border-radius: 6px; }}
-            QListWidget::item:selected {{ background-color: {c['acento']}; color: #FFFFFF; }}
-
-            QStatusBar {{ background: transparent; color: {c['texto_sec']}; }}
-            QScrollBar:vertical {{ background: transparent; width: 10px; margin: 0; }}
-            QScrollBar::handle:vertical {{ background: {c['borde_fuerte']}; border-radius: 5px; min-height: 30px; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-            QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 0; }}
-            QScrollBar::handle:horizontal {{ background: {c['borde_fuerte']}; border-radius: 5px; min-width: 30px; }}
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
-
-            QToolTip {{
-                background-color: {c['panel']}; color: {c['texto']};
-                border: 1px solid {c['borde_fuerte']}; border-radius: 6px; padding: 6px;
-            }}
-        """)
+            self._color_cabecera = "#FFFFFF"
 
 
     def _setup_system_tray(self):
         """Configura bandeja del sistema completa."""
         if not QSystemTrayIcon.isSystemTrayAvailable():
-            self._agregar_log("❌ Bandeja del sistema no disponible en este sistema")
+            self._agregar_log("Bandeja del sistema no disponible en este sistema")
             return
         
         # Crear icono para la bandeja
@@ -502,7 +413,7 @@ class OrganizadorAvanzado(QMainWindow):
         # Mostrar icono
         self.tray_icon.show()
         
-        self._agregar_log("✅ Bandeja del sistema configurada")
+        self._agregar_log("Bandeja del sistema configurada")
     
     def _inicializar_modulos(self):
         """Inicializa módulos avanzados."""
@@ -513,34 +424,34 @@ class OrganizadorAvanzado(QMainWindow):
         try:
             from .ai_categorizer import CategorizadorIA
             self.ai_categorizer = CategorizadorIA(carpeta)
-            funciones.append("🤖 IA")
+            funciones.append("IA")
             if hasattr(self, 'lbl_ia_estado'):
-                self.lbl_ia_estado.setText("✅ IA Categorización: Activa")
+                self.lbl_ia_estado.setText("Categorización con IA activa")
         except Exception as e:
             self.ai_categorizer = None
             if hasattr(self, 'lbl_ia_estado'):
-                self.lbl_ia_estado.setText("❌ IA: No disponible")
-            self._agregar_log(f"⚠️ IA no disponible: {e}")
+                self.lbl_ia_estado.setText("IA no disponible en este sistema")
+            self._agregar_log(f"IA no disponible: {e}")
         
         # Fechas
         try:
             # Usar el organizador de fechas del organizador principal si está disponible
             if hasattr(self.organizador, 'organizador_fechas') and self.organizador.organizador_fechas:
                 self.date_organizer = self.organizador.organizador_fechas
-                logger.info("📅 Usando organizador de fechas del organizador principal")
+                logger.info("Usando organizador de fechas del organizador principal")
             else:
                 # Fallback: crear instancia propia
                 from .date_organizer import OrganizadorPorFecha
                 self.date_organizer = OrganizadorPorFecha(carpeta)
-                logger.info("📅 Creando instancia propia del organizador de fechas")
+                logger.info("Creando instancia propia del organizador de fechas")
                 
-            funciones.append("📅 Fechas")
+            funciones.append("Fechas")
             
             # Verificar si fechas está activa
             try:
                 if hasattr(self.date_organizer, 'activo') and self.date_organizer.activo:
                     if hasattr(self, 'lbl_estado_fechas'):
-                        self.lbl_estado_fechas.setText("✅ Organización por fechas: ACTIVADA")
+                        self.lbl_estado_fechas.setText("Organización por fechas activada")
                         if hasattr(self, 'btn_activar_fechas'):
                             self.btn_activar_fechas.setEnabled(False)
                         if hasattr(self, 'btn_desactivar_fechas'):
@@ -550,34 +461,34 @@ class OrganizadorAvanzado(QMainWindow):
                 
         except Exception as e:
             self.date_organizer = None
-            self._agregar_log(f"⚠️ Fechas no disponible: {e}")
+            self._agregar_log(f"Fechas no disponible: {e}")
         
         # Duplicados
         try:
             from .duplicate_detector import DetectorDuplicados
             self.duplicate_detector = DetectorDuplicados(carpeta)
-            funciones.append("🔍 Duplicados")
+            funciones.append("Duplicados")
         except Exception as e:
             self.duplicate_detector = None
-            self._agregar_log(f"⚠️ Duplicados no disponible: {e}")
+            self._agregar_log(f"Duplicados no disponible: {e}")
         
         # Estadísticas
         try:
             from .statistics import EstadisticasOrganizador
             self.stats_manager = EstadisticasOrganizador(carpeta)
-            funciones.append("📊 Stats")
+            funciones.append("Estadísticas")
         except Exception as e:
             self.stats_manager = None
-            self._agregar_log(f"⚠️ Estadísticas no disponible: {e}")
+            self._agregar_log(f"Estadísticas no disponible: {e}")
         
         # Reglas
         try:
             from .custom_rules import GestorReglasPersonalizadas
             self.custom_rules = GestorReglasPersonalizadas(carpeta)
-            funciones.append("⚙️ Reglas")
+            funciones.append("Reglas")
         except Exception as e:
             self.custom_rules = None
-            self._agregar_log(f"⚠️ Reglas personalizadas no disponible: {e}")
+            self._agregar_log(f"Reglas personalizadas no disponible: {e}")
         
         # Informar de los módulos en el log y en la barra de estado
         # (la tarjeta principal se reserva para el estado de la auto-organización)
@@ -688,7 +599,7 @@ class OrganizadorAvanzado(QMainWindow):
         # Mostrar consola si estaba oculta
         self._mostrar_consola()
         
-        self._agregar_log("📂 Ventana restaurada desde bandeja del sistema")
+        self._agregar_log("Ventana restaurada desde bandeja del sistema")
     
     def _ocultar_en_bandeja(self):
         """Oculta la ventana en la bandeja del sistema."""
@@ -708,48 +619,44 @@ class OrganizadorAvanzado(QMainWindow):
                 3000
             )
             
-            self._agregar_log("📱 Aplicación minimizada a bandeja del sistema")
+            self._agregar_log("Aplicación minimizada a bandeja del sistema")
         else:
             # Si no hay bandeja disponible, solo minimizar
             self.showMinimized()
     
     def _salir_completamente(self):
-        """Cierra la aplicación completamente."""
-        self._agregar_log("🚪 Cerrando aplicación completamente...")
-        self._guardar_geometria_ventana()
-        
-        # Detener timer si está activo
-        if hasattr(self, 'timer_auto') and self.timer_auto.isActive():
-            self.timer_auto.stop()
-        
-        if hasattr(self, 'timer_actualizaciones') and self.timer_actualizaciones.isActive():
-            self.timer_actualizaciones.stop()
-        
-        # Cerrar la consola completamente
-        self._cerrar_consola()
-        
-        self.cerrar_completamente = True
-        
-        # Ocultar el tray icon
-        if hasattr(self, 'tray_icon'):
-            self.tray_icon.hide()
-        
-        # Cerrar la aplicación Qt
-        QApplication.quit()
-        
-        # Forzar cierre del proceso Python de múltiples formas
-        import sys
-        import os
-        
-        # Método 1: Salida normal de Python
-        sys.exit(0)
-        
-        # Método 2: Terminar proceso si el anterior falla (último recurso)
+        """Cierra la aplicación completamente (desde menú o bandeja)."""
+        self._agregar_log("Cerrando aplicación completamente...")
+        self._cerrar_para_actualizar()
+
+    def _cerrar_para_actualizar(self):
+        """Cierre ordenado e inmediato, sin avisos ni diálogos que estorben.
+
+        Sirve tanto para el botón Salir como para actualizar: el instalador
+        necesita que no quede ningún archivo en uso, así que se cierra en orden
+        y el script de actualización se encarga de reabrir al terminar.
+        """
         try:
+            self._guardar_geometria_ventana()
+            self._cierre_programatico = True
+            self.cerrar_completamente = True
+            for temporizador in ("timer_auto", "timer_actualizaciones"):
+                timer = getattr(self, temporizador, None)
+                if timer is not None and timer.isActive():
+                    timer.stop()
+            if getattr(self, "tray_icon", None):
+                self.tray_icon.hide()
+            self._cerrar_consola()
+            QApplication.quit()
+        except Exception as e:
+            logger.debug(f"Error durante el cierre: {e}")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception:
             os._exit(0)
-        except:
-            pass
-    
+
     def _toggle_auto_principal(self, activo):
         """Interruptor general de la organización automática."""
         if getattr(self, "_sincronizando_controles", False):
@@ -773,7 +680,7 @@ class OrganizadorAvanzado(QMainWindow):
                 self.chk_auto_detallado.blockSignals(True)
                 self.chk_auto_detallado.setChecked(False)
                 self.chk_auto_detallado.blockSignals(False)
-            self._agregar_log("⏸️ Auto-organización DESACTIVADA")
+            self._agregar_log("Auto-organización DESACTIVADA")
             self._olvidar_preferencia_auto()
             self._actualizar_estado_auto_organizacion()
 
@@ -802,15 +709,15 @@ class OrganizadorAvanzado(QMainWindow):
                 intervalo_ms = intervalo_segundos * 1000
                 intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
-                self._agregar_log(f"⚡ Auto-organización BÁSICA ACTIVADA ({intervalo_texto})")
+                self._agregar_log(f"Auto-organización BÁSICA ACTIVADA ({intervalo_texto})")
                 self._sincronizar_switch_principal(True)
                 
                 # Actualizar tooltip de la bandeja
-                if self.tray_icon:
+                if getattr(self, 'tray_icon', None):
                     self.tray_icon.setToolTip(f"Auto-organización BÁSICA ({intervalo_texto})")
                     
                 # Actualizar estado visual
-                self.lbl_estado.setText(f"📁 Auto-organización BÁSICA: ACTIVADA ({intervalo_texto})")
+                self._pintar_estado(True, "Básico")
 
                 # Recordar la elección para el próximo arranque
                 self._guardar_preferencia_auto()
@@ -818,14 +725,14 @@ class OrganizadorAvanzado(QMainWindow):
                 if hasattr(self, 'timer_auto') and self.timer_auto:
                     self.timer_auto.stop()
                 
-                self._agregar_log("⏸️ Auto-organización BÁSICA DESACTIVADA")
+                self._agregar_log("Auto-organización BÁSICA DESACTIVADA")
                 self._olvidar_preferencia_auto()
                 self._sincronizar_switch_principal(False)
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
-            self._agregar_log(f"❌ Error configurando auto-organización básica: {e}")
-            QMessageBox.critical(self, "Error", f"❌ Error: {e}")
+            self._agregar_log(f"Error configurando auto-organización básica: {e}")
+            QMessageBox.critical(self, "Error", f"Error: {e}")
 
     @Slot(bool)
     def _toggle_auto_organizacion_detallado(self, activo):
@@ -847,15 +754,15 @@ class OrganizadorAvanzado(QMainWindow):
                 intervalo_ms = intervalo_segundos * 1000
                 intervalo_texto = self.combo_intervalo_auto.currentText()
                 self.timer_auto.start(intervalo_ms)
-                self._agregar_log(f"⚡ Auto-organización DETALLADA ACTIVADA ({intervalo_texto})")
+                self._agregar_log(f"Auto-organización DETALLADA ACTIVADA ({intervalo_texto})")
                 self._sincronizar_switch_principal(True)
                 
                 # Actualizar tooltip de la bandeja
-                if self.tray_icon:
+                if getattr(self, 'tray_icon', None):
                     self.tray_icon.setToolTip(f"Auto-organización DETALLADA ({intervalo_texto})")
                     
                 # Actualizar estado visual
-                self.lbl_estado.setText(f"🔧 Auto-organización DETALLADA: ACTIVADA ({intervalo_texto})")
+                self._pintar_estado(True, "Detallado")
 
                 # Recordar la elección para el próximo arranque
                 self._guardar_preferencia_auto()
@@ -863,14 +770,14 @@ class OrganizadorAvanzado(QMainWindow):
                 if hasattr(self, 'timer_auto') and self.timer_auto:
                     self.timer_auto.stop()
                 
-                self._agregar_log("⏸️ Auto-organización DETALLADA DESACTIVADA")
+                self._agregar_log("Auto-organización DETALLADA DESACTIVADA")
                 self._olvidar_preferencia_auto()
                 self._sincronizar_switch_principal(False)
                 self._actualizar_estado_auto_organizacion()
                 
         except Exception as e:
-            self._agregar_log(f"❌ Error configurando auto-organización detallada: {e}")
-            QMessageBox.critical(self, "Error", f"❌ Error: {e}")
+            self._agregar_log(f"Error configurando auto-organización detallada: {e}")
+            QMessageBox.critical(self, "Error", f"Error: {e}")
     
     def _sincronizar_switch_principal(self, activo):
         """Mantiene el interruptor general coherente con los modos."""
@@ -885,37 +792,46 @@ class OrganizadorAvanzado(QMainWindow):
         """Actualiza la tarjeta de estado según los controles actuales."""
         modo = None
         if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
-            modo = "DETALLADO"
+            modo = "Detallado"
         elif hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
-            modo = "BÁSICO"
+            modo = "Básico"
 
-        if modo and hasattr(self, 'timer_auto') and self.timer_auto.isActive():
-            intervalo_texto = self.combo_intervalo_auto.currentText() if hasattr(self, 'combo_intervalo_auto') else ""
-            icono = "🔧" if modo == "DETALLADO" else "📁"
-            self.lbl_estado.setText(f"{icono} Auto-organización {modo}: ACTIVADA ({intervalo_texto})")
-            return
+        timer = getattr(self, 'timer_auto', None)
+        activo = bool(modo) and timer is not None and timer.isActive()
+        self._pintar_estado(activo, modo)
 
-        auto_activa = False
-        if hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
-            auto_activa = True
-        if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
-            auto_activa = True
-            
-        if not auto_activa:
-            # Actualizar tooltip de la bandeja
-            if self.tray_icon:
+        if not activo:
+            if getattr(self, 'tray_icon', None):
                 self.tray_icon.setToolTip("Organización automática inactiva")
-                
-            # Actualizar estado visual
-            self.lbl_estado.setText("⏸️ Auto-organización: DESACTIVADA")
+
+    def _pintar_estado(self, activo, modo=None):
+        """Actualiza la tarjeta superior de estado (Inicio)."""
+        try:
+            intervalo = self.combo_intervalo_auto.currentText() if hasattr(self, "combo_intervalo_auto") else ""
+            if activo:
+                self._punto_estado.setProperty("rol", "exito")
+                self.lbl_estado.setText(f"Auto-organización activa · modo {modo or 'Básico'}")
+                self.lbl_estado_detalle.setText(f"Revisando la carpeta cada {intervalo.lower()}")
+                if getattr(self, 'tray_icon', None):
+                    self.tray_icon.setToolTip(f"Auto-organización {modo or 'Básico'} ({intervalo})")
+            else:
+                self._punto_estado.setProperty("rol", "discreta")
+                self.lbl_estado.setText("Auto-organización desactivada")
+                self.lbl_estado_detalle.setText("Actívala para que la carpeta se ordene sola")
+            # Refrescar el color del punto según la nueva propiedad
+            self._punto_estado.setStyleSheet("")
+            self._punto_estado.style().unpolish(self._punto_estado)
+            self._punto_estado.style().polish(self._punto_estado)
+        except Exception as e:
+            logger.debug(f"No se pudo actualizar la tarjeta de estado: {e}")
 
     def _deshacer_organizacion(self):
         """Deshace toda la organización moviendo archivos de vuelta a la raíz."""
         reply = QMessageBox.question(
-            self, "⚠️ Deshacer Organización",
-            "🚨 ADVERTENCIA: Esto moverá TODOS los archivos de las carpetas organizadas de vuelta a la raíz de Descargas.\n\n"
+            self, "Deshacer Organización",
+            "ADVERTENCIA: Esto moverá TODOS los archivos de las carpetas organizadas de vuelta a la raíz de Descargas.\n\n"
             "Esto te permitirá cambiar el tipo de organización limpiamente.\n\n"
-            "⚠️ ¿Estás seguro de que quieres continuar?",
+            "¿Estás seguro de que quieres continuar?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -957,7 +873,7 @@ class OrganizadorAvanzado(QMainWindow):
                                     destino = carpeta_descargas / nombre_destino
                                     item.rename(destino)
                                     archivos_movidos += 1
-                                    self._agregar_log(f"📁➡️📄 {item.name} → raíz")
+                                    self._agregar_log(f"{item.name} → raíz")
                                 except Exception as e:
                                     errores.append(f"Error moviendo {item.name}: {e}")
                                     
@@ -980,7 +896,7 @@ class OrganizadorAvanzado(QMainWindow):
                                 try:
                                     if not any(item.iterdir()):  # Si está vacía
                                         item.rmdir()
-                                        self._agregar_log(f"🗑️ Carpeta vacía eliminada: {item.name}")
+                                        self._agregar_log(f"Carpeta vacía eliminada: {item.name}")
                                 except OSError:
                                     pass  # No pasa nada si no se puede eliminar
                     except Exception:
@@ -992,7 +908,7 @@ class OrganizadorAvanzado(QMainWindow):
                         try:
                             if not any(carpeta.iterdir()):
                                 carpeta.rmdir()
-                                self._agregar_log(f"🗑️ Carpeta principal eliminada: {carpeta.name}")
+                                self._agregar_log(f"Carpeta principal eliminada: {carpeta.name}")
                         except OSError:
                             pass
                 
@@ -1001,16 +917,16 @@ class OrganizadorAvanzado(QMainWindow):
                     self.organizador.archivos_procesados.clear()
                     self.organizador._guardar_huella()
                 
-                mensaje = f"✅ Organización deshecha!\n\n"
-                mensaje += f"📁 {archivos_movidos} archivos movidos a la raíz"
+                mensaje = f"Organización deshecha!\n\n"
+                mensaje += f"{archivos_movidos} archivos movidos a la raíz"
                 if errores:
-                    mensaje += f"\n⚠️ {len(errores)} errores (ver logs)"
+                    mensaje += f"\n{len(errores)} avisos (consulta la pestaña Actividad)"
                 
                 QMessageBox.information(self, "Operación Completada", mensaje)
                 self._actualizar_datos()
                 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"❌ Error deshaciendo organización: {e}")
+                QMessageBox.critical(self, "Error", f"Error al deshacer la organización: {e}")
             finally:
                 self.progress_bar.setVisible(False)
     
@@ -1050,7 +966,7 @@ class OrganizadorAvanzado(QMainWindow):
             
             # Log de actividad (con o sin archivos)
             if total > 0:
-                self._agregar_log(f"⚡ Auto-organización{modo_texto} {hora_actual}: {total} archivos organizados")
+                self._agregar_log(f"Auto-organización{modo_texto} {hora_actual}: {total} archivos organizados")
                 
                 # Notificación nativa
                 if self.notificador and hasattr(self, '_debug_timer_count') and self._debug_timer_count % 10 == 0:
@@ -1058,7 +974,7 @@ class OrganizadorAvanzado(QMainWindow):
                     self.notificador.notificar_organizacion(total, categorias)
                 
                 # Actualizar tooltip de la bandeja para mostrar última actividad
-                if self.tray_icon:
+                if getattr(self, 'tray_icon', None):
                     self.tray_icon.setToolTip(f"Última organización: {hora_actual} ({total} archivos)")
                     
                 # Actualizar estadísticas si hay cambios
@@ -1066,14 +982,14 @@ class OrganizadorAvanzado(QMainWindow):
             else:
                 # Log cada 5 ejecuciones para confirmar que funciona
                 if self._debug_timer_count % 5 == 0:
-                    self._agregar_log(f"🔍 Timer activo{modo_texto} {hora_actual}: revisando archivos... (#{self._debug_timer_count})")
+                    self._agregar_log(f"Timer activo{modo_texto} {hora_actual}: revisando archivos... (#{self._debug_timer_count})")
                 
                 # Actualizar tooltip para mostrar que está funcionando
-                if self.tray_icon:
+                if getattr(self, 'tray_icon', None):
                     self.tray_icon.setToolTip(f"Revisando: {hora_actual}")
                 
         except Exception as e:
-            self._agregar_log(f"❌ Error en auto-organización: {e}")
+            self._agregar_log(f"Error en auto-organización: {e}")
     
     def _ocultar_consola(self):
         """Oculta la consola de Windows de forma optimizada."""
@@ -1102,10 +1018,10 @@ class OrganizadorAvanzado(QMainWindow):
             except Exception:
                 pass
 
-            self._agregar_log("🔇 Consola externa ocultada completamente")
+            self._agregar_log("Consola externa ocultada completamente")
             return True
         except Exception as e:
-            self._agregar_log(f"❌ Error ocultando consola: {e}")
+            self._agregar_log(f"Error ocultando consola: {e}")
         return False
 
     def _mostrar_consola(self):
@@ -1123,10 +1039,10 @@ class OrganizadorAvanzado(QMainWindow):
                 return False
 
             user32.ShowWindow(console_window, 5)  # SW_SHOW
-            self._agregar_log("🔊 Consola externa mostrada")
+            self._agregar_log("Consola externa mostrada")
             return True
         except Exception as e:
-            self._agregar_log(f"❌ Error mostrando consola: {e}")
+            self._agregar_log(f"Error mostrando consola: {e}")
         return False
 
     def _cerrar_consola(self):
@@ -1181,7 +1097,14 @@ class OrganizadorAvanzado(QMainWindow):
             self._cerrar_consola()
             event.accept()
         else:
-            # Minimizar a bandeja en lugar de cerrar
+            # Minimizar a bandeja en lugar de cerrar. En un cierre programático
+            # (por ejemplo, al salir la aplicación entera) se acepta siempre.
+            if getattr(self, "_cierre_programatico", False):
+                if hasattr(self, 'tray_icon'):
+                    self.tray_icon.hide()
+                self._cerrar_consola()
+                event.accept()
+                return
             if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
                 self._ocultar_en_bandeja()
                 event.ignore()
@@ -1206,71 +1129,203 @@ class OrganizadorAvanzado(QMainWindow):
                     event.ignore()
 
     def _setup_ui(self):
-        """Configura la interfaz principal (diseño minimalista)."""
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
-        layout.setContentsMargins(20, 16, 20, 12)
-        layout.setSpacing(12)
+        """Configura la interfaz principal con barra lateral estilo macOS."""
+        central = QWidget()
+        self.setCentralWidget(central)
+        raiz = QHBoxLayout(central)
+        raiz.setContentsMargins(0, 0, 0, 0)
+        raiz.setSpacing(0)
 
-        # Cabecera compacta
-        self.header = QLabel(f"DescargasOrdenadas · 📁 {os.path.basename(str(self.organizador.carpeta_descargas))}")
-        self.header.setStyleSheet("font-weight: 600; font-size: 15px;")
-        self.header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        layout.addWidget(self.header)
+        # ----------------------------------------------------- barra lateral
+        lateral = QWidget()
+        lateral.setFixedWidth(212)
+        lateral_layout = QVBoxLayout(lateral)
+        lateral_layout.setContentsMargins(0, 0, 0, 0)
+        lateral_layout.setSpacing(0)
 
-        # Pestañas
-        self.tabs = QTabWidget()
-        layout.addWidget(self.tabs)
+        self.lista_lateral = QListWidget()
+        self.lista_lateral.setProperty("rol", "lateral")
+        self.lista_lateral.setFrameShape(QFrame.NoFrame)
+        self.lista_lateral.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.lista_lateral.setIconSize(QSize(17, 17))
+        self.lista_lateral.currentRowChanged.connect(self._cambiar_vista)
+        lateral_layout.addWidget(self.lista_lateral, 1)
 
-        # Pie discreto
-        footer = QLabel(f"v{obtener_version()}")
-        footer.setAlignment(Qt.AlignRight)
-        footer.setStyleSheet(f"color: #98989D; font-size: 11px;")
-        layout.addWidget(footer)
+        # Estado del tema y versión, discretos al pie
+        self._lbl_estado_tema = QLabel("")
+        self._lbl_estado_tema.setProperty("rol", "discreta")
+        self._lbl_estado_tema.setContentsMargins(18, 4, 18, 0)
+        lateral_layout.addWidget(self._lbl_estado_tema)
 
-        self._crear_tab_principal()
-        self._crear_tab_actividad()
-        self._crear_tab_ajustes()
-        self._crear_tab_avanzado()
+        lbl_version = QLabel(f"v{obtener_version()}")
+        lbl_version.setProperty("rol", "discreta")
+        lbl_version.setContentsMargins(18, 0, 18, 14)
+        lateral_layout.addWidget(lbl_version)
+
+        raiz.addWidget(lateral)
+
+        # ------------------------------------------------------------ stack
+        contenido = QWidget()
+        contenido_layout = QVBoxLayout(contenido)
+        contenido_layout.setContentsMargins(24, 20, 24, 14)
+        contenido_layout.setSpacing(14)
+
+        # Cabecera: título + carpeta + acción principal
+        cabecera = QHBoxLayout()
+        cabecera.setSpacing(12)
+
+        textos = QVBoxLayout()
+        textos.setSpacing(2)
+        self.lbl_titulo_vista = QLabel("Inicio")
+        self.lbl_titulo_vista.setProperty("rol", "titulo")
+        textos.addWidget(self.lbl_titulo_vista)
+
+        self.lbl_carpeta_cabecera = QLabel(str(self.organizador.carpeta_descargas))
+        self.lbl_carpeta_cabecera.setProperty("rol", "secundaria")
+        self.lbl_carpeta_cabecera.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        textos.addWidget(self.lbl_carpeta_cabecera)
+
+        cabecera.addLayout(textos, 1)
+
+        self.btn_cabecera_principal = QPushButton("Cambiar carpeta")
+        self.btn_cabecera_principal.setProperty("rol", "primario")
+        self.btn_cabecera_principal.clicked.connect(self._seleccionar_carpeta)
+        cabecera.addWidget(self.btn_cabecera_principal, 0, Qt.AlignVCenter)
+
+        contenido_layout.addLayout(cabecera)
+
+        self.stack = QStackedWidget()
+        contenido_layout.addWidget(self.stack, 1)
 
         # Barra de progreso (indeterminada)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(4)
-        layout.addWidget(self.progress_bar)
+        self.progress_bar.setFixedHeight(6)
+        contenido_layout.addWidget(self.progress_bar)
+
+        raiz.addWidget(contenido, 1)
 
         self.statusBar().showMessage("Listo")
 
-    def _agregar_tab_con_scroll(self, contenido: QWidget, titulo: str, destino: QTabWidget = None):
-        """Agrega una pestaña envuelta en scroll para adaptarse a cualquier resolución."""
-        contenedor = destino if destino is not None else self.tabs
-        scroll = QScrollArea()
-        scroll.setWidget(contenido)
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        contenedor.addTab(scroll, titulo)
+        # Vistas: se crean igual que antes pero dentro del stack
+        self._vistas = []
+        self._crear_vista_inicio()
+        self._crear_vista_actividad()
+        self._crear_vista_ajustes()
+        self._crear_vista_avanzado()
 
-    def _crear_tab_principal(self):
-        """Pantalla de inicio: lo esencial, nada más."""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+        # Elementos de la barra lateral (icono del sistema + nombre)
+        from PySide6.QtWidgets import QStyle
+        entradas = [
+            ("Inicio", QStyle.SP_ComputerIcon),
+            ("Actividad", QStyle.SP_FileDialogDetailedView),
+            ("Ajustes", QStyle.SP_FileDialogContentsView),
+            ("Avanzado", QStyle.SP_FileDialogListView),
+        ]
+        for texto, icono_estandar in entradas:
+            item = QListWidgetItem(self.style().standardIcon(icono_estandar), texto)
+            self.lista_lateral.addItem(item)
+
+        self.lista_lateral.setCurrentRow(0)
+
+    def _cambiar_vista(self, indice):
+        """Cambia la vista activa con una transición suave."""
+        if indice < 0:
+            return
+        self.stack.setCurrentIndex(indice)
+        self._vista_actual = indice
+        titulos = ["Inicio", "Actividad", "Ajustes", "Avanzado"]
+        if indice < len(titulos):
+            self.lbl_titulo_vista.setText(titulos[indice])
+        # El botón de cabecera solo tiene sentido en Inicio/Ajustes
+        self.btn_cabecera_principal.setVisible(indice in (0, 2))
+        self._animar_vista()
+
+    def _animar_vista(self):
+        """Fundido corto al cambiar de sección."""
+        try:
+            actual = self.stack.currentWidget()
+            if actual is None:
+                return
+            # Si había una animación en curso, termínala limpiamente
+            anterior = getattr(self, "_animacion_vista", None)
+            if anterior is not None:
+                try:
+                    anterior.stop()
+                except Exception:
+                    pass
+                anterior_widget = getattr(self, "_widget_animado", None)
+                if anterior_widget is not None:
+                    try:
+                        anterior_widget.setGraphicsEffect(None)
+                    except Exception:
+                        pass
+
+            efecto = QGraphicsOpacityEffect(actual)
+            actual.setGraphicsEffect(efecto)
+            animacion = QPropertyAnimation(efecto, b"opacity", self)
+            animacion.setDuration(150)
+            animacion.setStartValue(0.4)
+            animacion.setEndValue(1.0)
+            animacion.setEasingCurve(QEasingCurve.OutCubic)
+            # Guardar referencias fuertes: si no, el recolector se lleva la
+            # animación y el efecto se queda a medio aplicar (widget pálido).
+            self._animacion_vista = animacion
+            self._widget_animado = actual
+            animacion.finished.connect(lambda w=actual: self._terminar_animacion(w))
+            animacion.start()
+        except Exception as e:
+            logger.debug(f"No se pudo animar el cambio de vista: {e}")
+            try:
+                self.stack.currentWidget().setGraphicsEffect(None)
+            except Exception:
+                pass
+
+    def _terminar_animacion(self, widget):
+        """Deja el widget totalmente opaco al acabar el fundido."""
+        try:
+            widget.setGraphicsEffect(None)
+            widget.update()
+        except Exception:
+            pass
+        if getattr(self, "_widget_animado", None) is widget:
+            self._widget_animado = None
+
+    def _crear_vista_inicio(self):
+        """Pantalla de inicio: estado, automático y acciones manuales."""
+        vista = QWidget()
+        layout = QVBoxLayout(vista)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
 
-        # ---- Estado actual -------------------------------------------------
-        self.lbl_estado = QLabel("⏸️ Auto-organización: DESACTIVADA")
-        self.lbl_estado.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.lbl_estado)
+        # ---- Tarjeta de estado -----------------------------------------
+        tarjeta_estado = Tarjeta()
+        estado_layout = QHBoxLayout(tarjeta_estado)
+        estado_layout.setContentsMargins(18, 16, 18, 16)
+        estado_layout.setSpacing(14)
 
-        # ---- Organización automática (lo primero que se ve) ---------------
-        auto_group = QGroupBox("Automático")
-        auto_layout = QVBoxLayout(auto_group)
-        auto_layout.setSpacing(12)
+        punto = QLabel("●")
+        punto.setProperty("rol", "acento")
+        self._punto_estado = punto
+        estado_layout.addWidget(punto)
 
-        # Interruptor general encendido/apagado
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        self.lbl_estado = QLabel("Auto-organización desactivada")
+        self.lbl_estado.setProperty("rol", "titulo")
+        col.addWidget(self.lbl_estado)
+        self.lbl_estado_detalle = QLabel("Actívala para que la carpeta se ordene sola")
+        self.lbl_estado_detalle.setProperty("rol", "secundaria")
+        col.addWidget(self.lbl_estado_detalle)
+        estado_layout.addLayout(col, 1)
+        layout.addWidget(tarjeta_estado)
+
+        # ---- Tarjeta Automático ----------------------------------------
+        auto_grupo = QGroupBox("Automático")
+        auto_layout = QVBoxLayout(auto_grupo)
+        auto_layout.setSpacing(14)
+
         fila_switch = QHBoxLayout()
         self.chk_auto_principal = Switch("Organización automática")
         self.chk_auto_principal.setToolTip("Organiza la carpeta sola, cada cierto tiempo")
@@ -1279,29 +1334,29 @@ class OrganizadorAvanzado(QMainWindow):
         fila_switch.addStretch()
         auto_layout.addLayout(fila_switch)
 
-        # Modo: dos opciones en una fila (solo tiene efecto si está activado)
+        separador1 = Separador()
+        auto_layout.addWidget(separador1)
+
         modo_layout = QHBoxLayout()
-        modo_layout.setSpacing(10)
-
-        self.chk_auto_basico = QCheckBox("Básico")
-        self.chk_auto_basico.setToolTip("Carpetas generales:\nDocumentos, Imágenes, Vídeos, Música, Comprimidos")
-        self.chk_auto_basico.toggled.connect(lambda checked: self._toggle_auto_organizacion_basico(checked))
-        modo_layout.addWidget(self.chk_auto_basico)
-
-        self.chk_auto_detallado = QCheckBox("Detallado")
-        self.chk_auto_detallado.setToolTip("Subcarpetas por tipo:\nExcel → Hojas de cálculo/Excel, PNG → Imágenes/PNG")
-        self.chk_auto_detallado.toggled.connect(lambda checked: self._toggle_auto_organizacion_detallado(checked))
-        modo_layout.addWidget(self.chk_auto_detallado)
-
+        lbl_modo = QLabel("Modo")
+        lbl_modo.setProperty("rol", "etiqueta")
+        modo_layout.addWidget(lbl_modo)
         modo_layout.addStretch()
+        self.chk_auto_basico = QRadioButton("Básico")
+        self.chk_auto_basico.setToolTip("Carpetas generales:\nDocumentos, Imágenes, Vídeos, Música, Comprimidos")
+        self.chk_auto_basico.toggled.connect(self._toggle_auto_organizacion_basico)
+        modo_layout.addWidget(self.chk_auto_basico)
+        self.chk_auto_detallado = QRadioButton("Detallado")
+        self.chk_auto_detallado.setToolTip("Subcarpetas por tipo:\nExcel → Hojas de cálculo/Excel, PNG → Imágenes/PNG")
+        self.chk_auto_detallado.toggled.connect(self._toggle_auto_organizacion_detallado)
+        modo_layout.addWidget(self.chk_auto_detallado)
         auto_layout.addLayout(modo_layout)
 
-        # Cada cuánto
         tiempo_layout = QHBoxLayout()
         lbl_tiempo = QLabel("Revisar cada")
-        lbl_tiempo.setStyleSheet(f"color: #98989D;")
+        lbl_tiempo.setProperty("rol", "etiqueta")
         tiempo_layout.addWidget(lbl_tiempo)
-
+        tiempo_layout.addStretch()
         self.combo_intervalo_auto = QComboBox()
         for texto, seg in [
             ("30 segundos", 30), ("1 minuto", 60), ("5 minutos", 300),
@@ -1312,113 +1367,112 @@ class OrganizadorAvanzado(QMainWindow):
         self.combo_intervalo_auto.setCurrentIndex(5)  # 1 hora por defecto
         self.combo_intervalo_auto.currentIndexChanged.connect(self._cambiar_intervalo_auto)
         tiempo_layout.addWidget(self.combo_intervalo_auto)
-        tiempo_layout.addStretch()
         auto_layout.addLayout(tiempo_layout)
 
-        # Iniciar con el sistema
-        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
         arranque_layout = QHBoxLayout()
+        nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
         self.chk_autoarranque = Switch(f"Iniciar al arrancar {nombre_so}")
         self.chk_autoarranque.blockSignals(True)
         self.chk_autoarranque.setChecked(self.gestor_autoarranque.verificar_autoarranque())
         self.chk_autoarranque.blockSignals(False)
-        self.chk_autoarranque.setToolTip(f"La app se abre minimizada cuando enciendas el equipo")
+        self.chk_autoarranque.setToolTip("La app se abre minimizada cuando enciendas el equipo")
         self.chk_autoarranque.toggled.connect(self._toggle_autoarranque)
         arranque_layout.addWidget(self.chk_autoarranque)
         arranque_layout.addStretch()
         auto_layout.addLayout(arranque_layout)
 
-        layout.addWidget(auto_group)
+        layout.addWidget(auto_grupo)
 
-        # ---- Acciones manuales -------------------------------------------
-        acciones_group = QGroupBox("Manual")
-        acciones_layout = QVBoxLayout(acciones_group)
+        # ---- Tarjeta Manual --------------------------------------------
+        acciones_grupo = QGroupBox("Ahora mismo")
+        acciones_layout = QVBoxLayout(acciones_grupo)
         acciones_layout.setSpacing(10)
 
         fila_acciones = QHBoxLayout()
         fila_acciones.setSpacing(10)
 
-        btn_reorganizar = QPushButton("Organizar ahora")
-        btn_reorganizar.setObjectName("botonPrimario")
-        btn_reorganizar.clicked.connect(self._reorganizar)
-        fila_acciones.addWidget(btn_reorganizar, 2)
+        self.btn_organizar = QPushButton("Organizar ahora")
+        self.btn_organizar.setProperty("rol", "primario")
+        self.btn_organizar.clicked.connect(self._reorganizar)
+        fila_acciones.addWidget(self.btn_organizar, 2)
 
         btn_deshacer = QPushButton("Deshacer")
-        btn_deshacer.setToolTip("Devuelve los archivos organizados a la raíz de Descargas")
+        btn_deshacer.setProperty("rol", "peligro")
+        btn_deshacer.setToolTip("Devuelve los archivos organizados a la raíz de la carpeta")
         btn_deshacer.clicked.connect(self._deshacer_organizacion)
         fila_acciones.addWidget(btn_deshacer, 1)
 
         acciones_layout.addLayout(fila_acciones)
-        layout.addWidget(acciones_group)
+        layout.addWidget(acciones_grupo)
 
         layout.addStretch()
+        self._vistas.append(vista)
+        self.stack.addWidget(self._contenedor_scroll(vista))
 
-        self._agregar_tab_con_scroll(tab, "Inicio")
-
-    def _crear_tab_ia(self, destino=None):
-        """Pestaña de IA."""
+    def _crear_vista_ia(self, destino):
+        """Vista de IA (dentro de Avanzado)."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(12)
 
-        ia_group = QGroupBox("Categorización con IA")
-        ia_layout = QVBoxLayout(ia_group)
+        ia_grupo = QGroupBox("Categorización con IA")
+        ia_layout = QVBoxLayout(ia_grupo)
+        ia_layout.setSpacing(12)
 
         self.lbl_ia_estado = QLabel("Verificando IA…")
+        self.lbl_ia_estado.setProperty("rol", "secundaria")
         ia_layout.addWidget(self.lbl_ia_estado)
 
         confianza_layout = QHBoxLayout()
-        confianza_layout.addWidget(QLabel("Nivel de confianza:"))
+        lbl_conf = QLabel("Confianza")
+        lbl_conf.setProperty("rol", "etiqueta")
+        confianza_layout.addWidget(lbl_conf)
         self.slider_confianza = QSlider(Qt.Horizontal)
         self.slider_confianza.setRange(30, 95)
         self.slider_confianza.setValue(60)
         self.slider_confianza.valueChanged.connect(self._actualizar_confianza)
-        confianza_layout.addWidget(self.slider_confianza)
-        self.lbl_confianza = QLabel("60%")
+        confianza_layout.addWidget(self.slider_confianza, 1)
+        self.lbl_confianza = QLabel("60 %")
+        self.lbl_confianza.setProperty("rol", "secundaria")
         confianza_layout.addWidget(self.lbl_confianza)
         ia_layout.addLayout(confianza_layout)
 
         botones_ia = QHBoxLayout()
-        btn_entrenar = QPushButton("Entrenar IA")
+        btn_entrenar = QPushButton("Entrenar")
         btn_entrenar.clicked.connect(self._entrenar_ia)
         botones_ia.addWidget(btn_entrenar)
-        btn_reset = QPushButton("Reiniciar")
+        btn_reset = QPushButton("Reiniciar modelo")
+        btn_reset.setProperty("rol", "peligro")
         btn_reset.clicked.connect(self._reset_ia)
         botones_ia.addWidget(btn_reset)
         botones_ia.addStretch()
         ia_layout.addLayout(botones_ia)
-        layout.addWidget(ia_group)
+        layout.addWidget(ia_grupo)
 
         self.text_patrones = QTextEdit()
-        self.text_patrones.setMaximumHeight(300)
         self.text_patrones.setReadOnly(True)
-        layout.addWidget(self.text_patrones)
+        self.text_patrones.setPlaceholderText("Los patrones aprendidos aparecerán aquí…")
+        layout.addWidget(self.text_patrones, 1)
 
-        self._agregar_tab_con_scroll(tab, "IA", destino)
+        contenedor = self._contenedor_scroll(tab)
+        self.tabs_avanzado.addTab(contenedor, "IA")
 
-    def _crear_tab_fechas(self, destino=None):
-        """Pestaña de organización por fechas."""
+    def _crear_vista_fechas(self, destino):
+        """Vista de organización por fechas (dentro de Avanzado)."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(12)
 
-        self.lbl_estado_fechas = QLabel("Organización por fechas: DESACTIVADA")
-        self.lbl_estado_fechas.setAlignment(Qt.AlignCenter)
+        self.lbl_estado_fechas = QLabel("Organización por fechas desactivada")
+        self.lbl_estado_fechas.setProperty("rol", "titulo")
         layout.addWidget(self.lbl_estado_fechas)
 
-        botones_fechas_layout = QHBoxLayout()
-        self.btn_activar_fechas = QPushButton("Activar")
-        self.btn_activar_fechas.clicked.connect(self._activar_fechas)
-        botones_fechas_layout.addWidget(self.btn_activar_fechas)
-
-        self.btn_desactivar_fechas = QPushButton("Desactivar")
-        self.btn_desactivar_fechas.clicked.connect(self._desactivar_fechas)
-        self.btn_desactivar_fechas.setEnabled(False)
-        botones_fechas_layout.addWidget(self.btn_desactivar_fechas)
-        botones_fechas_layout.addStretch()
-        layout.addLayout(botones_fechas_layout)
-
-        patron_group = QGroupBox("Patrón de organización")
+        patron_group = QGroupBox("Patrón")
         patron_layout = QVBoxLayout(patron_group)
-        patron_layout.addWidget(QLabel("Patrón:"))
+        patron_layout.setSpacing(8)
+
         self.combo_patron = QComboBox()
         patrones = [
             ("YYYY/MM-Mes", "2024/12-Diciembre (Año/Mes con nombre)"),
@@ -1428,41 +1482,56 @@ class OrganizadorAvanzado(QMainWindow):
             ("Mes-YYYY", "Diciembre-2024 (Nombre mes-Año)"),
         ]
         for patron, descripcion in patrones:
-            self.combo_patron.addItem(f"{patron} - {descripcion}", patron)
+            self.combo_patron.addItem(f"{patron} — {descripcion}", patron)
         self.combo_patron.currentTextChanged.connect(self._actualizar_ejemplo_fecha)
         patron_layout.addWidget(self.combo_patron)
 
-        self.lbl_ejemplo = QLabel("Ejemplo: Downloads/Fechas/2024/12-Diciembre/Documentos/PDFs/")
+        self.lbl_ejemplo = QLabel("")
+        self.lbl_ejemplo.setProperty("rol", "secundaria")
         self.lbl_ejemplo.setWordWrap(True)
         patron_layout.addWidget(self.lbl_ejemplo)
-
         layout.addWidget(patron_group)
 
         acciones_group = QGroupBox("Acciones")
         acciones_layout = QHBoxLayout(acciones_group)
+        self.btn_activar_fechas = QPushButton("Activar")
+        self.btn_activar_fechas.setProperty("rol", "primario")
+        self.btn_activar_fechas.clicked.connect(self._activar_fechas)
+        acciones_layout.addWidget(self.btn_activar_fechas)
+        self.btn_desactivar_fechas = QPushButton("Desactivar")
+        self.btn_desactivar_fechas.clicked.connect(self._desactivar_fechas)
+        self.btn_desactivar_fechas.setEnabled(False)
+        acciones_layout.addWidget(self.btn_desactivar_fechas)
         btn_revertir = QPushButton("Revertir")
+        btn_revertir.setProperty("rol", "peligro")
         btn_revertir.clicked.connect(self._revertir_fechas)
         acciones_layout.addWidget(btn_revertir)
-        btn_previsualizar = QPushButton("Previsualizar")
-        btn_previsualizar.clicked.connect(self._previsualizar_organizacion_fechas)
-        acciones_layout.addWidget(btn_previsualizar)
         acciones_layout.addStretch()
         layout.addWidget(acciones_group)
 
+        btn_previsualizar = QPushButton("Previsualizar cómo quedaría")
+        btn_previsualizar.clicked.connect(self._previsualizar_organizacion_fechas)
+        layout.addWidget(btn_previsualizar)
+
         layout.addStretch()
         self._actualizar_ejemplo_fecha()
-        self._agregar_tab_con_scroll(tab, "Fechas", destino)
+        contenedor = self._contenedor_scroll(tab)
+        self.tabs_avanzado.addTab(contenedor, "Fechas")
 
-    def _crear_tab_duplicados(self, destino=None):
-        """Pestaña de duplicados."""
+    def _crear_vista_duplicados(self, destino):
+        """Vista de duplicados (dentro de Avanzado)."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(12)
 
         botones = QHBoxLayout()
         btn_buscar = QPushButton("Buscar duplicados")
+        btn_buscar.setProperty("rol", "primario")
         btn_buscar.clicked.connect(self._buscar_duplicados)
         botones.addWidget(btn_buscar)
         btn_eliminar = QPushButton("Eliminar duplicados")
+        btn_eliminar.setProperty("rol", "peligro")
         btn_eliminar.clicked.connect(self._eliminar_duplicados)
         botones.addWidget(btn_eliminar)
         botones.addStretch()
@@ -1470,14 +1539,17 @@ class OrganizadorAvanzado(QMainWindow):
 
         self.text_duplicados = QPlainTextEdit()
         self.text_duplicados.setPlaceholderText("Los duplicados aparecerán aquí…")
-        layout.addWidget(self.text_duplicados)
+        layout.addWidget(self.text_duplicados, 1)
 
-        self._agregar_tab_con_scroll(tab, "Duplicados", destino)
+        contenedor = self._contenedor_scroll(tab)
+        self.tabs_avanzado.addTab(contenedor, "Duplicados")
 
-    def _crear_tab_estadisticas(self, destino=None):
-        """Pestaña de estadísticas."""
+    def _crear_vista_estadisticas(self, destino):
+        """Vista de estadísticas (dentro de Avanzado)."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(12)
 
         fila = QHBoxLayout()
         btn_actualizar = QPushButton("Actualizar")
@@ -1488,20 +1560,33 @@ class OrganizadorAvanzado(QMainWindow):
 
         self.text_stats = QPlainTextEdit()
         self.text_stats.setReadOnly(True)
-        layout.addWidget(self.text_stats)
+        layout.addWidget(self.text_stats, 1)
 
-        self._agregar_tab_con_scroll(tab, "Estadísticas", destino)
+        contenedor = self._contenedor_scroll(tab)
+        self.tabs_avanzado.addTab(contenedor, "Estadísticas")
 
-    def _crear_tab_actividad(self):
-        """Pestaña de actividad: registros de lo que hace la app."""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+    def _contenedor_scroll(self, contenido: QWidget) -> QScrollArea:
+        """Envuelve un widget en un área desplazable sin marco."""
+        scroll = QScrollArea()
+        scroll.setWidget(contenido)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        return scroll
+
+    def _crear_vista_actividad(self):
+        """Vista de actividad: registros de lo que hace la app."""
+        vista = QWidget()
+        layout = QVBoxLayout(vista)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
         fila_logs = QHBoxLayout()
         btn_limpiar = QPushButton("Limpiar")
         btn_limpiar.clicked.connect(self._limpiar_logs)
         fila_logs.addWidget(btn_limpiar)
-        btn_exportar = QPushButton("Exportar")
+        btn_exportar = QPushButton("Exportar…")
         btn_exportar.clicked.connect(self._exportar_logs)
         fila_logs.addWidget(btn_exportar)
         fila_logs.addStretch()
@@ -1515,7 +1600,7 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addLayout(fila_logs)
 
         self.list_archivos = QListWidget()
-        self.list_archivos.setMaximumHeight(120)
+        self.list_archivos.setMaximumHeight(110)
         layout.addWidget(self.list_archivos)
 
         self.text_logs = QPlainTextEdit()
@@ -1523,23 +1608,23 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_logs.setPlainText("DescargasOrdenadas\n" + "-" * 40 + "\n")
         layout.addWidget(self.text_logs, 1)
 
-        self._agregar_tab_con_scroll(tab, "Actividad")
-
-        # Configurar captura de logs
+        self._vistas.append(vista)
+        self.stack.addWidget(self._contenedor_scroll(vista))
         self._setup_log_capture()
 
-    def _crear_tab_ajustes(self):
-        """Pestaña de ajustes de la aplicación."""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+    def _crear_vista_ajustes(self):
+        """Vista de ajustes de la aplicación."""
+        vista = QWidget()
+        layout = QVBoxLayout(vista)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
 
         # --- Carpeta de trabajo --------------------------------------------
         carpeta_group = QGroupBox("Carpeta a organizar")
         carpeta_layout = QHBoxLayout(carpeta_group)
-        self.lbl_carpeta_actual = QLabel(os.path.basename(str(self.organizador.carpeta_descargas)))
-        carpeta_layout.addWidget(self.lbl_carpeta_actual)
-        carpeta_layout.addStretch()
+        self.lbl_carpeta_actual = QLabel(str(self.organizador.carpeta_descargas))
+        self.lbl_carpeta_actual.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        carpeta_layout.addWidget(self.lbl_carpeta_actual, 1)
         btn_seleccionar_carpeta = QPushButton("Cambiar…")
         btn_seleccionar_carpeta.clicked.connect(self._seleccionar_carpeta)
         carpeta_layout.addWidget(btn_seleccionar_carpeta)
@@ -1550,22 +1635,29 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addWidget(carpeta_group)
 
         # --- Integración con el sistema ------------------------------------
-        sistema_group = QGroupBox("Integración")
+        sistema_group = QGroupBox("Integración con el sistema")
         sistema_layout = QVBoxLayout(sistema_group)
         sistema_layout.setSpacing(10)
 
         nombre_so = "Windows" if sys.platform == "win32" else ("macOS" if sys.platform == "darwin" else "Linux")
         if MENU_CONTEXTUAL_DISPONIBLE:
-            self.chk_menu_contextual = QCheckBox(f"Añadir al menú contextual ({nombre_so})")
+            self.chk_menu_contextual = Switch(f"Menú contextual ({nombre_so})")
             self.chk_menu_contextual.setChecked(self.gestor_menu_contextual.verificar_registro())
             if nombre_so == "macOS":
-                self.chk_menu_contextual.setToolTip("Aparece en Finder con clic derecho → Acciones rápidas → Organizar con DescargasOrdenadas")
+                self.chk_menu_contextual.setToolTip("Clic derecho en Finder → Acciones rápidas → Organizar con DescargasOrdenadas")
             elif nombre_so == "Linux":
-                self.chk_menu_contextual.setToolTip("Aparece con clic derecho → Abrir con…, y en los scripts del explorador (Nautilus)")
+                self.chk_menu_contextual.setToolTip("Clic derecho → Abrir con…, y en los scripts del explorador (Nautilus)")
             else:
-                self.chk_menu_contextual.setToolTip("Aparece con clic derecho sobre una carpeta")
+                self.chk_menu_contextual.setToolTip("Clic derecho sobre una carpeta → Organizar con DescargasOrdenadas")
             self.chk_menu_contextual.toggled.connect(self._toggle_menu_contextual)
             sistema_layout.addWidget(self.chk_menu_contextual)
+
+            self.lbl_menu_contextual_info = QLabel(
+                "Al usarlo, la carpeta se organiza en segundo plano sin abrir la ventana."
+            )
+            self.lbl_menu_contextual_info.setProperty("rol", "secundaria")
+            self.lbl_menu_contextual_info.setWordWrap(True)
+            sistema_layout.addWidget(self.lbl_menu_contextual_info)
 
         layout.addWidget(sistema_group)
 
@@ -1574,7 +1666,7 @@ class OrganizadorAvanzado(QMainWindow):
         organizacion_layout = QVBoxLayout(organizacion_group)
         organizacion_layout.setSpacing(10)
 
-        self.chk_subcarpetas = QCheckBox("Usar subcarpetas detalladas")
+        self.chk_subcarpetas = Switch("Usar subcarpetas detalladas")
         self.chk_subcarpetas.setChecked(False)
         self.chk_subcarpetas.setToolTip(
             "Sin marcar: organización BÁSICA (Comprimidos, Imágenes, Vídeos…)\n"
@@ -1583,11 +1675,11 @@ class OrganizadorAvanzado(QMainWindow):
         self.chk_subcarpetas.toggled.connect(self._toggle_subcarpetas)
         organizacion_layout.addWidget(self.chk_subcarpetas)
 
-        self.chk_recursivo = QCheckBox("Buscar en subcarpetas")
+        self.chk_recursivo = Switch("Buscar también en subcarpetas")
         organizacion_layout.addWidget(self.chk_recursivo)
 
         if NOTIFICACIONES_NATIVAS:
-            self.chk_notificaciones = QCheckBox("Notificaciones del sistema")
+            self.chk_notificaciones = Switch("Notificaciones del sistema")
             self.chk_notificaciones.setChecked(True)
             self.chk_notificaciones.setToolTip("Notifica cuando se organizan archivos")
             self.chk_notificaciones.toggled.connect(self._toggle_notificaciones)
@@ -1595,26 +1687,23 @@ class OrganizadorAvanzado(QMainWindow):
         layout.addWidget(organizacion_group)
 
         # --- Apariencia ----------------------------------------------------
-        if TEMAS_DISPONIBLES:
-            apariencia_group = QGroupBox("Apariencia")
-            apariencia_layout = QHBoxLayout(apariencia_group)
-            lbl_tema = QLabel("Tema")
-            lbl_tema.setObjectName("etiquetaSecundaria")
-            apariencia_layout.addWidget(lbl_tema)
+        apariencia_group = QGroupBox("Apariencia")
+        apariencia_layout = QHBoxLayout(apariencia_group)
+        lbl_tema = QLabel("Tema")
+        lbl_tema.setProperty("rol", "etiqueta")
+        apariencia_layout.addWidget(lbl_tema)
+        apariencia_layout.addStretch()
 
-            self.combo_temas = QComboBox()
-            for tema_nombre in self.gestor_temas.obtener_nombres_temas():
-                display = "Minimal claro" if tema_nombre == "minimal_claro" else "Minimal oscuro"
-                self.combo_temas.addItem(display, tema_nombre)
-            tema_actual = self.gestor_temas.tema_actual
-            for i in range(self.combo_temas.count()):
-                if self.combo_temas.itemData(i) == tema_actual:
-                    self.combo_temas.setCurrentIndex(i)
-                    break
-            self.combo_temas.currentIndexChanged.connect(self._cambiar_tema)
-            apariencia_layout.addWidget(self.combo_temas)
-            apariencia_layout.addStretch()
-            layout.addWidget(apariencia_group)
+        self.combo_temas = QComboBox()
+        for clave, display in [("auto", "Automático (sistema)"), ("claro", "Claro"), ("oscuro", "Oscuro")]:
+            self.combo_temas.addItem(display, clave)
+        for i in range(self.combo_temas.count()):
+            if self.combo_temas.itemData(i) == self._tema:
+                self.combo_temas.setCurrentIndex(i)
+                break
+        self.combo_temas.currentIndexChanged.connect(self._cambiar_tema)
+        apariencia_layout.addWidget(self.combo_temas)
+        layout.addWidget(apariencia_group)
 
         # --- Consola (solo Windows) ----------------------------------------
         if sys.platform == "win32":
@@ -1637,34 +1726,48 @@ class OrganizadorAvanzado(QMainWindow):
 
         # --- Actualizaciones -----------------------------------------------
         if ACTUALIZACIONES_DISPONIBLES:
-            fila_actualizaciones = QHBoxLayout()
+            actualizaciones_group = QGroupBox("Actualizaciones")
+            actualizaciones_layout = QHBoxLayout(actualizaciones_group)
             btn_verificar_actualizaciones = QPushButton("Buscar actualizaciones")
             btn_verificar_actualizaciones.clicked.connect(self._verificar_actualizaciones)
-            fila_actualizaciones.addWidget(btn_verificar_actualizaciones)
-            lbl_version = QLabel(f"Versión {self.gestor_actualizaciones.obtener_version_actual()}")
-            lbl_version.setObjectName("etiquetaSecundaria")
-            fila_actualizaciones.addWidget(lbl_version)
-            fila_actualizaciones.addStretch()
-            layout.addLayout(fila_actualizaciones)
+            actualizaciones_layout.addWidget(btn_verificar_actualizaciones)
+            lbl_version = QLabel(
+                f"Versión {self.gestor_actualizaciones.obtener_version_actual()}"
+            )
+            lbl_version.setProperty("rol", "secundaria")
+            actualizaciones_layout.addWidget(lbl_version)
+            actualizaciones_layout.addStretch()
+            layout.addWidget(actualizaciones_group)
 
         layout.addStretch()
-        self._agregar_tab_con_scroll(tab, "Ajustes")
+        self._vistas.append(vista)
+        self.stack.addWidget(self._contenedor_scroll(vista))
 
-    def _crear_tab_avanzado(self):
-        """Herramientas avanzadas agrupadas en una sola pestaña."""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
+    def _crear_vista_avanzado(self):
+        """Herramientas avanzadas agrupadas en una sola vista."""
+        vista = QWidget()
+        layout = QVBoxLayout(vista)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        pestañas_avanzadas = QTabWidget()
-        layout.addWidget(pestañas_avanzadas)
+        aviso = QLabel(
+            "Herramientas opcionales. La organización normal ya está cubierta en Inicio."
+        )
+        aviso.setProperty("rol", "secundaria")
+        aviso.setWordWrap(True)
+        layout.addWidget(aviso)
 
-        self._crear_tab_ia(destino=pestañas_avanzadas)
-        self._crear_tab_fechas(destino=pestañas_avanzadas)
-        self._crear_tab_duplicados(destino=pestañas_avanzadas)
-        self._crear_tab_estadisticas(destino=pestañas_avanzadas)
+        self.tabs_avanzado = QTabWidget()
+        layout.addWidget(self.tabs_avanzado, 1)
 
-        self._agregar_tab_con_scroll(tab, "Avanzado")
+        self._crear_vista_ia(destino=self.tabs_avanzado)
+        self._crear_vista_fechas(destino=self.tabs_avanzado)
+        self._crear_vista_duplicados(destino=self.tabs_avanzado)
+        self._crear_vista_estadisticas(destino=self.tabs_avanzado)
+
+        self._vistas.append(vista)
+        self.stack.addWidget(self._contenedor_scroll(vista))
+
 
     def _setup_log_capture(self):
         """Configura la captura de logs en la pestaña interna."""
@@ -1728,9 +1831,9 @@ class OrganizadorAvanzado(QMainWindow):
                 f.write(self.text_logs.toPlainText())
             
             QMessageBox.information(self, "Logs Exportados", 
-                                  f"✅ Logs exportados a: {filename}")
+                                  f"Logs exportados a: {filename}")
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"❌ Error exportando logs: {e}")
+            QMessageBox.warning(self, "Error", f"No se pudieron exportar los registros: {e}")
     
     def _toggle_consola_externa(self, mostrar):
         """Muestra u oculta la consola externa."""
@@ -1751,18 +1854,26 @@ class OrganizadorAvanzado(QMainWindow):
                     user32.ShowWindow(console_window, 0)  # SW_HIDE
                     self._agregar_log("🖥️ Consola externa ocultada")
         except Exception as e:
-            self._agregar_log(f"❌ Error gestionando consola: {e}")
+            self._agregar_log(f"Error gestionando consola: {e}")
     
     def _agregar_log(self, mensaje):
-        """Agrega un mensaje al área de logs."""
+        """Agrega un mensaje al área de logs (tolerante a que aún no exista)."""
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_msg = f"[{timestamp}] 📋 {mensaje}"
-        
-        self.text_logs.appendPlainText(formatted_msg)
-        # Auto-scroll al final
-        scrollbar = self.text_logs.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        formatted_msg = f"[{timestamp}] {mensaje}"
+
+        widget = getattr(self, "text_logs", None)
+        if widget is None:
+            logger.info(mensaje)
+            return
+        try:
+            widget.appendPlainText(formatted_msg)
+            scrollbar = widget.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        except RuntimeError:
+            # El widget ya fue destruido (cierre de la ventana)
+            logger.info(mensaje)
     
     def _organizar(self):
         """Compatibilidad: ahora organiza todo usando el flujo de reorganización."""
@@ -1776,7 +1887,7 @@ class OrganizadorAvanzado(QMainWindow):
         reply = QMessageBox.question(
             self, "Reorganizar TODO",
             f"¿Reorganizar TODOS los archivos en modo {modo}?\n\n"
-            f"{'📁 Con subcarpetas específicas (Excel → Hojas de cálculo/Excel)' if usar_subcarpetas else '⚡ Solo carpetas principales (Excel → Hojas de cálculo)'}",
+            f"{'Con subcarpetas específicas (Excel → Hojas de cálculo/Excel)' if usar_subcarpetas else 'Solo carpetas principales (Excel → Hojas de cálculo)'}",
             QMessageBox.Yes | QMessageBox.No
         )
         
@@ -1791,10 +1902,10 @@ class OrganizadorAvanzado(QMainWindow):
                 resultados, errores = self.organizador.reorganizar_completamente()
                 
                 total = sum(len(files) for cat in resultados.values() for files in cat.values())
-                QMessageBox.information(self, "Reorganización", f"✅ {total} archivos reorganizados (modo {modo})")
+                QMessageBox.information(self, "Reorganización", f"{total} archivos reorganizados (modo {modo})")
                 
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"❌ Error: {e}")
+                QMessageBox.critical(self, "Error", f"Error: {e}")
             finally:
                 self.progress_bar.setVisible(False)
     
@@ -1814,7 +1925,7 @@ class OrganizadorAvanzado(QMainWindow):
                 modo = "🔧 DETALLADO (con subcarpetas específicas)"
                 tooltip = "Excel → Hojas de cálculo/Excel\nPNG → Imágenes/PNG"
             else:
-                modo = "⚡ BÁSICO (solo carpetas principales)" 
+                modo = "BÁSICO (solo carpetas principales)" 
                 tooltip = "Excel → Hojas de cálculo\nPNG → Imágenes"
                 
             self.chk_subcarpetas.setToolTip(f"Modo actual: {modo}\n\nEjemplos:\n{tooltip}")
@@ -1823,17 +1934,17 @@ class OrganizadorAvanzado(QMainWindow):
             
         except Exception as e:
             logger.error(f"Error cambiando modo de organización: {e}")
-            QMessageBox.critical(self, "Error", f"❌ Error cambiando modo: {e}")
+            QMessageBox.critical(self, "Error", f"No se pudo cambiar el modo: {e}")
 
     def _toggle_notificaciones(self, activo):
         """Toggle notificaciones nativas."""
         if self.notificador:
             if activo:
                 self.notificador.habilitar()
-                self._agregar_log("🔔 Notificaciones nativas habilitadas")
+                self._agregar_log("Notificaciones nativas habilitadas")
             else:
                 self.notificador.deshabilitar()
-                self._agregar_log("🔕 Notificaciones nativas deshabilitadas")
+                self._agregar_log("Notificaciones nativas deshabilitadas")
             
             # Guardar preferencia en configuración portable
             if self.config_portable:
@@ -1846,14 +1957,17 @@ class OrganizadorAvanzado(QMainWindow):
         
         tema_nombre = self.combo_temas.itemData(index)
         if tema_nombre:
-            self.gestor_temas.establecer_tema_actual(tema_nombre)
+            self._tema = tema_nombre
+            self.gestor_temas.establecer_tema_actual(
+                "minimal_claro" if tema_nombre == "claro" else "minimal_oscuro"
+            )
             self._aplicar_tema()
             
             # Guardar en configuración
             if self.config_portable:
                 self.config_portable.establecer("tema", tema_nombre)
             
-            self._agregar_log(f"🎨 Tema cambiado a: {self.combo_temas.currentText()}")
+            self._agregar_log(f"Tema cambiado a: {self.combo_temas.currentText()}")
     
     def _toggle_menu_contextual(self, activo):
         """Toggle integración menú contextual."""
@@ -1864,7 +1978,7 @@ class OrganizadorAvanzado(QMainWindow):
             if activo:
                 exito, mensaje = self.gestor_menu_contextual.registrar_menu_contextual("carpetas")
                 if exito:
-                    self._agregar_log("🖱️ Menú contextual registrado")
+                    self._agregar_log("Menú contextual registrado")
                     if self.notificador:
                         self.notificador.mostrar(
                             "Menú contextual",
@@ -1872,7 +1986,7 @@ class OrganizadorAvanzado(QMainWindow):
                             tipo="success", duracion=4,
                         )
                 else:
-                    self._agregar_log(f"❌ Error: {mensaje}")
+                    self._agregar_log(f"Error: {mensaje}")
                     self.chk_menu_contextual.blockSignals(True)
                     self.chk_menu_contextual.setChecked(False)
                     self.chk_menu_contextual.blockSignals(False)
@@ -1880,11 +1994,11 @@ class OrganizadorAvanzado(QMainWindow):
             else:
                 exito, mensaje = self.gestor_menu_contextual.desregistrar_menu_contextual()
                 if exito:
-                    self._agregar_log("🗑️ Menú contextual eliminado")
+                    self._agregar_log("Menú contextual eliminado")
                 else:
-                    self._agregar_log(f"❌ Error: {mensaje}")
+                    self._agregar_log(f"Error: {mensaje}")
         except Exception as e:
-            self._agregar_log(f"❌ Error configurando menú contextual: {e}")
+            self._agregar_log(f"Error configurando menú contextual: {e}")
             self.chk_menu_contextual.setChecked(False)
             QMessageBox.critical(self, "Error", f"Error: {e}")
     
@@ -1894,7 +2008,7 @@ class OrganizadorAvanzado(QMainWindow):
             return
         
         try:
-            self._agregar_log("🔍 Verificando actualizaciones en segundo plano...")
+            self._agregar_log("Verificando actualizaciones en segundo plano...")
             hay_actualizacion, info = self.gestor_actualizaciones.verificar_actualizaciones()
             
             if hay_actualizacion and info:
@@ -1902,16 +2016,16 @@ class OrganizadorAvanzado(QMainWindow):
                 self._agregar_log(f"✨ ¡Nueva versión {version} disponible!")
                 self._mostrar_notificacion_actualizacion(info)
             else:
-                self._agregar_log("✅ Ya tienes la última versión")
+                self._agregar_log("Ya tienes la última versión")
         except Exception as e:
-            self._agregar_log(f"⚠️ Error verificando actualizaciones: {e}")
+            self._agregar_log(f"Error verificando actualizaciones: {e}")
     
     def _verificar_actualizaciones(self):
         """Verifica actualizaciones y muestra el resultado."""
         if not self.gestor_actualizaciones:
             return
         
-        self._agregar_log("🔍 Verificando actualizaciones...")
+        self._agregar_log("Verificando actualizaciones...")
         
         try:
             hay_actualizacion, info = self.gestor_actualizaciones.verificar_actualizaciones(forzar=True)
@@ -1922,12 +2036,12 @@ class OrganizadorAvanzado(QMainWindow):
                 QMessageBox.information(
                     self,
                     "Actualizado",
-                    f"✅ Estás usando la última versión\n\n"
+                    f"Estás usando la última versión\n\n"
                     f"Versión actual: {self.gestor_actualizaciones.obtener_version_actual()}"
                 )
-                self._agregar_log("✅ No hay actualizaciones disponibles")
+                self._agregar_log("No hay actualizaciones disponibles")
         except Exception as e:
-            self._agregar_log(f"❌ Error verificando actualizaciones: {e}")
+            self._agregar_log(f"Error verificando actualizaciones: {e}")
             QMessageBox.warning(
                 self,
                 "Error",
@@ -1943,17 +2057,17 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Crear diálogo personalizado
         msg = QMessageBox(self)
-        msg.setWindowTitle("🎉 Nueva Versión Disponible")
+        msg.setWindowTitle("Nueva Versión Disponible")
         msg.setText(f"✨ ¡Hay una nueva versión disponible!\n\n"
-                   f"📦 Versión: {version}\n"
+                   f"Versión: {version}\n"
                    f"📝 {nombre}")
         msg.setInformativeText(f"{descripcion}...")
         msg.setIcon(QMessageBox.Information)
         
         # Botones personalizados
-        btn_descargar = msg.addButton("⬇️ Descargar e Instalar", QMessageBox.AcceptRole)
+        btn_descargar = msg.addButton("Descargar e Instalar", QMessageBox.AcceptRole)
         btn_abrir_web = msg.addButton("🌐 Abrir en Navegador", QMessageBox.ActionRole)
-        btn_cancelar = msg.addButton("❌ Cancelar", QMessageBox.RejectRole)
+        btn_cancelar = msg.addButton("Cancelar", QMessageBox.RejectRole)
         
         msg.setDefaultButton(btn_descargar)
         msg.exec()
@@ -1963,7 +2077,7 @@ class OrganizadorAvanzado(QMainWindow):
         elif msg.clickedButton() == btn_abrir_web:
             self.gestor_actualizaciones.abrir_pagina_descarga()
         
-        self._agregar_log(f"🎉 Nueva versión disponible: {version}")
+        self._agregar_log(f"Nueva versión disponible: {version}")
     
     def _descargar_e_instalar_actualizacion(self, info):
         """Descarga e instala la actualización automáticamente."""
@@ -1992,7 +2106,7 @@ class OrganizadorAvanzado(QMainWindow):
         
         try:
             # Descargar el instalador nativo (.exe/.pkg/.deb)
-            self._agregar_log(f"⬇️ Descargando v{version}...")
+            self._agregar_log(f"Descargando v{version}...")
             exito, resultado = self.gestor_actualizaciones.descargar_instalador_nativo(
                 info,
                 callback_progreso=actualizar_progreso
@@ -2003,33 +2117,46 @@ class OrganizadorAvanzado(QMainWindow):
                 QMessageBox.critical(
                     self,
                     "Error de Descarga",
-                    f"❌ Error descargando actualización:\n\n{resultado}"
+                    f"Error descargando actualización:\n\n{resultado}"
                 )
                 return
 
             progress.close()
 
-            # Abrir el instalador del sistema (pide permisos e instala encima)
-            exito_apertura, mensaje = self.gestor_actualizaciones.abrir_instalador(resultado)
-            self._agregar_log(f"📦 Instalador: {resultado}")
+            # Actualización segura: cerrar esta app → instalar encima → reabrir.
+            # En Windows es imprescindible cerrar antes, o el asistente no puede
+            # reemplazar el .exe en uso.
+            self._agregar_log(f"Instalador descargado: {resultado}")
+            aviso = QMessageBox(self)
+            aviso.setWindowTitle("Instalar actualización")
+            aviso.setText(f"DescargasOrdenadas v{version} se instalará ahora.")
+            aviso.setInformativeText(
+                "La aplicación se cerrará, el instalador se ejecutará y volverá a "
+                "abrirse automáticamente al terminar.\n\n"
+                "No se abrirá ninguna copia duplicada."
+            )
+            aviso.setIcon(QMessageBox.Information)
+            btn_instalar = aviso.addButton("Instalar y reabrir", QMessageBox.AcceptRole)
+            aviso.addButton("Más tarde", QMessageBox.RejectRole)
+            aviso.exec()
+            if aviso.clickedButton() is not btn_instalar:
+                return
 
-            if exito_apertura:
-                self._agregar_log("✅ Actualización preparada - sigue el asistente")
-                QMessageBox.information(
-                    self,
-                    "Actualización lista",
-                    f"{mensaje}\n\nCuando termine el asistente, la app quedará actualizada."
-                )
-            else:
-                QMessageBox.warning(self, "Error", f"❌ {mensaje}")
-        
+            exito_instalacion, mensaje = self.gestor_actualizaciones.actualizar_e_instalar(
+                resultado, cerrar_app=self._cerrar_para_actualizar
+            )
+            if not exito_instalacion:
+                QMessageBox.warning(self, "Error", f"{mensaje}")
+                return
+
+            self._agregar_log(f"Actualización en marcha: {mensaje}")
         except Exception as e:
             progress.close()
-            self._agregar_log(f"❌ Error durante actualización: {e}")
+            self._agregar_log(f"Error durante actualización: {e}")
             QMessageBox.critical(
                 self,
                 "Error",
-                f"❌ Error durante el proceso de actualización:\n\n{e}"
+                f"Error durante el proceso de actualización:\n\n{e}"
             )
     
     @Slot(bool)
@@ -2044,7 +2171,7 @@ class OrganizadorAvanzado(QMainWindow):
             except TypeError:
                 exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(activo)
             if not exito:
-                QMessageBox.warning(self, "Error Autoarranque", f"❌ {mensaje}")
+                QMessageBox.warning(self, "Error Autoarranque", f"{mensaje}")
                 self.chk_autoarranque.blockSignals(True)
                 self.chk_autoarranque.setChecked(False)
                 self.chk_autoarranque.blockSignals(False)
@@ -2062,98 +2189,33 @@ class OrganizadorAvanzado(QMainWindow):
                     duracion=4
                 )
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"❌ Error configurando autoarranque: {e}")
+            QMessageBox.critical(self, "Error", f"No se pudo configurar el autoarranque: {e}")
             self.chk_autoarranque.blockSignals(True)
             self.chk_autoarranque.setChecked(False)
             self.chk_autoarranque.blockSignals(False)
     
     def _crear_acceso_directo_startup(self):
-        """Crea un acceso directo en la carpeta de inicio de Windows (shell:startup)."""
+        """Activa el arranque con Windows usando el gestor oficial de autoarranque.
+
+        Se apoya en GestorAutoarranque (registro HKCU) y no en accesos directos
+        sueltos: así la app y el autoarranque siempre coinciden y no se crean
+        copias duplicadas al iniciar sesión.
+        """
         if sys.platform != "win32":
-            QMessageBox.warning(self, "No Disponible", "Esta función solo está disponible en Windows")
+            QMessageBox.information(self, "No disponible", "Esta opción solo existe en Windows.")
             return
-        
+        modo = "basico" if (hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked()) else "detallado"
         try:
-            try:
-                import win32com.client
-            except ImportError:
-                QMessageBox.critical(
-                    self, 
-                    "Módulo Faltante",
-                    "❌ El módulo 'pywin32' no está instalado.\n\n"
-                    "Instálalo con: pip install pywin32"
-                )
-                return
-            
-            # Obtener carpeta de inicio (startup)
-            startup_folder = Path(os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'))
-            
-            # Verificar que existe
-            if not startup_folder.exists():
-                QMessageBox.critical(self, "Error", f"No se puede acceder a la carpeta de inicio:\n{startup_folder}")
-                return
-            
-            # Determinar el archivo a ejecutar
-            script_dir = Path(__file__).parent.parent.absolute()
-            
-            # Buscar el launcher sin consola primero
-            launcher_sin_consola = script_dir / "INICIAR_SIN_CONSOLA.bat"
-            launcher_pyw = script_dir / "INICIAR_SIN_CONSOLA.pyw"
-            launcher_bat = script_dir / "INICIAR.bat"
-            
-            # Determinar qué launcher usar
-            if launcher_sin_consola.exists():
-                target_file = launcher_sin_consola
-                descripcion = "DescargasOrdenadas v3.0 - Inicio sin consola"
-            elif launcher_pyw.exists():
-                target_file = launcher_pyw
-                descripcion = "DescargasOrdenadas v3.0 - Inicio sin consola (Python)"
-            elif launcher_bat.exists():
-                target_file = launcher_bat
-                descripcion = "DescargasOrdenadas v3.0 - Inicio automático"
+            exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(True, modo=modo)
+            if exito:
+                self._agregar_log(f"Autoarranque activado: {mensaje}")
+                QMessageBox.information(self, "Arranque automático", mensaje)
             else:
-                QMessageBox.critical(self, "Error", "No se encontró ningún launcher para crear el acceso directo")
-                return
-            
-            # Crear nombre del acceso directo
-            shortcut_path = startup_folder / "DescargasOrdenadas.lnk"
-            
-            # Crear el acceso directo
-            shell = win32com.client.Dispatch("WScript.Shell")
-            shortcut = shell.CreateShortCut(str(shortcut_path))
-            shortcut.Targetpath = str(target_file)
-            shortcut.WorkingDirectory = str(script_dir)
-            shortcut.Description = descripcion
-            modo = "basico" if (hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked()) else "detallado"
-            shortcut.Arguments = f"--autostart --minimizado --modo {modo}"
-            
-            # Buscar icono
-            ico_path = script_dir / "resources" / "favicon.ico"
-            if ico_path.exists():
-                shortcut.IconLocation = str(ico_path)
-            
-            shortcut.save()
-            
-            self._agregar_log(f"✅ Acceso directo creado en: {shortcut_path}")
-            
-            QMessageBox.information(
-                self, 
-                "Acceso Directo Creado",
-                f"✅ Acceso directo creado exitosamente en:\n\n"
-                f"{startup_folder}\n\n"
-                f"📋 Archivo: DescargasOrdenadas.lnk\n"
-                f"🎯 Objetivo: {target_file.name}\n\n"
-                f"La aplicación se iniciará automáticamente al iniciar Windows."
-            )
-            
+                QMessageBox.warning(self, "Error", mensaje)
         except Exception as e:
-            self._agregar_log(f"❌ Error creando acceso directo: {e}")
-            QMessageBox.critical(
-                self, 
-                "Error",
-                f"❌ Error al crear el acceso directo:\n\n{str(e)}"
-            )
-    
+            self._agregar_log(f"No se pudo activar el autoarranque: {e}")
+            QMessageBox.critical(self, "Error", f"No se pudo activar el arranque automático:\n{e}")
+
     def _activar_fechas(self):
         """Activar organización por fechas"""
         try:
@@ -2173,7 +2235,7 @@ class OrganizadorAvanzado(QMainWindow):
                 resultado = organizador_fechas.activar(patron)
                 
                 # Actualizar estado visual
-                self.lbl_estado_fechas.setText("✅ Organización por fechas: ACTIVADA")
+                self.lbl_estado_fechas.setText("Organización por fechas activada")
                 self.btn_activar_fechas.setEnabled(False)
                 self.btn_desactivar_fechas.setEnabled(True)
                 
@@ -2181,16 +2243,16 @@ class OrganizadorAvanzado(QMainWindow):
                     self._actualizar_estadisticas()
                 
                 QMessageBox.information(self, "Fechas Activadas", 
-                                      f"✅ Organización por fechas activada exitosamente\n\n"
-                                      f"📋 Patrón configurado: {patron}\n\n"
-                                      f"📁 Los nuevos archivos se organizarán en:\n"
+                                      f"Organización por fechas activada exitosamente\n\n"
+                                      f"Patrón configurado: {patron}\n\n"
+                                      f"Los nuevos archivos se organizarán en:\n"
                                       f"Downloads/Fechas/{patron}/Categoría/\n\n"
                                       f"ℹ️ Solo afecta archivos organizados a partir de ahora")
             else:
-                QMessageBox.warning(self, "Error", "❌ El módulo de fechas no está disponible\n\n"
+                QMessageBox.warning(self, "Error", "El módulo de fechas no está disponible.\n\n"
                                   "Verifique que el módulo date_organizer esté instalado correctamente.")
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"❌ Error al activar organización por fechas:\n\n{str(e)}")
+            QMessageBox.warning(self, "Error", f"No se pudo activar la organización por fechas:\n\n{str(e)}")
             import traceback
             print(f"Error detallado en fechas: {traceback.format_exc()}")
     
@@ -2209,7 +2271,7 @@ class OrganizadorAvanzado(QMainWindow):
                 resultado = organizador_fechas.desactivar()
                 
                 # Actualizar estado visual
-                self.lbl_estado_fechas.setText("❌ Organización por fechas: DESACTIVADA")
+                self.lbl_estado_fechas.setText("Organización por fechas desactivada")
                 self.btn_activar_fechas.setEnabled(True)
                 self.btn_desactivar_fechas.setEnabled(False)
                 
@@ -2217,15 +2279,15 @@ class OrganizadorAvanzado(QMainWindow):
                     self._actualizar_estadisticas()
                 
                 QMessageBox.information(self, "Fechas Desactivadas", 
-                                      f"❌ Organización por fechas desactivada\n\n"
-                                      f"📁 Los archivos volverán a organizarse de forma normal:\n"
+                                      f"Organización por fechas desactivada\n\n"
+                                      f"Los archivos volverán a organizarse de forma normal:\n"
                                       f"Downloads/Categoría/Subcategoría/\n\n"
                                       f"ℹ️ Los archivos ya organizados por fechas no se mueven automáticamente")
             else:
-                QMessageBox.warning(self, "Error", "❌ El módulo de fechas no está disponible\n\n"
+                QMessageBox.warning(self, "Error", "El módulo de fechas no está disponible.\n\n"
                                   "Verifique que el módulo date_organizer esté instalado correctamente.")
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"❌ Error al desactivar organización por fechas:\n\n{str(e)}")
+            QMessageBox.warning(self, "Error", f"No se pudo desactivar la organización por fechas:\n\n{str(e)}")
             import traceback
             print(f"Error detallado en fechas: {traceback.format_exc()}")
     
@@ -2253,28 +2315,28 @@ class OrganizadorAvanzado(QMainWindow):
         reply = QMessageBox.question(self, "Reset IA", "¿Reiniciar modelo?")
         if reply == QMessageBox.Yes:
             self.ai_categorizer.limpiar_modelo()
-            QMessageBox.information(self, "IA", "🔄 Modelo reiniciado")
+            QMessageBox.information(self, "IA", "Modelo reiniciado")
             self._actualizar_patrones()
     
     def _actualizar_patrones(self):
         """Actualiza patrones IA."""
         if not self.ai_categorizer:
-            self.text_patrones.setText("❌ IA no disponible")
+            self.text_patrones.setText("IA no disponible en este sistema")
             return
         
         try:
             stats = self.ai_categorizer.analizar_patrones_usuario()
-            texto = "🤖 Patrones de IA:\n\n"
+            texto = "Patrones aprendidos:\n\n"
             
             for categoria, datos in stats.get('patrones_por_categoria', {}).items():
-                texto += f"📂 {categoria}:\n"
+                texto += f"{categoria}:\n"
                 for palabra, peso in list(datos.items())[:5]:  # Top 5
                     texto += f"  • {palabra}: {peso:.2f}\n"
                 texto += "\n"
             
             self.text_patrones.setText(texto)
         except:
-            self.text_patrones.setText("❌ Error cargando patrones")
+            self.text_patrones.setText("No se pudieron cargar los patrones")
     
     def _revertir_fechas(self):
         """Revierte organización por fechas."""
@@ -2284,7 +2346,7 @@ class OrganizadorAvanzado(QMainWindow):
         reply = QMessageBox.question(self, "Revertir", "¿Revertir organización por fechas?")
         if reply == QMessageBox.Yes:
             resultado = self.date_organizer.revertir_organizacion_fechas(True)
-            QMessageBox.information(self, "Revertido", f"✅ {resultado.get('archivos_revertidos', 0)} archivos revertidos")
+            QMessageBox.information(self, "Revertido", f"{resultado.get('archivos_revertidos', 0)} archivos devueltos a su sitio")
     
     def _actualizar_ejemplo_fecha(self):
         """Actualiza el ejemplo visual del patrón de fechas seleccionado."""
@@ -2312,14 +2374,14 @@ class OrganizadorAvanzado(QMainWindow):
             ejemplo = ejemplos_estructura.get(patron_actual, ejemplos_estructura["YYYY/MM-Mes"])
             
             # Actualizar label con colores
-            self.lbl_ejemplo.setText(f"📁 Ejemplo: {ejemplo}")
+            self.lbl_ejemplo.setText(f"Ejemplo: {ejemplo}")
             
             # Cambiar color según patrón para mejor visualización
             self.lbl_ejemplo.setObjectName("etiquetaSecundaria")
             
         except Exception as e:
             logger.debug(f"Error actualizando ejemplo de fecha: {e}")
-            self.lbl_ejemplo.setText("📁 Ejemplo: Downloads/Fechas/2024/12-Diciembre/Documentos/PDFs/")
+            self.lbl_ejemplo.setText("Ejemplo: Downloads/Fechas/2024/12-Diciembre/Documentos/PDFs/")
     
     def _previsualizar_organizacion_fechas(self):
         """Muestra una previsualización de cómo se organizarían los archivos."""
@@ -2359,10 +2421,10 @@ class OrganizadorAvanzado(QMainWindow):
                 patron_actual = self.combo_patron.currentText().split(" - ")[0] if " - " in self.combo_patron.currentText() else "YYYY/MM-Mes"
             
             # Simular organización
-            texto_previsualizacion = f"🔍 PREVISUALIZACIÓN DE ORGANIZACIÓN\n"
+            texto_previsualizacion = f"PREVISUALIZACIÓN DE ORGANIZACIÓN\n"
             texto_previsualizacion += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            texto_previsualizacion += f"📋 Patrón seleccionado: {patron_actual}\n\n"
-            texto_previsualizacion += f"📁 Se encontraron {len(archivos_encontrados)} archivos de ejemplo:\n\n"
+            texto_previsualizacion += f"Patrón seleccionado: {patron_actual}\n\n"
+            texto_previsualizacion += f"Se encontraron {len(archivos_encontrados)} archivos de ejemplo:\n\n"
             
             for i, archivo in enumerate(archivos_encontrados, 1):
                 try:
@@ -2406,25 +2468,25 @@ class OrganizadorAvanzado(QMainWindow):
                     
                     ruta_destino = f"Downloads/Fechas/{carpeta_fecha}/{categoria}/{subcategoria}/"
                     
-                    texto_previsualizacion += f"{i:2d}. 📄 {archivo.name}\n"
-                    texto_previsualizacion += f"    📅 Fecha: {fecha_archivo.strftime('%d/%m/%Y %H:%M')}\n"
-                    texto_previsualizacion += f"    📁 Destino: {ruta_destino}\n\n"
+                    texto_previsualizacion += f"{i:2d}. {archivo.name}\n"
+                    texto_previsualizacion += f"    Fecha: {fecha_archivo.strftime('%d/%m/%Y %H:%M')}\n"
+                    texto_previsualizacion += f"    Destino: {ruta_destino}\n\n"
                     
                 except Exception as e:
-                    texto_previsualizacion += f"{i:2d}. ❌ Error procesando {archivo.name}: {e}\n\n"
+                    texto_previsualizacion += f"{i:2d}. Error procesando {archivo.name}: {e}\n\n"
             
-            texto_previsualizacion += f"\n💡 Esta es solo una simulación. Los archivos no se han movido."
+            texto_previsualizacion += f"\nEsta es solo una simulación. Los archivos no se han movido."
             
             # Mostrar diálogo con previsualización
             dialog = QMessageBox(self)
-            dialog.setWindowTitle("🔍 Previsualización de Organización por Fechas")
+            dialog.setWindowTitle("Previsualización de Organización por Fechas")
             dialog.setText("Vista previa de cómo se organizarían los archivos:")
             dialog.setDetailedText(texto_previsualizacion)
             dialog.setIcon(QMessageBox.Information)
             dialog.exec()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"❌ Error generando previsualización:\n\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"No se pudo generar la previsualización:\n\n{str(e)}")
     
     def _buscar_duplicados(self):
         """Busca duplicados."""
@@ -2433,15 +2495,15 @@ class OrganizadorAvanzado(QMainWindow):
             return
         
         try:
-            self.text_duplicados.setPlainText("🔍 Buscando...")
+            self.text_duplicados.setPlainText("Buscando duplicados…")
             resultado = self.duplicate_detector.escanear_duplicados()
             
             if not resultado.get('duplicados_encontrados'):
-                self.text_duplicados.setPlainText("✅ No hay duplicados")
+                self.text_duplicados.setPlainText("No se han encontrado duplicados.")
                 return
             
             duplicados = resultado['duplicados_encontrados']
-            texto = f"🔍 {len(duplicados)} grupos de duplicados:\n\n"
+            texto = f"{len(duplicados)} grupos de duplicados:\n\n"
             
             for i, grupo in enumerate(duplicados, 1):
                 archivos = grupo.get('archivos', [])
@@ -2450,12 +2512,12 @@ class OrganizadorAvanzado(QMainWindow):
                     for archivo_info in archivos:
                         ruta = archivo_info.get('ruta', 'N/A')
                         tamaño = archivo_info.get('tamaño', 0)
-                        texto += f"  📁 {ruta} ({self._formatear_bytes(tamaño)})\n"
+                        texto += f"  {ruta} ({self._formatear_bytes(tamaño)})\n"
                     texto += "\n"
             
             self.text_duplicados.setPlainText(texto)
         except Exception as e:
-            self.text_duplicados.setPlainText(f"❌ Error: {e}")
+            self.text_duplicados.setPlainText(f"Error: {e}")
     
     def _eliminar_duplicados(self):
         """Elimina duplicados."""
@@ -2468,17 +2530,17 @@ class OrganizadorAvanzado(QMainWindow):
                 resultado = self.duplicate_detector.eliminar_duplicados(estrategia='mas_nuevo', confirmar=True)
                 QMessageBox.information(
                     self, "Duplicados",
-                    f"✅ {resultado.get('archivos_eliminados', 0)} duplicados eliminados\n" +
-                    f"💾 {self._formatear_bytes(resultado.get('espacio_liberado', 0))} liberados"
+                    f"{resultado.get('archivos_eliminados', 0)} duplicados eliminados\n" +
+                    f"{self._formatear_bytes(resultado.get('espacio_liberado', 0))} liberados"
                 )
                 self._buscar_duplicados()
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"❌ Error: {e}")
+                QMessageBox.critical(self, "Error", f"Error: {e}")
     
     def _actualizar_estadisticas(self):
         """Actualiza estadísticas."""
         if not self.stats_manager:
-            self.text_stats.setPlainText("❌ Estadísticas no disponibles")
+            self.text_stats.setPlainText("Estadísticas no disponibles")
             return
         
         try:
@@ -2486,7 +2548,7 @@ class OrganizadorAvanzado(QMainWindow):
             reporte_texto = self.stats_manager.generar_reporte_completo()
             self.text_stats.setPlainText(reporte_texto)
         except Exception as e:
-            self.text_stats.setPlainText(f"❌ Error cargando estadísticas: {e}")
+            self.text_stats.setPlainText(f"No se pudieron cargar las estadísticas: {e}")
     
     def _formatear_bytes(self, bytes_size: int) -> str:
         """Formatea bytes en formato legible."""
@@ -2497,15 +2559,133 @@ class OrganizadorAvanzado(QMainWindow):
         return f"{bytes_size:.1f} PB"
 
     def _seleccionar_carpeta(self):
-        """Permite seleccionar una nueva carpeta para organizar."""
+        """Permite elegir una carpeta: organizarla una vez o usarla como base."""
         nueva_carpeta = QFileDialog.getExistingDirectory(
             self, 
-            "Seleccionar Carpeta para Organizar", 
+            "Seleccionar carpeta", 
             str(self.organizador.carpeta_descargas)
         )
-        if nueva_carpeta:
-            carpeta_anterior = Path(self.organizador.carpeta_descargas)
-            self._cambiar_carpeta_y_organizar(Path(nueva_carpeta), carpeta_anterior)
+        if not nueva_carpeta:
+            return
+
+        ruta = Path(nueva_carpeta)
+        aviso = self._comprobar_permisos_gui(ruta)
+        if aviso:
+            QMessageBox.warning(self, "Sin permisos", aviso)
+            self._agregar_log(f"{aviso}")
+            return
+
+        dialogo = QMessageBox(self)
+        dialogo.setWindowTitle("Carpeta seleccionada")
+        dialogo.setText(f"¿Qué quieres hacer con:\n{ruta}?")
+        dialogo.setIcon(QMessageBox.Question)
+        btn_organizar = dialogo.addButton("Organizarla ahora", QMessageBox.AcceptRole)
+        btn_base = dialogo.addButton("Usarla como carpeta principal", QMessageBox.ActionRole)
+        dialogo.addButton("Cancelar", QMessageBox.RejectRole)
+        dialogo.exec()
+
+        if dialogo.clickedButton() is btn_organizar:
+            self._cambiar_carpeta_y_organizar(ruta, Path(self.organizador.carpeta_descargas))
+        elif dialogo.clickedButton() is btn_base:
+            self._establecer_carpeta_base(ruta)
+
+    def organizar_carpeta_externa(self, peticion: dict):
+        """Organiza una carpeta pedida desde fuera (menú contextual del sistema).
+
+        Se ejecuta en la instancia que ya está abierta, sin abrir una ventana
+        nueva. Al terminar avisa con una notificación y, si algo falla por
+        permisos, lo explica en el registro y con un aviso al usuario.
+        """
+        try:
+            carpeta = Path(str(peticion.get("carpeta", ""))).expanduser()
+        except Exception:
+            return
+        if not carpeta:
+            return
+
+        if not carpeta.exists() or not carpeta.is_dir():
+            self._agregar_log(f"La carpeta no existe: {carpeta}")
+            return
+
+        if not os.access(carpeta, os.W_OK) or not os.access(carpeta, os.R_OK):
+            self._avisar_permisos(carpeta)
+            return
+
+        self._agregar_log(f"Organizando carpeta externa: {carpeta}")
+
+        modo_detallado = False
+        if hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked():
+            modo_detallado = True
+        elif hasattr(self, "chk_subcarpetas"):
+            modo_detallado = self.chk_subcarpetas.isChecked()
+
+        class HiloCarpetaExterna(QThread):
+            terminado = Signal(bool, str, int, list)
+
+            def __init__(self, ruta, subcarpetas, padre):
+                super().__init__(padre)
+                self.ruta = ruta
+                self.subcarpetas = subcarpetas
+
+            def run(self):
+                try:
+                    organizador = OrganizadorArchivos(
+                        carpeta_descargas=str(self.ruta),
+                        usar_subcarpetas=self.subcarpetas,
+                    )
+                    resultados, errores = organizador.organizar()
+                    total = sum(
+                        len(files) for cat in resultados.values() for files in cat.values()
+                    )
+                    self.terminado.emit(True, str(self.ruta), total, errores)
+                except PermissionError as e:
+                    self.terminado.emit(False, f"permisos:{e}", 0, [])
+                except Exception as e:
+                    self.terminado.emit(False, str(e), 0, [])
+
+        def al_terminar(exito, detalle, total, errores):
+            if exito:
+                mensaje = f"{total} archivo{'s' if total != 1 else ''} en {carpeta.name}"
+                self._agregar_log(f"{mensaje}")
+                if total > 0 and self.notificador:
+                    self.notificador.mostrar(
+                        "Carpeta organizada", mensaje, tipo="success", duracion=5
+                    )
+                if errores:
+                    self._agregar_log(
+                        f"{len(errores)} archivo(s) no se pudieron mover (revisa los avisos)"
+                    )
+            elif detalle.startswith("permisos:"):
+                self._avisar_permisos(carpeta)
+            else:
+                self._agregar_log(f"No se pudo organizar {carpeta}: {detalle}")
+                if self.notificador:
+                    self.notificador.mostrar(
+                        "No se pudo organizar", detalle, tipo="error", duracion=8
+                    )
+
+        hilo = HiloCarpetaExterna(carpeta, modo_detallado, self)
+        hilo.terminado.connect(al_terminar)
+        self._hilo_carpeta_externa = hilo
+        hilo.start()
+
+    def _avisar_permisos(self, carpeta: Path):
+        """Explica con claridad un problema de permisos, sin fallar."""
+        if sys.platform == "darwin":
+            mensaje = (
+                f"macOS bloquea el acceso a {carpeta}.\n\n"
+                "Ajustes del sistema → Privacidad y seguridad → Archivos y carpetas."
+            )
+        elif sys.platform == "win32":
+            mensaje = (
+                f"Windows bloquea el acceso a {carpeta}.\n\n"
+                "Prueba con una carpeta de tu perfil de usuario."
+            )
+        else:
+            mensaje = f"Sin permisos sobre {carpeta}.\n\nRevisa el propietario de la carpeta."
+        self._agregar_log(f"{mensaje}")
+        if self.notificador:
+            self.notificador.mostrar("Permisos necesarios", mensaje, tipo="error", duracion=10)
 
     def _cambiar_carpeta_y_organizar(self, nueva_carpeta: Path, carpeta_anterior: Path):
         """Cambia a la carpeta elegida, la organiza y vuelve a la anterior."""
@@ -2553,7 +2733,7 @@ class OrganizadorAvanzado(QMainWindow):
         def al_terminar(exito, detalle):
             progreso.close()
             if exito:
-                self._agregar_log(f"✅ Carpeta organizada: {nueva_carpeta}")
+                self._agregar_log(f"Carpeta organizada: {nueva_carpeta}")
                 if self.notificador:
                     self.notificador.mostrar(
                         "Carpeta organizada",
@@ -2561,7 +2741,7 @@ class OrganizadorAvanzado(QMainWindow):
                         tipo="success", duracion=4,
                     )
             else:
-                self._agregar_log(f"❌ Error organizando {nueva_carpeta}: {detalle}")
+                self._agregar_log(f"Error organizando {nueva_carpeta}: {detalle}")
                 QMessageBox.warning(self, "Error", f"No se pudo organizar la carpeta:\n{detalle}")
 
         hilo = HiloCambioCarpeta(nueva_carpeta, usar_subcarpetas, self)
@@ -2569,40 +2749,89 @@ class OrganizadorAvanzado(QMainWindow):
         self._hilo_cambio_carpeta = hilo  # evitar que lo recoja el recolector
         hilo.start()
 
-        # Restaurar la carpeta de trabajo anterior y la interfaz
+        # Mantener la carpeta de trabajo anterior y actualizar la interfaz
         self.organizador.carpeta_descargas = carpeta_anterior
         self.organizador.carpeta_config = carpeta_anterior / ".config"
-        self.lbl_carpeta_actual.setText(os.path.basename(str(carpeta_anterior)))
-        if hasattr(self, "header"):
-            self.header.setText(f"DescargasOrdenadas · 📁 {carpeta_anterior}")
-    
+        self.lbl_carpeta_actual.setText(str(carpeta_anterior))
+        if hasattr(self, "lbl_carpeta_cabecera"):
+            self.lbl_carpeta_cabecera.setText(str(carpeta_anterior))
+
+    def _establecer_carpeta_base(self, nueva_carpeta: Path):
+        """Guarda la carpeta elegida como carpeta principal de la aplicación.
+
+        A partir de aquí es la carpeta que se organiza al abrir y con el menú
+        contextual, y sobrevive a los reinicios.
+        """
+        aviso = self._comprobar_permisos_gui(nueva_carpeta)
+        if aviso:
+            QMessageBox.warning(self, "Sin permisos", aviso)
+            self._agregar_log(f"{aviso}")
+            return
+
+        try:
+            self.organizador.carpeta_descargas = nueva_carpeta
+            self.organizador.carpeta_config = nueva_carpeta / ".config"
+            if self.config_portable:
+                self.config_portable.establecer("carpeta_base", str(nueva_carpeta))
+
+            self.lbl_carpeta_actual.setText(str(nueva_carpeta))
+            if hasattr(self, "lbl_carpeta_cabecera"):
+                self.lbl_carpeta_cabecera.setText(str(nueva_carpeta))
+
+            # Re-inicializar los módulos que dependen de la carpeta
+            self._inicializar_modulos()
+            self._actualizar_datos()
+            self._agregar_log(f"Carpeta principal establecida: {nueva_carpeta}")
+            if self.notificador:
+                self.notificador.mostrar(
+                    "Carpeta principal",
+                    f"Ahora se organiza {nueva_carpeta.name}.",
+                    tipo="success", duracion=4,
+                )
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"No se pudo establecer la carpeta:\n{e}")
+
+    def _comprobar_permisos_gui(self, carpeta: Path) -> Optional[str]:
+        """Devuelve un aviso legible si no se puede trabajar con la carpeta."""
+        try:
+            if not carpeta.exists() or not carpeta.is_dir():
+                return f"La carpeta no existe:\n{carpeta}"
+            if not os.access(carpeta, os.R_OK) or not os.access(carpeta, os.W_OK):
+                if sys.platform == "darwin":
+                    return (
+                        f"macOS bloquea el acceso a:\n{carpeta}\n\n"
+                        "Ajustes del sistema → Privacidad y seguridad → "
+                        "Archivos y carpetas, y concede acceso a DescargasOrdenadas."
+                    )
+                return f"Sin permisos de lectura/escritura sobre:\n{carpeta}"
+        except Exception as e:
+            return f"No se puede comprobar el acceso a la carpeta:\n{e}"
+        return None
+
     def _reset_carpeta_descargas(self):
-        """Restablece la carpeta de descargas a la predeterminada."""
+        """Restablece la carpeta de descargas a la predeterminada del sistema."""
         from .file_organizer import OrganizadorArchivos
-        # Obtener la carpeta de descargas predeterminada
-        organizador_temp = OrganizadorArchivos()
+
+        organizador_temp = OrganizadorArchivos.__new__(OrganizadorArchivos)
         carpeta_predeterminada = organizador_temp._detectar_carpeta_descargas()
-        
-        # Actualizar el organizador
+
+        if self.config_portable:
+            self.config_portable.establecer("carpeta_base", None)
+
         self.organizador.carpeta_descargas = carpeta_predeterminada
-        self.organizador.carpeta_config = self.organizador.carpeta_descargas / ".config"
-        
-        # Actualizar la interfaz
-        self.lbl_carpeta_actual.setText(f"📁 Carpeta actual: {os.path.basename(carpeta_predeterminada)}")
-        
-        # Actualizar el header
-        if hasattr(self, 'header'):
-            self.header.setText(f"DescargasOrdenadas · 📁 {carpeta_predeterminada}")
-        
-        # Reinitializar módulos avanzados
+        self.organizador.carpeta_config = carpeta_predeterminada / ".config"
+
+        self.lbl_carpeta_actual.setText(str(carpeta_predeterminada))
+        if hasattr(self, "lbl_carpeta_cabecera"):
+            self.lbl_carpeta_cabecera.setText(str(carpeta_predeterminada))
+
         self._inicializar_modulos()
         self._actualizar_datos()
-        
-        # Mostrar mensaje de confirmación
+
         QMessageBox.information(
-            self, 
-            "Carpeta Restablecida", 
-            f"✅ Carpeta restablecida a la predeterminada:\n{carpeta_predeterminada}"
+            self,
+            "Carpeta restablecida",
+            f"La carpeta vuelve a ser la predeterminada:\n{carpeta_predeterminada}",
         )
 
     def _crear_proceso_sin_consola(self):
@@ -2632,7 +2861,7 @@ class OrganizadorAvanzado(QMainWindow):
                             python_exe = python_exe.replace('python.exe', 'pythonw.exe')
                         comando = [python_exe, sys.argv[0], "--minimizado"]
                 
-                self._agregar_log(f"🔄 Reiniciando con comando: {' '.join(comando)}")
+                self._agregar_log(f"Reiniciando con comando: {' '.join(comando)}")
                 
                 # Iniciar proceso sin consola
                 if str(comando[0]).endswith('.bat'):
@@ -2655,15 +2884,53 @@ class OrganizadorAvanzado(QMainWindow):
                         stderr=subprocess.DEVNULL
                     )
                 
-                self._agregar_log("🔄 Reiniciando sin consola...")
-                # Cerrar aplicación actual después de un pequeño delay
-                QTimer.singleShot(1000, lambda: self._salir_completamente())
+                self._agregar_log("Reiniciando sin consola...")
+
+                # La nueva copia debe arrancar DESPUÉS de que esta libere el
+                # bloqueo de instancia única; si no, se cerraría sola. Se usa
+                # un .bat intermedio que espera y luego lanza la app.
+                espera = Path(tempfile.gettempdir()) / "descargasordenadas_reinicio.bat"
+                destino = " ".join(f'"{parte}"' for parte in self._comando_reinicio_sin_consola())
+                espera.write_text(
+                    "@echo off\r\n"
+                    "timeout /t 2 /nobreak >nul\r\n"
+                    f"start \"\" {destino}\r\n"
+                    "del \"%~f0\"\r\n",
+                    encoding="latin-1", errors="replace",
+                )
+                subprocess.Popen(
+                    ["cmd", "/c", str(espera)],
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
+                )
+                # Cerrar esta instancia (libera el bloqueo) sin diálogos
+                self.cerrar_completamente = True
+                QTimer.singleShot(400, lambda: self._salir_completamente())
                 return True
             except Exception as e:
-                self._agregar_log(f"❌ Error creando proceso sin consola: {e}")
+                self._agregar_log(f"Error creando proceso sin consola: {e}")
         else:
-                self._agregar_log("ℹ️  Reinicio sin consola solo disponible en Windows")
+                self._agregar_log("Reinicio sin consola solo disponible en Windows")
         return False
+
+    def _comando_reinicio_sin_consola(self) -> list:
+        """Comando para relanzar la app sin ventana de consola (Windows)."""
+        if getattr(sys, "frozen", False):
+            return [sys.executable, "--minimizado"]
+        proyecto_dir = Path(sys.argv[0]).parent
+        bat_sin_consola = proyecto_dir / "windows" / "DescargasOrdenadas_SinConsola.bat"
+        bat_principal = proyecto_dir / "windows" / "DescargasOrdenadas.bat"
+        if bat_sin_consola.exists():
+            return [str(bat_sin_consola), "--minimizado"]
+        if bat_principal.exists():
+            return [str(bat_principal), "--minimizado"]
+        python_exe = sys.executable
+        if python_exe.endswith('python.exe'):
+            python_exe = python_exe.replace('python.exe', 'pythonw.exe')
+        return [python_exe, sys.argv[0], "--minimizado"]
     
 
     def _restaurar_preferencias_auto(self):
@@ -2755,7 +3022,7 @@ class OrganizadorAvanzado(QMainWindow):
                 intervalo_seg = int(self.combo_intervalo_auto.currentData() or 3600)
                 self.timer_auto.start(max(30, intervalo_seg) * 1000)
             intervalo_texto = self.combo_intervalo_auto.currentText() if hasattr(self, "combo_intervalo_auto") else ""
-            self._agregar_log(f"⚡ Auto-organización ACTIVADA al abrir ({modo}, cada {intervalo_texto})")
+            self._agregar_log(f"Auto-organización ACTIVADA al abrir ({modo}, cada {intervalo_texto})")
             self._actualizar_estado_auto_organizacion()
         except Exception as e:
             logger.debug(f"No se pudo activar la auto-organización guardada: {e}")
@@ -2841,46 +3108,18 @@ class OrganizadorAvanzado(QMainWindow):
             self._agregar_log(f"⏱️ Intervalo de auto-organización cambiado a: {intervalo_texto}")
     
     def _quitar_acceso_directo_startup(self):
-        """Elimina el acceso directo de la carpeta de inicio de Windows."""
-        if sys.platform != "win32":
-            QMessageBox.warning(self, "No Disponible", "Esta función solo está disponible en Windows")
-            return
-        
+        """Desactiva el arranque con el sistema usando el gestor oficial."""
         try:
-            # Obtener carpeta de inicio (startup)
-            startup_folder = Path(os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'))
-            shortcut_path = startup_folder / "DescargasOrdenadas.lnk"
-            
-            if shortcut_path.exists():
-                shortcut_path.unlink()
-                self._agregar_log(f"✅ Acceso directo eliminado de: {startup_folder}")
-                
-                QMessageBox.information(
-                    self,
-                    "Acceso Directo Eliminado",
-                    f"✅ Acceso directo eliminado exitosamente de:\n\n"
-                    f"{startup_folder}\n\n"
-                    f"La aplicación ya NO se iniciará automáticamente con Windows."
-                )
+            exito, mensaje = self.gestor_autoarranque.configurar_autoarranque(False)
+            if exito:
+                if self.config_portable:
+                    self.config_portable.establecer("autoarranque", False)
+                self._agregar_log(f"Autoarranque desactivado: {mensaje}")
             else:
-                QMessageBox.information(
-                    self,
-                    "No Encontrado",
-                    f"ℹ️  No se encontró ningún acceso directo en:\n\n"
-                    f"{startup_folder}\n\n"
-                    f"Es posible que ya haya sido eliminado."
-                )
+                QMessageBox.warning(self, "Error", mensaje)
         except Exception as e:
-            self._agregar_log(f"❌ Error eliminando acceso directo: {e}")
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"❌ Error al eliminar el acceso directo:\n\n{str(e)}"
-            )
-
-    # ═══════════════════════════════════════════════════════════════
-    # Los métodos de notificaciones, tema y menú contextual están definidos
-    # una sola vez más arriba (versión actual).
+            self._agregar_log(f"No se pudo desactivar el autoarranque: {e}")
+            QMessageBox.critical(self, "Error", f"No se pudo desactivar el arranque automático:\n{e}")
 
 def run_advanced_gui(
     directorio=None,
@@ -2900,11 +3139,12 @@ def run_advanced_gui(
         modo_auto=modo_auto,
     )
 
-    # Canal para que una segunda ejecución muestre esta ventana en vez de abrir
-    # otra copia de la aplicación.
+    # Canal para que una segunda ejecución muestre esta ventana o pida
+    # organizar una carpeta (menú contextual) en vez de abrir otra copia.
     if guardia_instancia is not None:
         try:
             guardia_instancia.conectar_activacion(window._mostrar_ventana)
+            guardia_instancia.conectar_accion("organizar", window.organizar_carpeta_externa)
             guardia_instancia.iniciar_servidor()
         except Exception as e:
             logger.debug(f"No se pudo preparar el canal de instancia única: {e}")

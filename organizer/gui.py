@@ -158,7 +158,7 @@ class OrganizadorApp(QMainWindow):
         self._inicializar_modulos_avanzados()
         
         # Configuración de la ventana
-        self.setWindowTitle("🍄 DescargasOrdenadas v3.0 - Edición Avanzada")
+        self.setWindowTitle("DescargasOrdenadas")
         self.setMinimumSize(900, 700)
         
         # Configurar UI
@@ -295,7 +295,7 @@ class OrganizadorApp(QMainWindow):
         # Barra de estado
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("🍄 DescargasOrdenadas v3.0 - Listo para organizar")
+        self.status_bar.showMessage("Listo para organizar")
     
     def _setup_tab_organizacion(self):
         """Configura la pestaña de organización principal."""

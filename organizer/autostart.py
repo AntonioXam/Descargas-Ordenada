@@ -166,6 +166,14 @@ class GestorAutoarranque:
     <true/>
     <key>KeepAlive</key>
     <false/>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/{self.nombre_app.lower()}_autostart.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/{self.nombre_app.lower()}_autostart.err</string>
 </dict>
 </plist>
 '''
@@ -174,8 +182,14 @@ class GestorAutoarranque:
                     f.write(contenido_plist)
                 
                 # Cargar servicio: preferir la sintaxis moderna (bootstrap)
-                # y hacer fallback a la clásica (load -w) en macOS antiguos
+                # y hacer fallback a la clásica (load -w) en macOS antiguos.
+                # Si ya estaba cargado, se descarga primero para evitar el error
+                # de "service already loaded".
                 uid = str(os.getuid())
+                subprocess.run(
+                    ['launchctl', 'bootout', f'gui/{uid}', str(ruta_plist)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+                )
                 cargado = False
                 try:
                     subprocess.check_call(
@@ -219,67 +233,94 @@ class GestorAutoarranque:
     
     def _configurar_linux(self, activar: bool, modo: str = None) -> Tuple[bool, str]:
         """
-        Configura el autoarranque en Linux usando systemd user service.
-        
+        Configura el autoarranque en Linux.
+
+        Se usa el estándar XDG (``~/.config/autostart``), que funciona en
+        GNOME, KDE, XFCE y demás entornos sin necesitar systemd ni permisos
+        especiales. Si el entorno tiene systemd de usuario, además se registra
+        el servicio para poder arrancarlo también desde la terminal.
+
         Args:
             activar: True para activar, False para desactivar.
-            
+
         Returns:
             Tupla con éxito (bool) y mensaje informativo (str).
         """
-        # Ruta al archivo de servicio
+        ruta_autostart = Path(os.path.expanduser('~')) / '.config' / 'autostart' / f'{self.nombre_app.lower()}.desktop'
         ruta_service = Path(os.path.expanduser('~')) / '.config' / 'systemd' / 'user' / f'{self.nombre_app.lower()}.service'
-        
+
         try:
             if activar:
-                # Crear directorio si no existe
-                ruta_service.parent.mkdir(parents=True, exist_ok=True)
+                # 1) Entrada XDG autostart: la que respetan todos los escritorios
+                ruta_autostart.parent.mkdir(parents=True, exist_ok=True)
 
                 if getattr(sys, 'frozen', False):
                     comando_args = [self.ruta_ejecutable, '--autostart', '--minimizado']
-                    if self.modo_actual:
-                        comando_args += ['--modo', self.modo_actual]
                     directorio_trabajo = str(Path(self.ruta_ejecutable).parent)
                 else:
                     iniciar_py = Path(__file__).resolve().parent / 'INICIAR.py'
                     comando_args = [sys.executable, str(iniciar_py), '--autostart', '--minimizado']
-                    if self.modo_actual:
-                        comando_args += ['--modo', self.modo_actual]
                     directorio_trabajo = str(Path(__file__).resolve().parent.parent)
+                if self.modo_actual:
+                    comando_args += ['--modo', self.modo_actual]
 
-                exec_start = " ".join(shlex.quote(arg) for arg in comando_args)
-                working_directory = shlex.quote(directorio_trabajo)
-                
-                # Contenido del archivo de servicio
-                contenido_service = f'''[Unit]
-Description={self.nombre_app} - Organizador de descargas
-After=graphical-session.target
+                exec_cmd = " ".join(shlex.quote(arg) for arg in comando_args)
+                contenido_desktop = (
+                    "[Desktop Entry]\n"
+                    "Type=Application\n"
+                    f"Name={self.nombre_app}\n"
+                    "Comment=Organizador automático de descargas\n"
+                    f"Exec={exec_cmd}\n"
+                    f"Path={directorio_trabajo}\n"
+                    "Terminal=false\n"
+                    "X-GNOME-Autostart-enabled=true\n"
+                    "X-KDE-autostart-after=panel\n"
+                    "NoDisplay=true\n"
+                )
+                ruta_autostart.write_text(contenido_desktop, encoding="utf-8")
+                try:
+                    ruta_autostart.chmod(0o755)
+                except OSError:
+                    pass
 
-[Service]
-Type=simple
-ExecStart={exec_start}
-WorkingDirectory={working_directory}
-Restart=on-failure
+                # 2) Servicio de systemd de usuario (opcional, no imprescindible)
+                try:
+                    ruta_service.parent.mkdir(parents=True, exist_ok=True)
+                    contenido_service = (
+                        "[Unit]\n"
+                        f"Description={self.nombre_app} - Organizador de descargas\n"
+                        "After=graphical-session.target\n\n"
+                        "[Service]\n"
+                        "Type=simple\n"
+                        f"ExecStart={exec_cmd}\n"
+                        f"WorkingDirectory={shlex.quote(directorio_trabajo)}\n"
+                        "Restart=on-failure\n\n"
+                        "[Install]\n"
+                        "WantedBy=graphical-session.target\n"
+                    )
+                    ruta_service.write_text(contenido_service, encoding="utf-8")
+                    subprocess.run(['systemctl', '--user', 'daemon-reload'],
+                                   capture_output=True, check=False)
+                    subprocess.run(['systemctl', '--user', 'enable', ruta_service.name],
+                                   capture_output=True, check=False)
+                except Exception as e:
+                    logger.debug(f"systemd de usuario no disponible (no es grave): {e}")
 
-[Install]
-WantedBy=graphical-session.target
-'''
-                # Escribir archivo de servicio
-                with open(ruta_service, 'w', encoding='utf-8') as f:
-                    f.write(contenido_service)
-                
-                # Habilitar y arrancar servicio
-                subprocess.check_call(['systemctl', '--user', 'daemon-reload'])
-                subprocess.check_call(['systemctl', '--user', 'enable', ruta_service.name])
-                subprocess.check_call(['systemctl', '--user', 'start', ruta_service.name])
-                return True, "Autoarranque configurado correctamente en Linux (systemd user)."
-            else:
-                # Deshabilitar y detener servicio si existe
-                if ruta_service.exists():
-                    subprocess.check_call(['systemctl', '--user', 'stop', ruta_service.name])
-                    subprocess.check_call(['systemctl', '--user', 'disable', ruta_service.name])
-                    ruta_service.unlink()
-                return True, "Autoarranque desactivado correctamente en Linux."
+                return True, (
+                    "Autoarranque configurado correctamente en Linux.\n"
+                    "Se iniciará minimizado al entrar en tu escritorio."
+                )
+
+            # Desactivar: quitar ambas integraciones
+            if ruta_autostart.exists():
+                ruta_autostart.unlink()
+            if ruta_service.exists():
+                subprocess.run(['systemctl', '--user', 'disable', ruta_service.name],
+                               capture_output=True, check=False)
+                subprocess.run(['systemctl', '--user', 'stop', ruta_service.name],
+                               capture_output=True, check=False)
+                ruta_service.unlink()
+            return True, "Autoarranque desactivado correctamente en Linux."
         except Exception as e:
             error_msg = f"Error al configurar autoarranque en Linux: {e}"
             logger.error(error_msg)
@@ -337,7 +378,10 @@ WantedBy=graphical-session.target
                 return ruta_plist.exists()
             
             else:
-                # Linux - Verificar si existe el servicio y está activo
+                # Linux - Comprobar la entrada XDG y, si existe, el servicio systemd
+                ruta_autostart = Path(os.path.expanduser('~')) / '.config' / 'autostart' / f'{self.nombre_app.lower()}.desktop'
+                if ruta_autostart.exists():
+                    return True
                 ruta_service = Path(os.path.expanduser('~')) / '.config' / 'systemd' / 'user' / f'{self.nombre_app.lower()}.service'
                 return ruta_service.exists() and subprocess.run(
                     ['systemctl', '--user', 'is-enabled', ruta_service.name],

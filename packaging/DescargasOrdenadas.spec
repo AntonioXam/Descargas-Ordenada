@@ -46,6 +46,7 @@ a = Analysis(
         "organizer.actualizaciones",
         "organizer.actualizaciones_mejorado",
         "organizer.file_organizer",
+        "organizer.estilos",
         "organizer.duplicate_detector",
         "organizer.statistics",
         "organizer.temas",
