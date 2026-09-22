@@ -178,6 +178,12 @@ class OrganizadorAvanzado(QMainWindow):
         # Inicializar menú contextual
         if MENU_CONTEXTUAL_DISPONIBLE:
             self.gestor_menu_contextual = GestorMenuContextual()
+            # Si la Acción rápida de Finder quedó con el formato antiguo (no
+            # aparecía o daba error), se regenera sola al abrir la app.
+            try:
+                self.gestor_menu_contextual.reparar_macos()
+            except Exception as e:
+                logger.debug(f"No se pudo revisar la Acción rápida: {e}")
         else:
             self.gestor_menu_contextual = None
         

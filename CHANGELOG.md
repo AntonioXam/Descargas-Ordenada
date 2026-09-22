@@ -4,6 +4,27 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [5.0.3] - 2026-09-22
+
+### 🖱️ Menú contextual de macOS arreglado (daba error en Finder)
+- **Causa**: la Acción rápida que se instalaba en `~/Library/Services` no tenía
+  los metadatos que Automator necesita (identificador del bundle, clase de la
+  acción, UUID…), así que Finder respondía «Automator no ha podido ejecutar el
+  flujo de trabajo: la acción no se ha cargado»
+- Además, la entrada se configuraba para no recibir las carpetas seleccionadas,
+  por lo que, incluso cargando, el script se ejecutaba sin saber qué organizar
+- Ahora se genera el flujo con el **formato exacto de los flujos del sistema**
+  (verificado contra `Run Shell Script` de `/System/Library/Automator`), de modo
+  que Finder lo carga y las rutas llegan al script como argumentos
+- **Reparación automática**: si la Acción rápida quedó dañada de una versión
+  anterior, la aplicación la detecta al abrirse y la regenera sola; no hay que
+  desinstalar ni tocar nada
+- También se refresca la caché de servicios (`pbs -flush` y recarga de Finder)
+  para que aparezca sin cerrar sesión
+- Nueva prueba funcional que valida el flujo con `automator` de verdad
+
+---
+
 ## [5.0.2] - 2026-09-22
 
 ### 🐛 Actualizaciones que no se detectaban (decía «5.0.0» estando la 5.0.1)

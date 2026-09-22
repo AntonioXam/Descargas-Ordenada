@@ -365,6 +365,60 @@ def test_menu_contextual_multiplataforma():
     print("✅ Menú contextual preparado para los tres sistemas")
 
 
+def test_workflow_macos_valido():
+    """La Acción rápida de Finder debe usar el formato que Automator acepta.
+
+    Regresión: el flujo generado antes no incluía los metadatos de la acción
+    (ActionBundlePath, BundleIdentifier, Class Name, UUID) y Automator fallaba
+    con «la acción no se ha cargado»; además inputMethod debía ser 1 para que
+    las carpetas llegasen al script.
+    """
+    if sys.platform != "darwin":
+        print("⏭️  Workflow de macOS omitido: no estamos en macOS")
+        return
+
+    import plistlib
+
+    from organizer.context_menu import GestorMenuContextual, NOMBRE_MENU
+
+    gestor = GestorMenuContextual()
+    raiz = Path.home() / "Library" / "Services" / f"{NOMBRE_MENU}.workflow"
+
+    # Escribir un flujo temporal con el formato nuevo y validar su contenido
+    generado = gestor._registrar_macos()
+    assert generado[0], f"No se pudo generar la Acción rápida: {generado[1]}"
+
+    documento = raiz / "Contents" / "document.wflow"
+    assert documento.exists(), "No se creó el documento del flujo"
+
+    datos = plistlib.loads(documento.read_bytes())
+    acciones = datos.get("actions") or []
+    assert acciones, "El flujo no contiene ninguna acción"
+    accion = acciones[0].get("action", {})
+
+    for clave in ("ActionBundlePath", "BundleIdentifier", "Class Name", "UUID"):
+        assert accion.get(clave), f"Falta el metadato obligatorio '{clave}' en la acción"
+
+    parametros = accion.get("ActionParameters", {})
+    assert parametros.get("inputMethod") == 1, (
+        "inputMethod debe ser 1 para que las carpetas lleguen al script"
+    )
+    assert "--organizar-carpeta" in parametros.get("COMMAND_STRING", ""), (
+        "El script no ejecuta la organización"
+    )
+
+    # El flujo debe considerarse sano (no roto) y Automator debe poder cargarlo
+    assert not gestor._workflow_macos_esta_roto(), "El flujo nuevo se detecta como roto"
+    carga = subprocess.run(
+        ["automator", str(raiz)], capture_output=True, text=True, timeout=60
+    )
+    assert "no se ha cargado" not in carga.stderr, (
+        f"Automator no puede cargar el flujo:\n{carga.stderr}"
+    )
+
+    print("✅ Acción rápida de Finder con formato válido para Automator")
+
+
 def test_flujo_organizar_carpeta_cli():
     """La CLI organiza una carpeta concreta y avisa si no tiene permisos."""
     base = Path(tempfile.mkdtemp(prefix="do_cli_"))
@@ -422,6 +476,7 @@ def main():
     test_actualizaciones_sin_api()
     test_instancia_unica()
     test_menu_contextual_multiplataforma()
+    test_workflow_macos_valido()
     test_flujo_organizar_carpeta_cli()
     test_cli_diagnostico()
     print("\n🎉 Todas las pruebas pasaron correctamente")

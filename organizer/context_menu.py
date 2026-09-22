@@ -88,8 +88,17 @@ class GestorMenuContextual:
     # --------------------------------------------------------------- macOS
 
     def _registrar_macos(self) -> Tuple[bool, str]:
-        """Crea una acción rápida de Finder (clic derecho → Acciones rápidas)."""
+        """Crea una Acción rápida de Finder para organizar carpetas.
+
+        macOS no permite registrar entradas de menú contextual con un simple
+        archivo de texto: hay que generar un flujo de Automator (``.workflow``)
+        con la estructura exacta que espera el sistema. Si falta algún
+        metadato de la acción (su identificador, la ruta del bundle…), Automator
+        responde «la acción no se ha cargado» y el clic derecho falla, así que
+        aquí se replica el formato de los flujos del propio sistema.
+        """
         import plistlib
+        import uuid
 
         raiz = Path.home() / "Library" / "Services" / f"{NOMBRE_MENU}.workflow"
         try:
@@ -102,50 +111,88 @@ class GestorMenuContextual:
                 "al disco y concede permiso a DescargasOrdenadas."
             )
 
+        # El script recibe las carpetas seleccionadas y lanza la organización
+        # en segundo plano, sin abrir ninguna ventana.
         comando = self._comando_base()
         script = chr(10).join([
-            "for f in \"$@\"; do",
-            f"  {comando} \"$f\" >/dev/null 2>&1 &",
+            "# Organiza las carpetas elegidas en Finder con DescargasOrdenadas",
+            'for f in "$@"; do',
+            f'  {comando} "$f" >/dev/null 2>&1 &',
             "done",
         ])
 
+        uuid_entrada = str(uuid.uuid4()).upper()
+        uuid_salida = str(uuid.uuid4()).upper()
+        uuid_accion = str(uuid.uuid4()).upper()
+
+        accion = {
+            "action": {
+                "AMAccepts": {
+                    "Container": "List",
+                    "Optional": True,
+                    "Types": ["com.apple.cocoa.string"],
+                },
+                "AMActionVersion": "2.0.3",
+                "AMApplication": ["Automator"],
+                "AMParameterProperties": {
+                    "COMMAND_STRING": {},
+                    "CheckedForUserDefaultShell": {},
+                    "inputMethod": {},
+                    "shell": {},
+                    "source": {},
+                },
+                "AMProvides": {
+                    "Container": "List",
+                    "Types": ["com.apple.cocoa.string"],
+                },
+                "ActionBundlePath": "/System/Library/Automator/Run Shell Script.action",
+                "ActionName": "Run Shell Script",
+                "ActionParameters": {
+                    "COMMAND_STRING": script,
+                    "CheckedForUserDefaultShell": True,
+                    # 1 = pasar las rutas seleccionadas como argumentos («$@»).
+                    # Con 0 no llega ningún argumento y el script no hace nada.
+                    "inputMethod": 1,
+                    "shell": "/bin/zsh",
+                    "source": "",
+                },
+                "BundleIdentifier": "com.apple.RunShellScript",
+                "CFBundleVersion": "2.0.3",
+                "CanShowSelectedItemsWhenRun": False,
+                "CanShowWhenRun": True,
+                "Category": ["AMCategoryUtilities"],
+                "Class Name": "RunShellScriptAction",
+                "InputUUID": uuid_entrada,
+                "Keywords": ["Shell", "Script", "Command", "Run", "Unix"],
+                "OutputUUID": uuid_salida,
+                "UUID": uuid_accion,
+                "UnlocalizedApplications": ["Automator"],
+                "arguments": {
+                    "0": {"default value": 0, "name": "inputMethod", "required": "0", "type": "0", "uuid": "0"},
+                    "1": {"default value": "", "name": "source", "required": "0", "type": "0", "uuid": "1"},
+                    "2": {"default value": False, "name": "CheckedForUserDefaultShell", "required": "0", "type": "0", "uuid": "2"},
+                    "3": {"default value": "", "name": "COMMAND_STRING", "required": "0", "type": "0", "uuid": "3"},
+                    "4": {"default value": "/bin/sh", "name": "shell", "required": "0", "type": "0", "uuid": "4"},
+                },
+                "isViewVisible": True,
+                "location": "309.500000:631.000000",
+                "nibPath": "/System/Library/Automator/Run Shell Script.action/Contents/Resources/en.lproj/main.nib",
+            },
+            "isViewVisible": True,
+        }
+
         document_wflow = {
-            "AMApplicationBuild": "521.1",
-            "AMApplicationVersion": "2.10",
+            "AMApplicationBuild": "346",
+            "AMApplicationVersion": "2.3",
             "AMDocumentVersion": "2",
-            "actions": [
-                {
-                    "action": {
-                        "amAcceptsInput": False,
-                        "alwaysRuns": True,
-                        "name": "Run Shell Script",
-                        "parameters": {
-                            "COMMAND_STRING": script,
-                            "CheckedForUserDefaultShell": True,
-                            "inputMethod": 1,
-                            "shell": "/bin/zsh",
-                            "source": "",
-                        },
-                        "uuid": "descargas-ordenadas-0001",
-                    },
-                    "isViewVisible": 1,
-                }
-            ],
+            "actions": [accion],
             "connectors": {},
             "workflowMetaData": {
-                "applicationBundleIDsByPath": {},
-                "applicationPaths": [],
-                "inputTypeIdentifier": "com.apple.Automator.fileSystemObject",
-                "outputTypeIdentifier": "com.apple.Automator.nothing",
-                "presentationMode": 11,
-                "processesInput": 0,
                 "serviceApplicationBundleID": "com.apple.finder",
                 "serviceApplicationPath": "/System/Library/CoreServices/Finder.app",
                 "serviceInputTypeIdentifier": "com.apple.Automator.fileSystemObject",
                 "serviceOutputTypeIdentifier": "com.apple.Automator.nothing",
-                "serviceProcessesInput": 0,
-                "systemImageName": "NSActionTemplate",
-                "useAutomaticInputType": 0,
+                "serviceProcessesInput": 1,
                 "workflowTypeIdentifier": "com.apple.Automator.servicesMenu",
             },
         }
@@ -172,23 +219,42 @@ class GestorMenuContextual:
             plistlib.dumps(info_plist, fmt=plistlib.FMT_XML)
         )
 
-        # Pedir a macOS que reescanee los servicios
-        subprocess.run(
-            ["/System/Library/CoreServices/pbs", "-flush"],
-            capture_output=True, timeout=10, check=False,
-        )
-        # Algunas versiones de macOS solo recargan los servicios por usuario
-        subprocess.run(
-            ["/System/Library/CoreServices/pbs", "-flush", "-user", os.environ.get("USER", "")],
-            capture_output=True, timeout=10, check=False,
-        )
+        # macOS guarda los servicios en caché: hay que pedirle que los relea
+        self._refrescar_servicios_macos()
 
         return True, (
             "Acción rápida instalada.\n\n"
             "En Finder: clic derecho sobre una carpeta → Acciones rápidas → "
             f"{NOMBRE_MENU}.\n\n"
+            "Si no aparece, cierra y vuelve a abrir la ventana de Finder.\n"
             "La primera vez macOS pedirá permiso para acceder a la carpeta: acéptalo."
         )
+
+    def _refrescar_servicios_macos(self):
+        """Fuerza a macOS a releer las Acciones rápidas instaladas."""
+        try:
+            from PySide6.QtCore import QSettings
+            # El propio Finder mantiene la lista de servicios: pedirle que la
+            # recargue evita tener que cerrar sesión para que aparezca.
+            try:
+                ajustes = QSettings(
+                    str(Path.home() / "Library" / "Preferences" / "com.apple.ServicesMenu.Services.plist"),
+                    QSettings.NativeFormat,
+                )
+                ajustes.sync()
+            except Exception:
+                pass
+        except ImportError:
+            pass
+
+        for comando in (
+            ["/System/Library/CoreServices/pbs", "-flush"],
+            ["/usr/bin/killall", "-HUP", "Finder"],
+        ):
+            try:
+                subprocess.run(comando, capture_output=True, timeout=10, check=False)
+            except Exception as e:
+                logger.debug(f"No se pudo ejecutar {comando[0]}: {e}")
 
     def _desregistrar_macos(self) -> Tuple[bool, str]:
         """Elimina la acción rápida de Finder."""
@@ -206,6 +272,60 @@ class GestorMenuContextual:
     def _verificar_macos(self) -> bool:
         raiz = Path.home() / "Library" / "Services" / f"{NOMBRE_MENU}.workflow"
         return (raiz / "Contents" / "Info.plist").exists()
+
+    def _workflow_macos_esta_roto(self) -> bool:
+        """Detecta flujos creados con el formato antiguo (no cargaban en Finder).
+
+        Las primeras versiones generaban un ``.workflow`` sin los metadatos que
+        Automator necesita, así que el clic derecho daba «la acción no se ha
+        cargado». Se comprueba si falta la información clave y, en ese caso, se
+        regenera automáticamente al abrir la app.
+        """
+        import plistlib
+
+        raiz = Path.home() / "Library" / "Services" / f"{NOMBRE_MENU}.workflow"
+        documento = raiz / "Contents" / "document.wflow"
+        if not documento.exists():
+            return False
+        try:
+            datos = plistlib.loads(documento.read_bytes())
+            acciones = datos.get("actions", [])
+            if not acciones:
+                return True
+            accion = acciones[0].get("action", {})
+            # El formato bueno incluye estos metadatos; el antiguo, no
+            return not all(
+                accion.get(clave)
+                for clave in ("ActionBundlePath", "BundleIdentifier", "Class Name", "UUID")
+            )
+        except Exception:
+            return True
+
+    def reparar_macos(self) -> bool:
+        """Regenera la Acción rápida si quedó con el formato antiguo.
+
+        Devuelve True si hubo que repararla. Se llama al arrancar la aplicación
+        para que los usuarios que instalaron una versión anterior no tengan que
+        tocar nada.
+        """
+        if sys.platform != "darwin":
+            return False
+        if not self._verificar_macos():
+            return False
+        if not self._workflow_macos_esta_roto():
+            return False
+
+        logger.info("La Acción rápida de Finder estaba dañada; se regenera")
+        try:
+            exito, mensaje = self._registrar_macos()
+            if exito:
+                logger.info("Acción rápida de Finder reparada correctamente")
+            else:
+                logger.warning(f"No se pudo reparar la Acción rápida: {mensaje}")
+            return exito
+        except Exception as e:
+            logger.warning(f"No se pudo reparar la Acción rápida: {e}")
+            return False
 
     # --------------------------------------------------------------- Linux
 
