@@ -4,6 +4,26 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [5.0.1] - 2026-09-22
+
+### 🐛 Controles de auto-organización siempre coherentes
+- Corregido el fallo por el que el modo Básico/Detallado y la hora se quedaban
+  «pinzados»: los radios de Qt no se pueden desmarcar cuando están en grupo, así
+  que apagar el interruptor dejaba el estado a medias y el siguiente cambio no
+  se aplicaba
+- Ahora **todo** (encender, apagar, cambiar de modo y cambiar la hora) pasa por un
+  único punto que actualiza a la vez el interruptor, los radios, el
+  temporizador, la tarjeta de estado y lo que se guarda para el próximo arranque
+- Cambiar «Revisar cada» con la auto-organización encendida aplica el intervalo
+  **al momento** y reinicia la cuenta (antes el temporizador seguía con la hora
+  anterior)
+- Cambiar de modo con la auto-organización **apagada** ya no la enciende sola:
+  solo se recuerda la elección para cuando la actives
+- Al encender se usa exactamente el modo y la hora que dejaste seleccionados
+- Nueva prueba funcional de regresión que cubre todos estos casos
+
+---
+
 ## [5.0.0] - 2026-09-22
 
 ### 🎨 Diseño nuevo tipo Apple

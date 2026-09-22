@@ -121,6 +121,32 @@ def test_estilos_multiplataforma():
     print("✅ Sistema de estilos tipo Apple operativo")
 
 
+class _ConfigAislada:
+    """Sustituye temporalmente la configuración global para no tocar la real."""
+
+    def __init__(self):
+        from organizer import portable_config
+
+        self._modulo = portable_config
+        self._original = portable_config._config_global
+        self.temporal = portable_config.ConfigPortable.__new__(portable_config.ConfigPortable)
+        self.temporal.nombre_app = "DescargasOrdenadasPruebas"
+        self.temporal._config = self.temporal._obtener_config_por_defecto()
+        carpeta = Path(tempfile.mkdtemp(prefix="do_cfg_"))
+        self.temporal._config_path = carpeta / "pruebas.json"
+        self.temporal._config_path.write_text("{}", encoding="utf-8")
+
+    def __enter__(self):
+        self._modulo._config_global = self.temporal
+        return self.temporal
+
+    def __exit__(self, *args):
+        self._modulo._config_global = self._original
+        # La carpeta temporal se deja: el sistema la limpia sola y así ningún
+        # guardado posterior del test falla por "no such file or directory".
+        return False
+
+
 def test_gui_responsive():
     """La ventana es adaptable: barra lateral + vistas con scroll."""
     try:
@@ -132,7 +158,8 @@ def test_gui_responsive():
         return
 
     app = QApplication.instance() or QApplication([])
-    ventana = OrganizadorAvanzado()
+    with _ConfigAislada():
+        ventana = OrganizadorAvanzado()
     ventana.resize(800, 600)
 
     assert ventana.minimumSize().width() <= 800, "El ancho mínimo es demasiado grande"
@@ -161,12 +188,79 @@ def test_tema_segun_sistema():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
-    ventana = OrganizadorAvanzado()
+    with _ConfigAislada():
+        ventana = OrganizadorAvanzado()
     ventana._tema = "auto"
     assert ventana._tema_efectivo() in ("claro", "oscuro")
     ventana._tema = "claro"
     assert ventana._tema_efectivo() == "claro"
     print("✅ Tema automático según el sistema")
+
+
+def test_controles_auto_organizacion():
+    """Switch, modo e intervalo deben mantenerse coherentes en todo momento.
+
+    Cubre la regresión de los radios exclusivos: al tocar el modo o la hora
+    con la auto-organización apagada, esta no debe encenderse sola, y al
+    cambiar cualquiera de los dos estando encendida debe aplicarse ya.
+    """
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from organizer.gui_avanzada import OrganizadorAvanzado
+
+    app = QApplication.instance() or QApplication([])
+    with _ConfigAislada():
+        ventana = OrganizadorAvanzado()
+
+    def intervalos():
+        return [ventana.combo_intervalo_auto.itemData(i)
+                for i in range(ventana.combo_intervalo_auto.count())]
+
+    # --- apagada: tocar modo y hora no debe encenderla ------------------
+    ventana._aplicar_auto_organizacion(False)
+    ventana.chk_auto_basico.setChecked(True)
+    ventana.chk_auto_detallado.setChecked(True)
+    ventana.chk_auto_basico.setChecked(True)
+    assert not ventana.chk_auto_principal.isChecked(), "Tocar el modo encendió la auto-organización"
+    assert not ventana.timer_auto.isActive(), "El temporizador arrancó sin pedirlo"
+
+    indice_10 = intervalos().index(600)
+    ventana.combo_intervalo_auto.setCurrentIndex(indice_10)
+    assert not ventana.chk_auto_principal.isChecked(), "Cambiar la hora encendió la auto-organización"
+    assert ventana.config_portable.obtener("auto_intervalo") == 600
+
+    # --- encendida: el cambio de hora se aplica al temporizador ---------
+    ventana.chk_auto_principal.setChecked(True)
+    assert ventana.timer_auto.isActive(), "Al encender debe arrancar el temporizador"
+    assert ventana.timer_auto.interval() == 600 * 1000, "El intervalo no se aplicó al encender"
+    assert "10 minutos" in ventana.lbl_estado_detalle.text(), (
+        f"La tarjeta no refleja la hora: {ventana.lbl_estado_detalle.text()}"
+    )
+
+    ventana.combo_intervalo_auto.setCurrentIndex(intervalos().index(300))
+    assert ventana.timer_auto.interval() == 300 * 1000, "El cambio de hora no se aplicó en caliente"
+
+    # --- encendida: el cambio de modo se aplica -------------------------
+    ventana.chk_auto_detallado.setChecked(True)
+    assert ventana.config_portable.obtener("auto_modo") == "detallado"
+    assert ventana._modo_seleccionado() == "detallado"
+    assert "Detallado" in ventana.lbl_estado.text()
+    assert not ventana.chk_auto_basico.isChecked(), "Los modos deben ser exclusivos"
+
+    # --- apagar no debe perder el modo ni la hora elegidos --------------
+    ventana.chk_auto_principal.setChecked(False)
+    assert not ventana.timer_auto.isActive(), "Al apagar debe detenerse el temporizador"
+    assert ventana.config_portable.obtener("auto_modo") == "detallado"
+    assert ventana.config_portable.obtener("auto_intervalo") == 300
+    assert ventana.config_portable.obtener("auto_organizacion") is False
+
+    # --- volver a encender usa lo elegido ------------------------------
+    ventana.chk_auto_principal.setChecked(True)
+    assert ventana.timer_auto.isActive()
+    assert ventana.timer_auto.interval() == 300 * 1000
+    assert ventana.chk_auto_detallado.isChecked(), "Debe recordar el modo detallado"
+
+    print("✅ Controles de auto-organización coherentes (modo, hora y switch)")
 
 
 def test_instancia_unica():
@@ -202,7 +296,7 @@ def test_flujo_organizar_carpeta_cli():
     (base / "foto.png").write_text("png")
     resultado = subprocess.run(
         [sys.executable, str(project_root / "organizer" / "INICIAR.py"),
-         "--organizar-carpeta", str(base)],
+         "--organizar-carpeta", str(base), "--modo", "basico"],
         capture_output=True, text=True, timeout=90
     )
     assert (base / "Imágenes" / "foto.png").exists(), (
@@ -249,6 +343,7 @@ def main():
     test_estilos_multiplataforma()
     test_gui_responsive()
     test_tema_segun_sistema()
+    test_controles_auto_organizacion()
     test_instancia_unica()
     test_menu_contextual_multiplataforma()
     test_flujo_organizar_carpeta_cli()

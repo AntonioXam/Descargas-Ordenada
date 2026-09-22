@@ -657,152 +657,179 @@ class OrganizadorAvanzado(QMainWindow):
         except Exception:
             os._exit(0)
 
+    # ============================================================
+    #  Auto-organización: un único punto de verdad
+    # ============================================================
+    # El switch principal decide si está encendida; los radios de modo y el
+    # desplegable de intervalo son la configuración que se aplicará. Todo
+    # cambio pasa por _aplicar_auto_organizacion, de forma que la interfaz,
+    # el temporizador y la configuración guardada nunca se contradicen.
+
+    def _auto_activo(self) -> bool:
+        """Indica si el interruptor general está encendido."""
+        principal = getattr(self, "chk_auto_principal", None)
+        return bool(principal is not None and principal.isChecked())
+
+    def _modo_seleccionado(self) -> str:
+        """Modo elegido en los radios ('basico' o 'detallado')."""
+        detallado = getattr(self, "chk_auto_detallado", None)
+        if detallado is not None and detallado.isChecked():
+            return "detallado"
+        return "basico"
+
+    def _intervalo_seleccionado(self) -> int:
+        """Intervalo elegido en el desplegable, en segundos (mínimo 30)."""
+        combo = getattr(self, "combo_intervalo_auto", None)
+        if combo is None:
+            return 3600
+        try:
+            return max(30, int(combo.currentData() or 3600))
+        except (TypeError, ValueError):
+            return 3600
+
+    def _aplicar_auto_organizacion(self, activo: bool, modo=None,
+                                   anunciar: bool = False):
+        """Aplica de golpe switch, modo e intervalo (timer + interfaz + config).
+
+        Es el único sitio donde se enciende, se apaga o se reconfigura la
+        auto-organización. Cualquier control llama aquí, así nunca se quedan
+        desincronizados.
+
+        Args:
+            activo: si debe estar encendida.
+            modo: 'basico' o 'detallado'; si es None se usa el de los radios.
+            anunciar: escribir el cambio en la pestaña Actividad.
+        """
+        modo = modo or self._modo_seleccionado()
+        if modo not in ("basico", "detallado"):
+            modo = "basico"
+        intervalo = self._intervalo_seleccionado()
+
+        # --- temporizador -------------------------------------------------
+        if getattr(self, "timer_auto", None) is None:
+            self.timer_auto = QTimer(self)
+            self.timer_auto.timeout.connect(self._organizar_automatico)
+        if activo:
+            # start() reinicia la cuenta: el nuevo intervalo se aplica ya
+            self.timer_auto.start(intervalo * 1000)
+        else:
+            self.timer_auto.stop()
+
+        # --- interfaz (sin señales para no reentrar) ----------------------
+        self._sincronizando_controles = True
+        try:
+            principal = getattr(self, "chk_auto_principal", None)
+            if principal is not None:
+                principal.blockSignals(True)
+                principal.setChecked(activo)
+                principal.blockSignals(False)
+
+            # Los radios son exclusivos: marcar el correcto desmarca el otro.
+            # Se marcan en bucle para que Qt haga la exclusión por nosotros.
+            for radio, valor in (
+                (getattr(self, "chk_auto_basico", None), "basico"),
+                (getattr(self, "chk_auto_detallado", None), "detallado"),
+            ):
+                if radio is None:
+                    continue
+                radio.blockSignals(True)
+                radio.setChecked(valor == modo)
+                radio.blockSignals(False)
+        finally:
+            self._sincronizando_controles = False
+
+        # --- estado y avisos ----------------------------------------------
+        self._auto_modo_guardado = modo
+        nombre_modo = "Básico" if modo == "basico" else "Detallado"
+        self._pintar_estado(activo, nombre_modo)
+
+        if getattr(self, "tray_icon", None):
+            if activo:
+                self.tray_icon.setToolTip(
+                    f"Auto-organización {nombre_modo.upper()} ({intervalo} s)"
+                )
+            else:
+                self.tray_icon.setToolTip("Organización automática inactiva")
+
+        if anunciar:
+            if activo:
+                self._agregar_log(
+                    f"Auto-organización {nombre_modo} ACTIVADA "
+                    f"({self.combo_intervalo_auto.currentText()})"
+                )
+            else:
+                self._agregar_log("Auto-organización DESACTIVADA")
+
+        # --- persistencia --------------------------------------------------
+        self._guardar_estado_auto(activo, modo, intervalo)
+
+    def _guardar_estado_auto(self, activo: bool, modo: str, intervalo: int):
+        """Guarda switch, modo e intervalo, y sincroniza el autoarranque."""
+        if not self.config_portable:
+            return
+        try:
+            self.config_portable.establecer("auto_organizacion", bool(activo))
+            self.config_portable.establecer("auto_modo", modo)
+            self.config_portable.establecer("auto_intervalo", int(intervalo))
+
+            # Si el autoarranque del sistema está activo, se reescribe con el
+            # modo elegido; si la auto-organización se apagó, se deja el
+            # autoarranque sin modo para que al iniciar no organice sola.
+            if self.config_portable.obtener("autoarranque", False):
+                self._sincronizar_autoarranque(modo if activo else None)
+        except Exception as e:
+            logger.debug(f"No se pudo guardar el estado de la auto-organización: {e}")
+
+    # ------------------------------------------------- controles de la vista
+
     def _toggle_auto_principal(self, activo):
-        """Interruptor general de la organización automática."""
+        """Interruptor general: enciende o apaga la organización automática."""
         if getattr(self, "_sincronizando_controles", False):
             return
-        if activo:
-            # Activar con el modo guardado (o Básico por defecto)
-            modo = getattr(self, "_auto_modo_guardado", "basico")
-            if modo == "detallado" and hasattr(self, "chk_auto_detallado"):
-                self.chk_auto_detallado.setChecked(True)
-            elif hasattr(self, "chk_auto_basico"):
-                self.chk_auto_basico.setChecked(True)
-        else:
-            # Apagar: detiene el timer y limpia la preferencia
-            if hasattr(self, "timer_auto") and self.timer_auto:
-                self.timer_auto.stop()
-            if hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked():
-                self.chk_auto_basico.blockSignals(True)
-                self.chk_auto_basico.setChecked(False)
-                self.chk_auto_basico.blockSignals(False)
-            if hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked():
-                self.chk_auto_detallado.blockSignals(True)
-                self.chk_auto_detallado.setChecked(False)
-                self.chk_auto_detallado.blockSignals(False)
-            self._agregar_log("Auto-organización DESACTIVADA")
-            self._olvidar_preferencia_auto()
-            self._actualizar_estado_auto_organizacion()
+        self._aplicar_auto_organizacion(activo, anunciar=True)
 
     def _toggle_auto_organizacion(self, activo):
-        """Activa/desactiva la organización automática (compatibilidad)."""
-        if hasattr(self, "chk_auto_principal"):
+        """Compatibilidad: el interruptor general manda."""
+        if getattr(self, "chk_auto_principal", None) is not None:
             self.chk_auto_principal.setChecked(activo)
-    
+
     @Slot(bool)
     def _toggle_auto_organizacion_basico(self, activo):
-        """Toggle auto-organización básica cada 30 segundos."""
-        try:
-            if activo:
-                # Desactivar el modo detallado si estaba activo (sin propagar)
-                if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
-                    self.chk_auto_detallado.blockSignals(True)
-                    self.chk_auto_detallado.setChecked(False)
-                    self.chk_auto_detallado.blockSignals(False)
-                
-                if not hasattr(self, 'timer_auto') or self.timer_auto is None:
-                    self.timer_auto = QTimer()
-                    self.timer_auto.timeout.connect(self._organizar_automatico)
-                
-                # Obtener intervalo del selector
-                intervalo_segundos = self.combo_intervalo_auto.currentData()
-                intervalo_ms = intervalo_segundos * 1000
-                intervalo_texto = self.combo_intervalo_auto.currentText()
-                self.timer_auto.start(intervalo_ms)
-                self._agregar_log(f"Auto-organización BÁSICA ACTIVADA ({intervalo_texto})")
-                self._sincronizar_switch_principal(True)
-                
-                # Actualizar tooltip de la bandeja
-                if getattr(self, 'tray_icon', None):
-                    self.tray_icon.setToolTip(f"Auto-organización BÁSICA ({intervalo_texto})")
-                    
-                # Actualizar estado visual
-                self._pintar_estado(True, "Básico")
-
-                # Recordar la elección para el próximo arranque
-                self._guardar_preferencia_auto()
-            else:
-                if hasattr(self, 'timer_auto') and self.timer_auto:
-                    self.timer_auto.stop()
-                
-                self._agregar_log("Auto-organización BÁSICA DESACTIVADA")
-                self._olvidar_preferencia_auto()
-                self._sincronizar_switch_principal(False)
-                self._actualizar_estado_auto_organizacion()
-                
-        except Exception as e:
-            self._agregar_log(f"Error configurando auto-organización básica: {e}")
-            QMessageBox.critical(self, "Error", f"Error: {e}")
+        """El usuario ha elegido el modo Básico."""
+        if getattr(self, "_sincronizando_controles", False) or not activo:
+            return
+        self._aplicar_auto_organizacion(self._auto_activo(), modo="basico", anunciar=True)
 
     @Slot(bool)
     def _toggle_auto_organizacion_detallado(self, activo):
-        """Toggle auto-organización detallada cada 30 segundos."""
-        try:
-            if activo:
-                # Desactivar el modo básico si estaba activo (sin propagar)
-                if hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
-                    self.chk_auto_basico.blockSignals(True)
-                    self.chk_auto_basico.setChecked(False)
-                    self.chk_auto_basico.blockSignals(False)
-                
-                if not hasattr(self, 'timer_auto') or self.timer_auto is None:
-                    self.timer_auto = QTimer()
-                    self.timer_auto.timeout.connect(self._organizar_automatico)
-                
-                # Obtener intervalo del selector
-                intervalo_segundos = self.combo_intervalo_auto.currentData()
-                intervalo_ms = intervalo_segundos * 1000
-                intervalo_texto = self.combo_intervalo_auto.currentText()
-                self.timer_auto.start(intervalo_ms)
-                self._agregar_log(f"Auto-organización DETALLADA ACTIVADA ({intervalo_texto})")
-                self._sincronizar_switch_principal(True)
-                
-                # Actualizar tooltip de la bandeja
-                if getattr(self, 'tray_icon', None):
-                    self.tray_icon.setToolTip(f"Auto-organización DETALLADA ({intervalo_texto})")
-                    
-                # Actualizar estado visual
-                self._pintar_estado(True, "Detallado")
+        """El usuario ha elegido el modo Detallado."""
+        if getattr(self, "_sincronizando_controles", False) or not activo:
+            return
+        self._aplicar_auto_organizacion(self._auto_activo(), modo="detallado", anunciar=True)
 
-                # Recordar la elección para el próximo arranque
-                self._guardar_preferencia_auto()
-            else:
-                if hasattr(self, 'timer_auto') and self.timer_auto:
-                    self.timer_auto.stop()
-                
-                self._agregar_log("Auto-organización DETALLADA DESACTIVADA")
-                self._olvidar_preferencia_auto()
-                self._sincronizar_switch_principal(False)
-                self._actualizar_estado_auto_organizacion()
-                
-        except Exception as e:
-            self._agregar_log(f"Error configurando auto-organización detallada: {e}")
-            QMessageBox.critical(self, "Error", f"Error: {e}")
-    
-    def _sincronizar_switch_principal(self, activo):
-        """Mantiene el interruptor general coherente con los modos."""
+    def _cambiar_intervalo_auto(self, index):
+        """Cambia cada cuánto se revisa la carpeta (con efecto inmediato)."""
         if getattr(self, "_sincronizando_controles", False):
             return
-        if hasattr(self, "chk_auto_principal"):
-            self.chk_auto_principal.blockSignals(True)
+        self._aplicar_auto_organizacion(self._auto_activo(), anunciar=True)
+
+    def _sincronizar_switch_principal(self, activo):
+        """Mantiene el interruptor general coherente (uso interno)."""
+        if getattr(self, "_sincronizando_controles", False):
+            return
+        if getattr(self, "chk_auto_principal", None) is not None:
             self.chk_auto_principal.setChecked(activo)
-            self.chk_auto_principal.blockSignals(False)
 
     def _actualizar_estado_auto_organizacion(self):
-        """Actualiza la tarjeta de estado según los controles actuales."""
-        modo = None
-        if hasattr(self, 'chk_auto_detallado') and self.chk_auto_detallado.isChecked():
-            modo = "Detallado"
-        elif hasattr(self, 'chk_auto_basico') and self.chk_auto_basico.isChecked():
-            modo = "Básico"
-
-        timer = getattr(self, 'timer_auto', None)
-        activo = bool(modo) and timer is not None and timer.isActive()
-        self._pintar_estado(activo, modo)
-
-        if not activo:
-            if getattr(self, 'tray_icon', None):
-                self.tray_icon.setToolTip("Organización automática inactiva")
+        """Refresca la tarjeta de estado a partir del estado real."""
+        timer = getattr(self, "timer_auto", None)
+        activo = bool(getattr(self, "chk_auto_principal", None)
+                      and self.chk_auto_principal.isChecked()
+                      and timer is not None and timer.isActive())
+        nombre_modo = "Detallado" if self._modo_seleccionado() == "detallado" else "Básico"
+        self._pintar_estado(activo, nombre_modo)
+        if not activo and getattr(self, "tray_icon", None):
+            self.tray_icon.setToolTip("Organización automática inactiva")
 
     def _pintar_estado(self, activo, modo=None):
         """Actualiza la tarjeta superior de estado (Inicio)."""
@@ -2934,7 +2961,11 @@ class OrganizadorAvanzado(QMainWindow):
     
 
     def _restaurar_preferencias_auto(self):
-        """Restaura el modo (básico/detallado) y el intervalo guardados."""
+        """Carga modo e intervalo guardados sin encender la auto-organización.
+
+        El switch principal se queda apagado; si la configuración dice que
+        estaba activa, ``_activar_auto_guardada`` la enciende justo después.
+        """
         if self._sincronizando_controles:
             return
         self._sincronizando_controles = True
@@ -2955,124 +2986,52 @@ class OrganizadorAvanzado(QMainWindow):
                 modo = "basico"
 
             # Seleccionar el intervalo guardado en el desplegable
-            if hasattr(self, "combo_intervalo_auto") and intervalo:
-                indice = self.combo_intervalo_auto.findData(int(intervalo))
+            combo = getattr(self, "combo_intervalo_auto", None)
+            if combo is not None and intervalo:
+                indice = combo.findData(int(intervalo))
                 if indice >= 0:
-                    self.combo_intervalo_auto.setCurrentIndex(indice)
+                    combo.setCurrentIndex(indice)
 
             self._auto_modo_guardado = modo
 
-            # El interruptor general arranca apagado; si la configuración tenía
-            # la organización automática activada, _activar_auto_guardada lo
-            # enciende al poco de abrir la ventana.
-            if hasattr(self, "chk_auto_principal"):
-                self.chk_auto_principal.blockSignals(True)
-                self.chk_auto_principal.setChecked(False)
-                self.chk_auto_principal.blockSignals(False)
+            # Dejar los controles en el modo guardado, pero apagados: si la
+            # auto-organización estaba activa, se enciende a continuación.
+            principal = getattr(self, "chk_auto_principal", None)
+            if principal is not None:
+                principal.blockSignals(True)
+                principal.setChecked(False)
+                principal.blockSignals(False)
 
-            # Marcar la casilla correspondiente sin disparar el timer todavía
-            if modo == "basico" and hasattr(self, "chk_auto_basico"):
-                self.chk_auto_basico.blockSignals(True)
-                self.chk_auto_basico.setChecked(True)
-                if hasattr(self, "chk_auto_detallado"):
-                    self.chk_auto_detallado.blockSignals(True)
-                    self.chk_auto_detallado.setChecked(False)
-                    self.chk_auto_detallado.blockSignals(False)
-                self.chk_auto_basico.blockSignals(False)
-            elif hasattr(self, "chk_auto_detallado"):
-                self.chk_auto_detallado.blockSignals(True)
-                self.chk_auto_detallado.setChecked(True)
-                if hasattr(self, "chk_auto_basico"):
-                    self.chk_auto_basico.blockSignals(True)
-                    self.chk_auto_basico.setChecked(False)
-                    self.chk_auto_basico.blockSignals(False)
-                self.chk_auto_detallado.blockSignals(False)
+            for radio, valor in (
+                (getattr(self, "chk_auto_basico", None), "basico"),
+                (getattr(self, "chk_auto_detallado", None), "detallado"),
+            ):
+                if radio is None:
+                    continue
+                radio.blockSignals(True)
+                radio.setChecked(valor == modo)
+                radio.blockSignals(False)
+
+            self._pintar_estado(False, "Básico" if modo == "basico" else "Detallado")
         except Exception as e:
             logger.debug(f"No se pudieron restaurar las preferencias de auto-organización: {e}")
         finally:
             self._sincronizando_controles = False
 
     def _activar_auto_guardada(self):
-        """Arranca la auto-organización con el modo previamente guardado."""
+        """Enciende la auto-organización con el modo e intervalo guardados."""
         modo = getattr(self, "_auto_modo_guardado", "basico")
         try:
-            if hasattr(self, "timer_auto") and self.timer_auto is None:
-                pass
-            # Asegurar el timer
-            if not hasattr(self, "timer_auto") or self.timer_auto is None:
-                from PySide6.QtCore import QTimer as _QTimer
-                self.timer_auto = _QTimer()
-                self.timer_auto.timeout.connect(self._organizar_automatico)
-
-            # Activar primero el interruptor general (sin señales para no reentrar)
-            if hasattr(self, "chk_auto_principal"):
-                self.chk_auto_principal.blockSignals(True)
-                self.chk_auto_principal.setChecked(True)
-                self.chk_auto_principal.blockSignals(False)
-
-            # Marcar el modo guardado (con señales para refrescar la tarjeta)
-            if modo == "basico" and hasattr(self, "chk_auto_basico"):
-                if not self.chk_auto_basico.isChecked():
-                    self.chk_auto_basico.setChecked(True)
-            elif hasattr(self, "chk_auto_detallado") and not self.chk_auto_detallado.isChecked():
-                self.chk_auto_detallado.setChecked(True)
-
-            # Garantizar el timer activo con el intervalo actual
-            if hasattr(self, "timer_auto"):
-                intervalo_seg = int(self.combo_intervalo_auto.currentData() or 3600)
-                self.timer_auto.start(max(30, intervalo_seg) * 1000)
-            intervalo_texto = self.combo_intervalo_auto.currentText() if hasattr(self, "combo_intervalo_auto") else ""
-            self._agregar_log(f"Auto-organización ACTIVADA al abrir ({modo}, cada {intervalo_texto})")
-            self._actualizar_estado_auto_organizacion()
+            self._aplicar_auto_organizacion(True, modo=modo, anunciar=True)
         except Exception as e:
             logger.debug(f"No se pudo activar la auto-organización guardada: {e}")
 
-    def _guardar_preferencia_auto(self):
-        """Guarda qué modo está activo y cada cuánto se revisa la carpeta."""
-        if not self.config_portable:
-            return
-        if getattr(self, "_sincronizando_controles", False):
-            return
-        try:
-            modo = "detallado" if (hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked()) else "basico"
-            if hasattr(self, "combo_intervalo_auto"):
-                intervalo = int(self.combo_intervalo_auto.currentData() or 3600)
-            else:
-                intervalo = 30
-            self.config_portable.establecer("auto_modo", modo)
-            self.config_portable.establecer("auto_intervalo", intervalo)
-            activo_general = self.chk_auto_principal.isChecked() if hasattr(self, "chk_auto_principal") else True
-            self.config_portable.establecer("auto_organizacion", bool(activo_general))
-            self._sincronizar_autoarranque(modo)
-        except Exception as e:
-            logger.debug(f"No se pudieron guardar las preferencias de auto-organización: {e}")
-
-    def _olvidar_preferencia_auto(self):
-        """Desactiva la auto-organización recordada para el próximo arranque."""
-        if not self.config_portable:
-            return
-        if getattr(self, "_sincronizando_controles", False):
-            return
-        # Si el otro modo sigue activo, mantenemos la preferencia guardada
-        otro_activo = False
-        if hasattr(self, "chk_auto_basico") and self.chk_auto_basico.isChecked():
-            otro_activo = True
-        if hasattr(self, "chk_auto_detallado") and self.chk_auto_detallado.isChecked():
-            otro_activo = True
-        if otro_activo:
-            return
-        try:
-            self.config_portable.establecer("auto_organizacion", False)
-            # Si el autoarranque sigue activo, lo reescribimos sin modo para que
-            # el próximo inicio no reactive la auto-organización.
-            if self.config_portable.obtener("autoarranque", False):
-                exito, msg = self.gestor_autoarranque.configurar_autoarranque(True, modo=None)
-                logger.debug(f"Autoarranque reescrito sin modo: exito={exito}, mensaje={msg}")
-        except Exception as e:
-            logger.debug(f"No se pudo desactivar la auto-organización guardada: {e}")
-
     def _sincronizar_autoarranque(self, modo):
-        """Reescribe el autoarranque del sistema con el modo actual."""
+        """Reescribe el autoarranque del sistema con el modo actual.
+
+        ``modo=None`` deja el autoarranque sin organización automática (la app
+        arranca minimizada pero no ordena sola).
+        """
         if not self.config_portable:
             return
         if not self.config_portable.obtener("autoarranque", False):
@@ -3091,22 +3050,6 @@ class OrganizadorAvanzado(QMainWindow):
         finally:
             self._sincronizando_autoarranque = False
 
-    def _cambiar_intervalo_auto(self, index):
-        """Cambia el intervalo de auto-organización."""
-        if self.config_portable:
-            try:
-                self.config_portable.establecer("auto_intervalo", int(self.combo_intervalo_auto.currentData() or 3600))
-            except Exception:
-                pass
-
-        if hasattr(self, 'timer_auto') and self.timer_auto and self.timer_auto.isActive():
-            # Si el timer está activo, reiniciar con el nuevo intervalo
-            intervalo_ms = self.combo_intervalo_auto.currentData() * 1000
-            self.timer_auto.setInterval(intervalo_ms)
-
-            intervalo_texto = self.combo_intervalo_auto.currentText()
-            self._agregar_log(f"⏱️ Intervalo de auto-organización cambiado a: {intervalo_texto}")
-    
     def _quitar_acceso_directo_startup(self):
         """Desactiva el arranque con el sistema usando el gestor oficial."""
         try:
