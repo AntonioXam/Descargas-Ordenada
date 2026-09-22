@@ -2040,8 +2040,12 @@ class OrganizadorAvanzado(QMainWindow):
             
             if hay_actualizacion and info:
                 version = info.get('version', 'Desconocida')
-                self._agregar_log(f"✨ ¡Nueva versión {version} disponible!")
+                self._agregar_log(f"¡Nueva versión {version} disponible!")
                 self._mostrar_notificacion_actualizacion(info)
+            elif self.gestor_actualizaciones.comprobacion_fallida():
+                self._agregar_log(
+                    "No se pudo comprobar la actualización ahora; se reintentará más tarde"
+                )
             else:
                 self._agregar_log("Ya tienes la última versión")
         except Exception as e:
@@ -2059,6 +2063,17 @@ class OrganizadorAvanzado(QMainWindow):
             
             if hay_actualizacion and info:
                 self._mostrar_notificacion_actualizacion(info)
+            elif self.gestor_actualizaciones.comprobacion_fallida():
+                # No es lo mismo «no hay nada nuevo» que «no se pudo mirar»
+                QMessageBox.warning(
+                    self,
+                    "No se pudo comprobar",
+                    "GitHub no ha respondido a la comprobación (puede ser un límite "
+                    "temporal de peticiones).\n\n"
+                    "Vuelve a intentarlo dentro de unos minutos: no se ha podido "
+                    "confirmar si hay una versión nueva."
+                )
+                self._agregar_log("Comprobación de actualizaciones no disponible (se reintentará)")
             else:
                 QMessageBox.information(
                     self,

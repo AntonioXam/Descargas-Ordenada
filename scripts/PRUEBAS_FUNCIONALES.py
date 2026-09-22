@@ -263,6 +263,81 @@ def test_controles_auto_organizacion():
     print("✅ Controles de auto-organización coherentes (modo, hora y switch)")
 
 
+def test_actualizaciones_sin_api():
+    """La comprobación debe funcionar aunque la API de GitHub esté limitada.
+
+    Regresión: antes, un 403 de límite de peticiones se interpretaba como «ya
+    tienes la última versión» y además bloqueaba el reintento durante 24 h.
+    """
+    try:
+        import requests
+        from unittest.mock import MagicMock, patch
+        from organizer.actualizaciones_mejorado import GestorActualizacionesMejorado
+    except ImportError:
+        print("⏭️  Actualizaciones no probadas: dependencias ausentes")
+        return
+
+    get_real = requests.get
+
+    def get_con_api_bloqueada(url, *args, **kwargs):
+        if "api.github.com" in url:
+            respuesta = MagicMock()
+            respuesta.status_code = 403
+            respuesta.text = '{"message":"API rate limit exceeded"}'
+            respuesta.raise_for_status.side_effect = requests.exceptions.HTTPError("403")
+            return respuesta
+        return get_real(url, *args, **kwargs)
+
+    gestor = GestorActualizacionesMejorado()
+    gestor.VERSION_ACTUAL = "0.0.1"  # muy antigua: siempre hay algo más nuevo
+    gestor.ultima_verificacion = None
+    gestor._ultima_comprobacion_fallida = False
+
+    with patch("organizer.actualizaciones_mejorado.requests.get",
+               side_effect=get_con_api_bloqueada):
+        hay, info = gestor.verificar_actualizaciones(forzar=True)
+
+    assert hay and info, "No detectó la actualización con la API limitada"
+    assert info.get("version"), "La actualización detectada no trae versión"
+    assert not gestor.comprobacion_fallida(), (
+        "Si se detectó la versión, la comprobación no debe marcarse como fallida"
+    )
+
+    # Sin red: debe indicar que no se pudo comprobar (no decir «estás al día»)
+    def sin_red(*args, **kwargs):
+        raise requests.exceptions.ConnectionError("sin internet")
+
+    gestor2 = GestorActualizacionesMejorado()
+    gestor2.VERSION_ACTUAL = "0.0.1"
+    gestor2.ultima_verificacion = None
+    gestor2._ultima_comprobacion_fallida = False
+    with patch("organizer.actualizaciones_mejorado.requests.get", side_effect=sin_red):
+        hay2, _ = gestor2.verificar_actualizaciones(forzar=True)
+    assert not hay2, "Sin red no debe afirmar que hay actualización"
+    assert gestor2.comprobacion_fallida(), (
+        "Sin red debe marcarse como comprobación fallida, no como 'al día'"
+    )
+
+    # Migración del archivo antiguo: no debe bloquear el reintento
+    import json
+    import tempfile
+    ruta = Path(tempfile.mkdtemp(prefix="do_act_")) / "actualizaciones.json"
+    ruta.write_text(json.dumps({
+        "ultima_verificacion": "2026-09-22T18:13:58.587543",
+        "nueva_version": None,
+        "version_actual": "5.0.0",
+    }), encoding="utf-8")
+    gestor3 = GestorActualizacionesMejorado()
+    gestor3.config_path = ruta
+    gestor3.ultima_verificacion = None
+    gestor3._cargar_config()
+    assert gestor3.ultima_verificacion is None, (
+        "El formato antiguo debe permitir reintentar la comprobación"
+    )
+
+    print("✅ Actualizaciones robustas ante límites de GitHub y sin red")
+
+
 def test_instancia_unica():
     """El bloqueo impide dos copias y el canal JSON envía órdenes."""
     nombre = f"PruebaUnica{os.getpid()}"
@@ -344,6 +419,7 @@ def main():
     test_gui_responsive()
     test_tema_segun_sistema()
     test_controles_auto_organizacion()
+    test_actualizaciones_sin_api()
     test_instancia_unica()
     test_menu_contextual_multiplataforma()
     test_flujo_organizar_carpeta_cli()

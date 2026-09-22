@@ -4,6 +4,31 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [5.0.2] - 2026-09-22
+
+### 🐛 Actualizaciones que no se detectaban (decía «5.0.0» estando la 5.0.1)
+- **Causa**: la comprobación dependía en exclusiva de la API de GitHub, que sin
+  autenticar permite 60 peticiones por hora. Al agotarse, GitHub responde 403 y
+  la aplicación lo interpretaba como «ya tienes la última versión»… y además
+  guardaba la fecha como si hubiera comprobado bien, así que **no reintentaba
+  hasta 24 horas después**
+- Ahora se prueban **tres canales** en orden:
+  1. La API de GitHub (datos completos: notas y archivos adjuntos)
+  2. La redirección de `/releases/latest`, que **no tiene límite** y basta para
+     saber la versión publicada
+  3. La página de etiquetas del repositorio, también sin límite
+- Si todos fallan, se avisa con claridad de que **no se pudo comprobar** (ya no
+  se dice «estás actualizado» cuando en realidad no se ha mirado) y se reintenta
+  más tarde, sin esperar 24 h
+- La descarga del instalador ya no depende de la API: se construye la URL
+  directa del archivo del sistema (`.exe` / `.pkg` / `.deb`) y se verifica que
+  existe antes de descargarlo
+- **Migración automática**: los equipos con el archivo de estado antiguo (que
+  quedó bloqueado) vuelven a comprobar la actualización en el siguiente arranque
+- Nueva prueba funcional que simula el límite de GitHub y la falta de red
+
+---
+
 ## [5.0.1] - 2026-09-22
 
 ### 🐛 Controles de auto-organización siempre coherentes

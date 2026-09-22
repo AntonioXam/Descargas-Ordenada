@@ -39,6 +39,7 @@ class GestorActualizacionesMejorado:
         self.config_path = self._obtener_ruta_config()
         self.ultima_verificacion = None
         self.nueva_version_disponible = None
+        self._ultima_comprobacion_fallida = False
         self._api_latest = f"https://api.github.com/repos/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases/latest"
         self._api_tags = f"https://api.github.com/repos/{self.GITHUB_USER}/{self.GITHUB_REPO}/tags"
         self._cargar_config()
@@ -50,7 +51,12 @@ class GestorActualizacionesMejorado:
         return config_dir / "actualizaciones.json"
     
     def _cargar_config(self):
-        """Carga la configuración de actualizaciones."""
+        """Carga la configuración de actualizaciones.
+
+        Se recuerda cuál era la versión nueva detectada y cuándo se comprobó,
+        para no consultar GitHub en cada arranque. La fecha solo cuenta si la
+        comprobación terminó bien: si falló, se reintenta antes.
+        """
         try:
             if self.config_path.exists():
                 with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -58,16 +64,36 @@ class GestorActualizacionesMejorado:
                     fecha_str = config.get('ultima_verificacion')
                     if fecha_str:
                         self.ultima_verificacion = datetime.fromisoformat(fecha_str)
+                    self.nueva_version_disponible = config.get('nueva_version') or None
+                    self._ultima_comprobacion_fallida = bool(
+                        config.get('comprobacion_fallida', False)
+                    )
+
+                    # Migración: las versiones anteriores guardaban un fallo de
+                    # red o un límite de GitHub como «comprobado, sin novedades»
+                    # y eso bloqueaba cualquier reintento durante 24 h. Esos
+                    # archivos no llevan la marca 'comprobacion_fallida', así que
+                    # se descarta la comprobación para volver a mirar ya.
+                    formato_antiguo = 'comprobacion_fallida' not in config
+                    if formato_antiguo:
+                        self.ultima_verificacion = None
+                        self.nueva_version_disponible = None
+                        self._ultima_comprobacion_fallida = False
+                        logger.info(
+                            "Se refresca la comprobación de actualizaciones "
+                            "(formato anterior)"
+                        )
         except Exception as e:
             logger.error(f"Error cargando config actualizaciones: {e}")
-    
+
     def _guardar_config(self):
         """Guarda la configuración de actualizaciones."""
         try:
             config = {
                 'ultima_verificacion': self.ultima_verificacion.isoformat() if self.ultima_verificacion else None,
                 'nueva_version': self.nueva_version_disponible,
-                'version_actual': self.VERSION_ACTUAL
+                'version_actual': self.VERSION_ACTUAL,
+                'comprobacion_fallida': bool(getattr(self, '_ultima_comprobacion_fallida', False)),
             }
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=4)
@@ -75,104 +101,224 @@ class GestorActualizacionesMejorado:
             logger.error(f"Error guardando config actualizaciones: {e}")
     
     def verificar_actualizaciones(self, forzar=False) -> Tuple[bool, Optional[Dict]]:
-        """Verifica si hay actualizaciones disponibles."""
+        """Comprueba si hay una versión más nueva publicada.
+
+        Se apoya en la API pública de GitHub, que tiene un límite de peticiones
+        por hora (60 por IP sin autenticar). Por eso se prueban varios canales
+        en orden y, si todos fallan, se informa de que *no se pudo comprobar*
+        en vez de decir «ya tienes la última versión» y no volver a intentarlo
+        hasta el día siguiente.
+        """
         if not REQUESTS_DISPONIBLE:
             return False, None
-        
-        # Verificar frecuencia (24 horas)
-        if not forzar and self.ultima_verificacion:
+
+        # Comprobación reciente (24 h) salvo que se fuerce. Si la última vez no
+        # se pudo comprobar de verdad, se reintenta aunque no haya pasado el día.
+        if not forzar and self.ultima_verificacion and not self.comprobacion_fallida():
             if datetime.now() - self.ultima_verificacion < timedelta(hours=24):
                 if self.nueva_version_disponible:
                     return True, self.nueva_version_disponible
                 return False, None
-        
-        try:
-            logger.info(f"Verificando actualizaciones desde: {self._api_latest}")
-            
-            headers = {'Accept': 'application/vnd.github.v3+json'}
-            response = requests.get(self._api_latest, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            version_remota = data.get('tag_name', '').lstrip('vV')
-            
-            self.ultima_verificacion = datetime.now()
-            
-            if self._es_version_nueva(version_remota):
-                # Buscar el asset .zip en la release
-                assets = data.get('assets', [])
-                zip_url = None
-                
-                for asset in assets:
-                    if asset.get('name', '').endswith('.zip'):
-                        zip_url = asset.get('browser_download_url')
-                        break
-                
-                # Si no hay zip en assets, usar zipball_url
-                if not zip_url:
-                    zip_url = data.get('zipball_url')
-                
+
+        # 1) API de GitHub (datos completos: notas, assets…)
+        data = self._leer_release_api()
+        if data is not None:
+            return self._procesar_release(data)
+
+        # 2) Canal sin límite estricto: la página /releases/latest redirige a
+        #    la última versión. Solo necesitamos el número para avisar; la
+        #    descarga del instalador se busca aparte.
+        version = self._leer_version_por_redirect()
+        if version is not None:
+            if self._es_version_nueva(version):
                 self.nueva_version_disponible = {
-                    'version': version_remota,
-                    'nombre': data.get('name', ''),
-                    'descripcion': data.get('body', ''),
-                    'url': data.get('html_url', ''),
-                    'download_url': zip_url,
-                    'fecha': data.get('published_at', '')
+                    'version': version,
+                    'nombre': version,
+                    'descripcion': '',
+                    'url': f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases/latest",
+                    'download_url': None,
+                    'fecha': '',
                 }
-                self._guardar_config()
-                logger.info(f"✨ Nueva versión disponible: {version_remota}")
+                self._marcar_verificacion()
+                logger.info(f"Nueva versión disponible (canal directo): {version}")
                 return True, self.nueva_version_disponible
-            else:
-                self.nueva_version_disponible = None
-                self._guardar_config()
-                logger.info("✅ Ya tienes la última versión")
-                return False, None
-                
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 404:
-                logger.info("No hay GitHub Release; probando tags como fallback")
-                info = self._verificar_por_tags()
-                if info:
-                    return True, info
-            logger.warning(f"Error verificando actualizaciones: {e}")
-        except Exception as e:
-            logger.error(f"Error verificando actualizaciones: {e}")
-        self.nueva_version_disponible = None
-        self.ultima_verificacion = datetime.now()
-        self._guardar_config()
-        logger.info("✅ Sin nuevas actualizaciones o no se pudo verificar")
+            self.nueva_version_disponible = None
+            self._marcar_verificacion()
+            logger.info("Ya tienes la última versión (canal directo)")
+            return False, None
+
+        # 3) Tags como último recurso
+        info = self._verificar_por_tags()
+        if info:
+            return True, info
+
+        # Nada ha funcionado: no marcar como verificado para poder reintentar
+        logger.warning(
+            "No se pudo comprobar la actualización (posible límite de peticiones "
+            "de GitHub). Se volverá a intentar más tarde."
+        )
         return False, None
 
+    def comprobacion_fallida(self) -> bool:
+        """Indica si la última comprobación no pudo realizarse.
+
+        Permite a la interfaz avisar de que no es lo mismo «no hay
+        actualizaciones» que «no se pudo comprobar».
+        """
+        return bool(getattr(self, "_ultima_comprobacion_fallida", False))
+
+    def _marcar_verificacion(self):
+        """Registra que la comprobación se hizo correctamente."""
+        self._ultima_comprobacion_fallida = False
+        self.ultima_verificacion = datetime.now()
+        self._guardar_config()
+
+    def _leer_release_api(self) -> Optional[Dict]:
+        """Lee la última release desde la API de GitHub.
+
+        Devuelve None si no se puede (por ejemplo, límite de peticiones), de
+        modo que se pueda probar otro canal.
+        """
+        try:
+            logger.info(f"Verificando actualizaciones desde: {self._api_latest}")
+            headers = {'Accept': 'application/vnd.github.v3+json'}
+            response = requests.get(self._api_latest, headers=headers, timeout=10)
+
+            if response.status_code == 403 and 'rate limit' in response.text.lower():
+                logger.warning("La API de GitHub ha limitado las peticiones por ahora")
+                self._ultima_comprobacion_fallida = True
+                return None
+            if response.status_code == 404:
+                logger.info("No hay ninguna release publicada todavía")
+                return {}
+
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.warning(f"No se pudo consultar la API de GitHub: {e}")
+            self._ultima_comprobacion_fallida = True
+            return None
+
+    def _leer_version_por_redirect(self) -> Optional[str]:
+        """Obtiene la última versión siguiendo la redirección de /releases/latest.
+
+        Este canal no depende de la API y funciona aunque se hayan agotado las
+        peticiones: GitHub redirige a /releases/tag/vX.Y.Z y basta con leer el
+        destino.
+        """
+        url = f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases/latest"
+        try:
+            response = requests.get(url, timeout=10, allow_redirects=True)
+            # La URL final termina en /releases/tag/v5.0.1
+            final = response.url.rstrip('/')
+            if '/releases/tag/' in final:
+                etiqueta = final.split('/releases/tag/')[-1]
+                version = etiqueta.lstrip('vV')
+                if version and version[0].isdigit():
+                    logger.info(f"Versión detectada por canal directo: {version}")
+                    return version
+            logger.debug(f"No se pudo leer la versión del canal directo ({final})")
+        except Exception as e:
+            logger.debug(f"Canal directo no disponible: {e}")
+        return None
+
+    def _procesar_release(self, data: Dict) -> Tuple[bool, Optional[Dict]]:
+        """Interpreta la respuesta de la API y prepara la info de actualización."""
+        version_remota = str(data.get('tag_name', '')).lstrip('vV')
+
+        # Sin tag no hay nada que comparar
+        if not version_remota:
+            self._marcar_verificacion()
+            self.nueva_version_disponible = None
+            return False, None
+
+        self._marcar_verificacion()
+
+        if not self._es_version_nueva(version_remota):
+            self.nueva_version_disponible = None
+            logger.info("Ya tienes la última versión")
+            return False, None
+
+        # Instalador nativo del sistema, si está adjunto en la release
+        assets = data.get('assets', []) or []
+        instalador = self._asset_instalador_para_este_sistema(assets)
+
+        # Si no hay instalador nativo, se conserva el zip como respaldo
+        zip_url = None
+        for asset in assets:
+            if str(asset.get('name', '')).endswith('.zip'):
+                zip_url = asset.get('browser_download_url')
+                break
+        if not zip_url:
+            zip_url = data.get('zipball_url')
+
+        self.nueva_version_disponible = {
+            'version': version_remota,
+            'nombre': data.get('name', ''),
+            'descripcion': data.get('body', ''),
+            'url': data.get('html_url', ''),
+            'download_url': instalador or zip_url,
+            'tiene_instalador': bool(instalador),
+            'fecha': data.get('published_at', ''),
+        }
+        self._guardar_config()
+        logger.info(f"Nueva versión disponible: {version_remota}")
+        return True, self.nueva_version_disponible
+
     def _verificar_por_tags(self) -> Optional[Dict]:
-        """Fallback: si no hay release, mira el tag más reciente del repo."""
+        """Último recurso: mira el tag más reciente del repositorio.
+
+        También usa la API, así que si está limitada se intenta la página web
+        de tags, que no impone límite.
+        """
+        version_remota = None
         try:
             headers = {'Accept': 'application/vnd.github.v3+json'}
             response = requests.get(self._api_tags, headers=headers, timeout=10)
-            response.raise_for_status()
-            tags = response.json()
-            if not tags:
-                return None
-            primer_tag = tags[0]
-            version_remota = str(primer_tag.get('name', '')).lstrip('vV')
-            if not self._es_version_nueva(version_remota):
-                return None
-            self.nueva_version_disponible = {
-                'version': version_remota,
-                'nombre': version_remota,
-                'descripcion': 'Nueva versión disponible (basada en tags de GitHub).',
-                'url': f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases",
-                'download_url': primer_tag.get('zipball_url'),
-                'fecha': ''
-            }
-            self.ultima_verificacion = datetime.now()
-            self._guardar_config()
-            logger.info(f"✨ Nueva versión disponible (tag): {version_remota}")
-            return self.nueva_version_disponible
+            if response.status_code == 200:
+                tags = response.json()
+                if tags:
+                    version_remota = str(tags[0].get('name', '')).lstrip('vV')
         except Exception as e:
-            logger.warning(f"Error verificando actualizaciones por tags: {e}")
+            logger.debug(f"API de tags no disponible: {e}")
+
+        # Alternativa sin límite: leer la primera etiqueta de la página web
+        if not version_remota:
+            version_remota = self._leer_ultimo_tag_web()
+
+        if not version_remota or not self._es_version_nueva(version_remota):
             return None
-    
+
+        self.nueva_version_disponible = {
+            'version': version_remota,
+            'nombre': version_remota,
+            'descripcion': '',
+            'url': f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases",
+            'download_url': None,
+            'fecha': '',
+        }
+        self._marcar_verificacion()
+        logger.info(f"Nueva versión disponible (tag): {version_remota}")
+        return self.nueva_version_disponible
+
+    def _leer_ultimo_tag_web(self) -> Optional[str]:
+        """Lee la última etiqueta desde la página de tags (sin usar la API)."""
+        import re
+
+        url = f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/tags"
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code != 200:
+                return None
+            coincidencias = re.findall(r"/releases/tag/v?([0-9]+(?:\.[0-9]+)+)", response.text)
+            if not coincidencias:
+                return None
+            # La primera que aparezca es la más reciente
+            return coincidencias[0]
+        except Exception as e:
+            logger.debug(f"No se pudo leer la página de tags: {e}")
+            return None
+
     def _es_version_nueva(self, version_remota: str) -> bool:
         """Compara versiones semánticas rellenando con ceros las partes que falten."""
         try:
@@ -205,24 +351,65 @@ class GestorActualizacionesMejorado:
                 candidatos.append(url)
         return candidatos[0] if candidatos else None
 
-    def descargar_instalador_nativo(self, info: Dict, callback_progreso=None) -> Tuple[bool, str]:
-        """Descarga el instalador del sistema (.exe/.pkg/.deb) para actualizar."""
-        if not REQUESTS_DISPONIBLE:
-            return False, "requests no disponible"
+    def _url_instalador_nombre(self, version: str) -> str:
+        """URL directa del instalador de una versión (sin pasar por la API).
 
-        # Si la info no trae assets, releer la release para buscarlos
-        url_descarga = None
+        Los releases de este proyecto publican siempre los nombres
+        ``DescargasOrdenadas-Setup-vX.Y.Z.exe`` (Windows),
+        ``DescargasOrdenadas-vX.Y.Z.pkg`` (macOS) y
+        ``DescargasOrdenadas-vX.Y.Z-amd64.deb`` (Linux). Al construir la URL
+        directamente se puede descargar aunque la API esté limitada.
+        """
+        base = f"https://github.com/{self.GITHUB_USER}/{self.GITHUB_REPO}/releases/download/v{version}"
+        if sys.platform == "win32":
+            return f"{base}/DescargasOrdenadas-Setup-v{version}.exe"
+        if sys.platform == "darwin":
+            return f"{base}/DescargasOrdenadas-v{version}.pkg"
+        return f"{base}/DescargasOrdenadas-v{version}-amd64.deb"
+
+    def _url_instalador_desde_api(self, version: str) -> Optional[str]:
+        """Busca el instalador del sistema en la release (requiere API)."""
         try:
             headers = {'Accept': 'application/vnd.github.v3+json'}
             response = requests.get(self._api_latest, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
-            url_descarga = self._asset_instalador_para_este_sistema(data.get("assets", []))
+            return self._asset_instalador_para_este_sistema(data.get("assets", []))
         except Exception as e:
-            logger.warning(f"No se pudo releer la release: {e}")
+            logger.warning(f"No se pudo leer la release por la API: {e}")
+            return None
+
+    def _url_instalador_existe(self, url: str) -> bool:
+        """Comprueba con una petición ligera que el instalador está publicado."""
+        try:
+            response = requests.head(url, allow_redirects=True, timeout=10)
+            return response.status_code == 200
+        except Exception:
+            return False
+
+    def descargar_instalador_nativo(self, info: Dict, callback_progreso=None) -> Tuple[bool, str]:
+        """Descarga el instalador del sistema (.exe/.pkg/.deb) para actualizar."""
+        if not REQUESTS_DISPONIBLE:
+            return False, "requests no disponible"
+
+        version = str(info.get('version', '')).lstrip('vV')
+
+        # Primero se intenta la URL que ya traiga la info (viene de la API)
+        url_descarga = info.get('download_url') if info.get('tiene_instalador') else None
+
+        # Si no, se construye directamente (no depende de la API)
+        if not url_descarga and version:
+            candidata = self._url_instalador_nombre(version)
+            if self._url_instalador_existe(candidata):
+                url_descarga = candidata
+
+        # Como último recurso, se consulta la API (puede estar limitada)
+        if not url_descarga:
+            url_descarga = self._url_instalador_desde_api(version)
 
         if not url_descarga:
-            # Fallback: descargar el zip del código (comportamiento antiguo)
+            # Sin instalador nativo: se usa el zip del código como respaldo
+            logger.warning("No se encontró instalador nativo; se usará el zip del código")
             return self.descargar_actualizacion(info, callback_progreso)
 
         try:
