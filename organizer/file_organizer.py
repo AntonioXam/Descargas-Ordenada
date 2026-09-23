@@ -1120,6 +1120,95 @@ oaming\\microsoft" in ruta_str:
         
         return archivos_movidos, errores
     
+    def planificar_organizacion(self, organizar_subcarpetas: bool = False) -> Dict[str, Any]:
+        """Calcula qué se movería sin tocar nada, para poder previsualizarlo.
+
+        Recorre los archivos igual que ``organizar`` pero solo anota el destino
+        de cada uno. Sirve para que el usuario revise el resultado antes de
+        confirmar la operación.
+
+        Returns:
+            Diccionario con:
+                - ``movimientos``: lista de (nombre, categoría, subcategoría, destino)
+                - ``total``: número de archivos que se moverían
+                - ``categorias``: resumen por categoría con cuántos archivos
+                - ``tamaño``: bytes que se moverían
+                - ``errores``: incidencias detectadas al explorar
+                - ``ya_ordenados``: archivos que ya están en su sitio
+        """
+        movimientos: List[Dict[str, Any]] = []
+        errores: List[str] = []
+        por_categoria: Dict[str, int] = {}
+        tamano_total = 0
+        ya_ordenados = 0
+
+        if not self.carpeta_descargas.exists():
+            return {
+                "movimientos": [], "total": 0, "categorias": {},
+                "tamaño": 0, "errores": [f"La carpeta no existe: {self.carpeta_descargas}"],
+                "ya_ordenados": 0,
+            }
+
+        def explorar(directorio: Path, es_raiz: bool):
+            nonlocal tamano_total, ya_ordenados
+            try:
+                items = list(directorio.iterdir())
+            except PermissionError:
+                errores.append(f"Sin permiso para acceder a {directorio}")
+                return
+
+            for item in items:
+                if item.is_dir():
+                    if item.name.startswith('.'):
+                        continue
+                    if es_raiz and (item.name in TIPOS_ARCHIVOS_DETALLADOS or item.name == "Carpetas"):
+                        continue
+                    if organizar_subcarpetas:
+                        explorar(item, False)
+                    continue
+
+                if item.name.startswith('.') or item.name in ('desktop.ini', 'Thumbs.db'):
+                    continue
+                if self._esta_descargando(item):
+                    continue
+
+                try:
+                    categoria, subcategoria = self._obtener_tipo_archivo(item)
+                    subcategoria = subcategoria or "General"
+                    destino = self._obtener_carpeta_destino(item, categoria, subcategoria)
+
+                    if item.parent == destino:
+                        ya_ordenados += 1
+                        continue
+
+                    try:
+                        tamano = item.stat().st_size
+                    except OSError:
+                        tamano = 0
+                    tamano_total += tamano
+
+                    movimientos.append({
+                        "nombre": item.name,
+                        "origen": str(item.parent),
+                        "categoria": categoria,
+                        "subcategoria": subcategoria,
+                        "destino": str(destino),
+                    })
+                    por_categoria[categoria] = por_categoria.get(categoria, 0) + 1
+                except Exception as e:
+                    errores.append(f"No se pudo clasificar {item.name}: {e}")
+
+        explorar(self.carpeta_descargas, True)
+
+        return {
+            "movimientos": movimientos,
+            "total": len(movimientos),
+            "categorias": por_categoria,
+            "tamaño": tamano_total,
+            "errores": errores,
+            "ya_ordenados": ya_ordenados,
+        }
+
     # ===== NUEVAS FUNCIONALIDADES AVANZADAS =====
     
     def inicializar_modulos_avanzados(self):

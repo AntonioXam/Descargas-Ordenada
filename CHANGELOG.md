@@ -4,6 +4,54 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [5.1.0] - 2026-09-23
+
+### ✨ Interfaz que se siente nativa en cada sistema
+- **Transparencias reales por sistema**: *vibrancy* en macOS (el material de
+  barra lateral de Finder), efecto **Mica** en Windows 11 y translucidez en
+  Linux. Si el sistema no lo admite, la ventana se ve igual que antes
+- **Diseño adaptable de verdad**: la barra lateral se estrecha a solo iconos en
+  ventanas pequeñas y se ensancha en pantallas grandes; el contenido se limita
+  a un ancho cómodo y se centra, así no queda nada descolgado en las esquinas
+- Nuevos detalles: punto de estado con colores, etiquetas tipo «chip» para el
+  resumen por categoría, campos de hora integrados y más aire entre secciones
+
+### 👀 Previsualización antes de organizar
+- Al pulsar «Organizar ahora» se muestra **exactamente qué se moverá**: cuántos
+  archivos, cuánto ocupan, el reparto por categoría y la lista con su destino
+- **Nada se toca hasta confirmar**: se puede revisar y cancelar sin riesgo
+- Los archivos a medio descargar siguen quedando fuera del plan
+
+### 🕘 Historial con deshacer
+- Nueva sección **Historial**: cada organización queda registrada con fecha,
+  modo y número de archivos
+- Se puede **deshacer una operación concreta**, devolviendo esos archivos a su
+  sitio sin afectar a las demás
+- Se conservan las últimas 30 operaciones
+
+### 📅 Organización programada
+- Nuevo ajuste para organizar **todos los días a una hora concreta**
+  (por ejemplo, a las 22:00), además del automático por intervalos
+- Muestra cuánto falta para la próxima ejecución
+
+### 💾 Análisis de uso de disco
+- Nueva pestaña **Disco** en Avanzado: qué ocupa más, reparto por categoría,
+  archivos más grandes y **sugerencias de limpieza** (temporales, descargas
+  incompletas, archivos sin tocar en un año)
+- Solo lectura: informa, nunca borra ni mueve nada
+
+### ⌨️ Más comodidad
+- **Atajos de teclado**: Cmd/Ctrl+O organizar, Cmd/Ctrl+Z deshacer,
+  Cmd/Ctrl+1…5 cambiar de sección, Escape a la bandeja, F5 refrescar
+- **Arrastrar y soltar**: suelta una carpeta sobre la ventana y elige si
+  organizarla o usarla como principal
+
+### 🧪 Pruebas
+- 21 pruebas funcionales (6 nuevas): previsualización, historial con deshacer,
+  programación horaria, análisis de disco y degradación de efectos
+
+---
+
 ## [5.0.3] - 2026-09-22
 
 ### 🖱️ Menú contextual de macOS arreglado (daba error en Finder)

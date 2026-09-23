@@ -176,15 +176,56 @@ def paleta(nombre: str) -> dict:
     return PALETA_OSCURA if nombre == "oscuro" else PALETA_CLARA
 
 
-def hoja_estilo(nombre: str = "auto") -> str:
+def colores_translucidos(nombre: str, transparencia: float = 0.82) -> dict:
+    """Convierte los colores base a versiones con alfa (rgba).
+
+    Se usa cuando la ventana tiene un efecto nativo detrás (vibrancy en macOS,
+    Mica en Windows): el fondo del contenido se vuelve semitransparente para
+    dejar ver el material del sistema, manteniendo los paneles legibles.
+
+    Args:
+        nombre: 'claro' u 'oscuro'.
+        transparencia: opacidad de los fondos (1.0 = opaco).
+    """
+    c = dict(paleta(nombre))
+    alpha = max(0.0, min(1.0, transparencia))
+
+    def rgba(color_hex: str, alfa: float) -> str:
+        color_hex = color_hex.lstrip("#")
+        if len(color_hex) == 3:
+            color_hex = "".join(ch * 2 for ch in color_hex)
+        r = int(color_hex[0:2], 16)
+        g = int(color_hex[2:4], 16)
+        b = int(color_hex[4:6], 16)
+        return f"rgba({r}, {g}, {b}, {alfa:.3f})"
+
+    # Fondos con el alfa indicado; los paneles un poco más opacos para que el
+    # texto siempre se lea bien.
+    c["fondo"] = rgba(c["fondo"], alpha)
+    c["fondo_lateral"] = rgba(c["fondo_lateral"], min(1.0, alpha + 0.08))
+    c["panel"] = rgba(c["panel"], min(1.0, alpha + 0.12))
+    c["panel_alt"] = rgba(c["panel_alt"], min(1.0, alpha + 0.10))
+    c["panel_hover"] = rgba(c["panel_hover"], min(1.0, alpha + 0.10))
+    return c
+
+
+def hoja_estilo(nombre: str = "auto", transparencia: float = 1.0) -> str:
     """Genera la hoja de estilo Qt completa para la paleta indicada.
 
     Args:
         nombre: 'claro', 'oscuro' o 'auto' (usar el tema del sistema).
+        transparencia: opacidad de los fondos (menor que 1.0 activa el efecto
+            translúcido, pensado para cuando hay un material nativo detrás).
     """
     if nombre == "auto":
         nombre = tema_del_sistema()
-    c = paleta(nombre)
+    if transparencia < 1.0:
+        c = colores_translucidos(nombre, transparencia)
+    else:
+        c = paleta(nombre)
+    c = dict(c)
+    # Propagar el tema a los elementos que lo necesitan
+    c.setdefault("nombre", "oscuro" if nombre == "oscuro" else "claro")
     fuente = familias_sistema()
     base = tamano_fuente_base()
 
@@ -255,6 +296,30 @@ QFrame[rol="tarjeta_destacada"] {{
     background-color: {c['panel']};
     border: 1px solid {c['acento']};
     border-radius: 16px;
+}}
+QLabel[rol="punto"] {{
+    font-size: {base + 10}px;
+    color: {c['texto_disc']};
+}}
+QLabel[rol="punto"][estado="activo"] {{
+    color: {c['exito']};
+}}
+QLabel[rol="punto"][estado="inactivo"] {{
+    color: {c['texto_disc']};
+}}
+QLabel[rol="punto"][estado="aviso"] {{
+    color: {c['aviso']};
+}}
+QLabel[rol="punto"][estado="error"] {{
+    color: {c['error']};
+}}
+QLabel[rol="chip"] {{
+    background-color: {c['panel_alt']};
+    color: {c['texto_sec']};
+    border: 1px solid {c['borde_suave']};
+    border-radius: 10px;
+    padding: 4px 10px;
+    font-size: {base - 1}px;
 }}
 QFrame[rol="separador"] {{
     background-color: {c['borde_suave']};
@@ -334,7 +399,7 @@ QPushButton[rol="plano"] {{
 QPushButton[rol="plano"]:hover {{ color: {c['acento_hover']}; }}
 
 /* --------------------------------------------------------------- campos */
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit {{
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {{
     background-color: {c['panel']};
     border: 1px solid {c['borde']};
     border-radius: 10px;
@@ -343,7 +408,8 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit {{
     selection-background-color: {c['acento']};
     selection-color: #FFFFFF;
 }}
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus {{
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+QDateEdit:focus, QTimeEdit:focus {{
     border: 1px solid {c['acento']};
 }}
 QComboBox::drop-down {{ border: none; width: 24px; }}
@@ -493,8 +559,12 @@ QScrollBar::add-page, QScrollBar::sub-page {{
 }}
 
 /* ------------------------------------------------------ barra lateral */
-QListWidget[rol="lateral"] {{
+QWidget#panelLateral {{
     background-color: {c['fondo_lateral']};
+    border-right: 1px solid {c['borde_suave']};
+}}
+QListWidget[rol="lateral"] {{
+    background-color: transparent;
     border: none;
     border-radius: 0;
     padding: 12px 8px;

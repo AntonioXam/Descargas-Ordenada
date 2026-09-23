@@ -517,7 +517,7 @@ def main():
         try:
             version = obtener_archivo_version().read_text(encoding="utf-8").strip()
         except Exception:
-            version = "5.0.3"
+            version = "5.1.0"
         print(f"DescargasOrdenadas v{version}")
         print("=" * 50)
     

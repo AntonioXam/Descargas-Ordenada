@@ -164,8 +164,8 @@ def test_gui_responsive():
 
     assert ventana.minimumSize().width() <= 800, "El ancho mínimo es demasiado grande"
     assert ventana.minimumSize().height() <= 600, "El alto mínimo es demasiado grande"
-    assert ventana.stack.count() == 4, "Debe haber 4 vistas (Inicio, Actividad, Ajustes, Avanzado)"
-    assert ventana.lista_lateral.count() == 4, "La barra lateral debe tener 4 entradas"
+    assert ventana.stack.count() == 5, "Debe haber 5 vistas (Inicio, Historial, Actividad, Ajustes, Avanzado)"
+    assert ventana.lista_lateral.count() == 5, "La barra lateral debe tener 5 entradas"
 
     for indice in range(ventana.stack.count()):
         contenedor = ventana.stack.widget(indice)
@@ -419,6 +419,123 @@ def test_workflow_macos_valido():
     print("✅ Acción rápida de Finder con formato válido para Automator")
 
 
+def test_previsualizacion():
+    """El plan de organización no debe tocar nada y detallar los movimientos."""
+    base = Path(tempfile.mkdtemp(prefix="do_plan_"))
+    (base / "foto.jpg").write_text("x" * 100)
+    (base / "doc.pdf").write_text("y" * 200)
+    (base / "bajando.part").write_text("z" * 50)
+
+    org = OrganizadorArchivos(carpeta_descargas=str(base), usar_subcarpetas=False)
+    plan = org.planificar_organizacion()
+
+    assert plan["total"] == 2, f"Debería planificar 2 archivos, no {plan['total']}"
+    assert "PDFs" in plan["categorias"] and "Imágenes" in plan["categorias"]
+    assert not plan["errores"], f"Errores inesperados: {plan['errores']}"
+
+    # La carpeta debe quedar intacta: la previsualización no mueve nada
+    assert (base / "foto.jpg").exists(), "La previsualización movió un archivo"
+    assert (base / "doc.pdf").exists(), "La previsualización movió un archivo"
+    assert (base / "bajando.part").exists(), "Se tocó una descarga en curso"
+
+    print("✅ Previsualización sin tocar nada")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_historial_deshacer():
+    """El historial registra la operación y puede deshacerla."""
+    from organizer import portable_config
+    from organizer.historial import HistorialOperaciones
+
+    base = Path(tempfile.mkdtemp(prefix="do_hist_"))
+    (base / "foto.jpg").write_text("x")
+    (base / "doc.pdf").write_text("y")
+
+    # Historial aislado para no tocar el del usuario
+    config_temporal = Path(tempfile.mkdtemp(prefix="do_histcfg_"))
+    historial = HistorialOperaciones.__new__(HistorialOperaciones)
+    historial.nombre_app = "Pruebas"
+    historial._ruta = config_temporal / "historial.json"
+    historial._operaciones = []
+
+    org = OrganizadorArchivos(carpeta_descargas=str(base), usar_subcarpetas=False)
+    resultados, _ = org.organizar()
+    operacion = historial.registrar(resultados, base, "basico")
+    assert operacion and operacion["total"] == 2, "No se registró la operación"
+    assert not (base / "foto.jpg").exists(), "No se organizó"
+
+    resultado = historial.deshacer(operacion)
+    assert resultado["devueltos"] == 2, f"No se deshizo bien: {resultado}"
+    assert (base / "foto.jpg").exists(), "El archivo no volvió a su sitio"
+    assert (base / "doc.pdf").exists(), "El archivo no volvió a su sitio"
+    assert historial.ultima() is None, "La operación debería salir del historial"
+
+    print("✅ Historial con deshacer funciona")
+    shutil.rmtree(base, ignore_errors=True)
+    shutil.rmtree(config_temporal, ignore_errors=True)
+
+
+def test_programacion_horaria():
+    """La programación diaria calcula bien la próxima ejecución."""
+    from datetime import datetime
+    from organizer import programacion
+
+    assert programacion.parsear_hora("22:00") == (22, 0)
+    assert programacion.parsear_hora("07:30") == (7, 30)
+    assert programacion.parsear_hora("25:00") is None
+    assert programacion.parsear_hora("texto") is None
+
+    ahora = datetime(2026, 9, 23, 10, 0, 0)
+    # A las 22:00 desde las 10:00 -> 12 horas
+    assert programacion.segundos_hasta_la_hora("22:00", ahora) == 12 * 3600
+    # A las 09:00 desde las 10:00 -> mañana, 23 horas
+    assert programacion.segundos_hasta_la_hora("09:00", ahora) == 23 * 3600
+
+    descripcion = programacion.descripcion("22:00")
+    assert "22:00" in descripcion, descripcion
+
+    print("✅ Programación diaria correcta")
+
+
+def test_analisis_disco():
+    """El análisis de disco calcula tamaños y sugiere limpieza."""
+    from organizer.analisis_disco import AnalizadorDisco, formatear_bytes
+
+    base = Path(tempfile.mkdtemp(prefix="do_disco_"))
+    (base / "Imágenes").mkdir()
+    (base / "Imágenes" / "foto.jpg").write_bytes(b"x" * 5000)
+    (base / "temporal.tmp").write_bytes(b"x" * 1000)
+
+    analizador = AnalizadorDisco(base)
+    datos = analizador.analizar()
+
+    assert not datos.get("error"), datos.get("error")
+    assert datos["total"] == 6000, f"Total inesperado: {datos['total']}"
+    assert datos["archivos"] == 2
+    assert "Imágenes" in datos["categorias"]
+    assert any(s["tipo"] == "temporal" for s in datos["sugerencias"]), (
+        "No detectó el archivo temporal"
+    )
+    assert "Total:" in analizador.informe()
+    assert formatear_bytes(1536).startswith("1.5 KB")
+
+    print("✅ Análisis de disco funciona")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_efectos_nativos():
+    """El módulo de efectos no debe fallar en ningún sistema."""
+    from organizer import efectos
+
+    # En un sistema gráfico debe responder; sin él, simplemente degrada
+    assert isinstance(efectos.soportado(), bool)
+    # Aplicarlo sobre un objeto vacío no debe lanzar excepción
+    resultado = efectos.aplicar_efecto_ventana(object())
+    assert resultado is False, "Sin ventana real no debe aplicar nada"
+
+    print("✅ Efectos nativos degradan con elegancia")
+
+
 def test_flujo_organizar_carpeta_cli():
     """La CLI organiza una carpeta concreta y avisa si no tiene permisos."""
     base = Path(tempfile.mkdtemp(prefix="do_cli_"))
@@ -477,6 +594,11 @@ def main():
     test_instancia_unica()
     test_menu_contextual_multiplataforma()
     test_workflow_macos_valido()
+    test_previsualizacion()
+    test_historial_deshacer()
+    test_programacion_horaria()
+    test_analisis_disco()
+    test_efectos_nativos()
     test_flujo_organizar_carpeta_cli()
     test_cli_diagnostico()
     print("\n🎉 Todas las pruebas pasaron correctamente")
