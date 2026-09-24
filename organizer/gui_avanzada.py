@@ -38,7 +38,7 @@ except ImportError:
 from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
 from .version import obtener_version
-from . import efectos, errores, estilos, programacion, primer_arranque
+from . import efectos, errores, estilos, iconos, programacion, primer_arranque
 from . import permission_manager as permisos
 
 # Importar notificaciones nativas
@@ -486,6 +486,10 @@ class OrganizadorAvanzado(QMainWindow):
         # Repintar los interruptores dibujados a mano
         for interruptor in self.findChildren(Switch):
             interruptor.update()
+        # Los iconos son SVG pintados en el color del tema, así que hay que
+        # vaciar la caché y volver a dibujarlos al cambiar de tema.
+        iconos.limpiar_cache()
+        self._refrescar_iconos_lateral()
         self._actualizar_indicadores_tema()
 
     def _aplicar_efecto_nativo(self):
@@ -1049,10 +1053,9 @@ class OrganizadorAvanzado(QMainWindow):
             return self._icono_reserva()
 
     def _icono_reserva(self):
-        """Icono estándar de carpeta por si falla el dibujo."""
+        """Icono de carpeta propio por si falla el dibujo."""
         try:
-            from PySide6.QtWidgets import QStyle
-            return self.style().standardIcon(QStyle.SP_DirIcon)
+            return iconos.icono("carpeta", 20, tema=self._tema)
         except Exception:
             return QIcon()
 
@@ -1752,21 +1755,38 @@ class OrganizadorAvanzado(QMainWindow):
         self._crear_vista_ajustes()
         self._crear_vista_avanzado()
 
-        # Elementos de la barra lateral (icono del sistema + nombre)
-        from PySide6.QtWidgets import QStyle
-        entradas = [
-            ("Inicio", QStyle.SP_ComputerIcon),
-            ("Historial", QStyle.SP_BrowserReload),
-            ("Actividad", QStyle.SP_FileDialogDetailedView),
-            ("Ajustes", QStyle.SP_FileDialogContentsView),
-            ("Avanzado", QStyle.SP_FileDialogListView),
+        # Elementos de la barra lateral (icono propio + nombre)
+        self._entradas_lateral = [
+            ("Inicio", "inicio"),
+            ("Historial", "historial"),
+            ("Actividad", "actividad"),
+            ("Ajustes", "ajustes"),
+            ("Avanzado", "avanzado"),
         ]
-        for texto, icono_estandar in entradas:
-            item = QListWidgetItem(self.style().standardIcon(icono_estandar), texto)
+        for texto, nombre_icono in self._entradas_lateral:
+            item = QListWidgetItem()
+            item.setText(texto)
+            item.setData(Qt.UserRole, nombre_icono)
             self.lista_lateral.addItem(item)
+        self._refrescar_iconos_lateral()
 
         self.lista_lateral.setCurrentRow(0)
         self._actualizar_layout()
+
+    def _refrescar_iconos_lateral(self):
+        """Redibuja los iconos de la barra lateral con el color del tema.
+
+        Hace falta repetirlo al cambiar de tema: los iconos son SVG pintados en
+        el color del texto, no máscaras que Qt pueda recolorear solo.
+        """
+        if not hasattr(self, "lista_lateral"):
+            return
+        for indice in range(self.lista_lateral.count()):
+            item = self.lista_lateral.item(indice)
+            nombre = item.data(Qt.UserRole)
+            if not nombre:
+                continue
+            item.setIcon(iconos.icono_lateral(nombre, 18, tema=self._tema))
 
     def _aplicar_modo_lateral(self, compacta: bool):
         """Muestra la barra lateral solo con iconos o con icono y texto."""

@@ -20,6 +20,50 @@ import sys
 
 
 # --------------------------------------------------------------------------
+# Tokens de diseño
+# --------------------------------------------------------------------------
+# Una sola escala para toda la aplicación. Los componentes se describen en
+# términos de estos valores y no de números sueltos, de modo que cambiar el
+# radio de todas las tarjetas sea una línea y no una cacería por el archivo.
+
+TOKENS = {
+    # Escala de espaciado (múltiplos de 4)
+    "esp_xs": 4,
+    "esp_s": 8,
+    "esp_m": 12,
+    "esp_l": 16,
+    "esp_xl": 24,
+    "esp_xxl": 32,
+
+    # Radios
+    "radio_control": 8,     # botones pequeños, chips
+    "radio_campo": 10,      # campos de texto, desplegables
+    "radio_boton": 10,      # botones
+    "radio_tarjeta": 16,    # tarjetas y grupos
+    "radio_menu": 12,       # menús y listas desplegables
+    "radio_item": 8,        # elementos de lista
+
+    # Alturas y grosores
+    "alto_control": 20,     # min-height de botones y campos
+    "grosor_borde": 1,
+    "grosor_borde_campo": 1,
+    "grosor_barra": 6,      # barra de progreso
+    "grosor_scroll": 11,
+
+    # Tipografía (se suman al tamaño base del sistema)
+    "tipo_titulo": 9,
+    "tipo_subtitulo": 1,
+    "tipo_pequeno": 1,
+    "tipo_discreto": 2,
+
+    # Movimiento (milisegundos)
+    "mov_micro": 80,
+    "mov_transicion": 140,
+    "mov_entrada": 220,
+}
+
+
+# --------------------------------------------------------------------------
 # Paletas
 # --------------------------------------------------------------------------
 
@@ -228,6 +272,8 @@ def hoja_estilo(nombre: str = "auto", transparencia: float = 1.0) -> str:
     c.setdefault("nombre", "oscuro" if nombre == "oscuro" else "claro")
     fuente = familias_sistema()
     base = tamano_fuente_base()
+    # Los tokens se referencian como tk["..."] dentro de la hoja de estilo.
+    tk = TOKENS
 
     return f"""
 /* ---------------------------------------------------------------- base */
@@ -246,21 +292,21 @@ QMainWindow, QDialog {{
 QToolTip {{
     background-color: {c['panel']};
     color: {c['texto']};
-    border: 1px solid {c['borde']};
-    border-radius: 8px;
-    padding: 6px 9px;
-    font-size: {base - 1}px;
+    border: {tk['grosor_borde']}px solid {c['borde']};
+    border-radius: {tk['radio_control']}px;
+    padding: {tk['esp_xs'] + 2}px {tk['esp_s'] + 1}px;
+    font-size: {base - tk['tipo_pequeno']}px;
 }}
 
 /* ---------------------------------------------------------- tipografía */
 QLabel[rol="titulo"] {{
-    font-size: {base + 9}px;
+    font-size: {base + tk['tipo_titulo']}px;
     font-weight: 700;
     color: {c['texto']};
     letter-spacing: -0.2px;
 }}
 QLabel[rol="subtitulo"] {{
-    font-size: {base + 1}px;
+    font-size: {base + tk['tipo_subtitulo']}px;
     color: {c['texto_sec']};
 }}
 QLabel[rol="seccion"] {{
@@ -268,18 +314,18 @@ QLabel[rol="seccion"] {{
     font-weight: 600;
     color: {c['texto_sec']};
     letter-spacing: 0.2px;
-    padding: 2px 0;
+    padding: {tk['esp_xs'] // 2}px 0;
 }}
 QLabel[rol="etiqueta"] {{
     font-size: {base}px;
     color: {c['texto']};
 }}
 QLabel[rol="secundaria"] {{
-    font-size: {base - 1}px;
+    font-size: {base - tk['tipo_pequeno']}px;
     color: {c['texto_sec']};
 }}
 QLabel[rol="discreta"] {{
-    font-size: {base - 2}px;
+    font-size: {base - tk['tipo_discreto']}px;
     color: {c['texto_disc']};
 }}
 QLabel[rol="exito"] {{ color: {c['exito']}; font-weight: 600; }}
@@ -289,13 +335,13 @@ QLabel[rol="error"] {{ color: {c['error']}; font-weight: 600; }}
 /* ------------------------------------------------------------- tarjetas */
 QFrame[rol="tarjeta"] {{
     background-color: {c['panel']};
-    border: 1px solid {c['borde_suave']};
-    border-radius: 16px;
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
+    border-radius: {tk['radio_tarjeta']}px;
 }}
 QFrame[rol="tarjeta_destacada"] {{
     background-color: {c['panel']};
-    border: 1px solid {c['acento']};
-    border-radius: 16px;
+    border: {tk['grosor_borde']}px solid {c['acento']};
+    border-radius: {tk['radio_tarjeta']}px;
 }}
 QLabel[rol="punto"] {{
     font-size: {base + 10}px;
@@ -316,10 +362,10 @@ QLabel[rol="punto"][estado="error"] {{
 QLabel[rol="chip"] {{
     background-color: {c['panel_alt']};
     color: {c['texto_sec']};
-    border: 1px solid {c['borde_suave']};
-    border-radius: 10px;
-    padding: 4px 10px;
-    font-size: {base - 1}px;
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
+    border-radius: {tk['radio_campo']}px;
+    padding: {tk['esp_xs']}px {tk['esp_m'] - 2}px;
+    font-size: {base - tk['tipo_pequeno']}px;
 }}
 QFrame[rol="separador"] {{
     background-color: {c['borde_suave']};
@@ -329,20 +375,20 @@ QFrame[rol="separador"] {{
 }}
 QGroupBox {{
     background-color: {c['panel']};
-    border: 1px solid {c['borde_suave']};
-    border-radius: 16px;
-    margin-top: 14px;
-    padding: 22px 16px 14px 16px;
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
+    border-radius: {tk['radio_tarjeta']}px;
+    margin-top: {tk['esp_m'] + 2}px;
+    padding: {tk['esp_xl'] - 2}px {tk['esp_l']}px {tk['esp_m'] + 2}px {tk['esp_l']}px;
     font-weight: 600;
 }}
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 16px;
-    top: 4px;
-    padding: 0 4px;
+    left: {tk['esp_l']}px;
+    top: {tk['esp_xs']}px;
+    padding: 0 {tk['esp_xs']}px;
     color: {c['texto_sec']};
-    font-size: {base - 1}px;
+    font-size: {base - tk['tipo_pequeno']}px;
     font-weight: 600;
 }}
 
@@ -350,10 +396,10 @@ QGroupBox::title {{
 QPushButton {{
     background-color: {c['panel']};
     color: {c['texto']};
-    border: 1px solid {c['borde']};
-    border-radius: 10px;
-    padding: 8px 16px;
-    min-height: 20px;
+    border: {tk['grosor_borde']}px solid {c['borde']};
+    border-radius: {tk['radio_boton']}px;
+    padding: {tk['esp_s']}px {tk['esp_l']}px;
+    min-height: {tk['alto_control']}px;
     font-size: {base}px;
 }}
 QPushButton:hover {{
@@ -373,7 +419,7 @@ QPushButton[rol="primario"] {{
     color: {c['acento_texto']};
     border: none;
     font-weight: 600;
-    padding: 9px 18px;
+    padding: {tk['esp_s'] + 1}px {tk['esp_l'] + 2}px;
 }}
 QPushButton[rol="primario"]:hover {{ background-color: {c['acento_hover']}; }}
 QPushButton[rol="primario"]:pressed {{ background-color: {c['acento_pulsado']}; }}
@@ -401,37 +447,37 @@ QPushButton[rol="plano"]:hover {{ color: {c['acento_hover']}; }}
 /* --------------------------------------------------------------- campos */
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {{
     background-color: {c['panel']};
-    border: 1px solid {c['borde']};
-    border-radius: 10px;
-    padding: 7px 12px;
-    min-height: 20px;
+    border: {tk['grosor_borde_campo']}px solid {c['borde']};
+    border-radius: {tk['radio_campo']}px;
+    padding: {tk['esp_s'] - 1}px {tk['esp_m']}px;
+    min-height: {tk['alto_control']}px;
     selection-background-color: {c['acento']};
     selection-color: #FFFFFF;
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QDateEdit:focus, QTimeEdit:focus {{
-    border: 1px solid {c['acento']};
+    border: {tk['grosor_borde_campo']}px solid {c['acento']};
 }}
-QComboBox::drop-down {{ border: none; width: 24px; }}
+QComboBox::drop-down {{ border: none; width: {tk['esp_xl']}px; }}
 QComboBox QAbstractItemView {{
     background-color: {c['panel']};
     color: {c['texto']};
-    border: 1px solid {c['borde']};
-    border-radius: 10px;
-    padding: 4px;
+    border: {tk['grosor_borde']}px solid {c['borde']};
+    border-radius: {tk['radio_menu']}px;
+    padding: {tk['esp_xs']}px;
     selection-background-color: {c['acento']};
     selection-color: #FFFFFF;
     outline: 0;
 }}
 QComboBox QAbstractItemView::item {{
-    border-radius: 6px;
-    padding: 5px 8px;
-    min-height: 20px;
+    border-radius: {tk['radio_item'] - 2}px;
+    padding: {tk['esp_xs'] + 1}px {tk['esp_s']}px;
+    min-height: {tk['alto_control']}px;
 }}
 
 /* ------------------------------------------------------ checks y radios */
 QCheckBox, QRadioButton {{
-    spacing: 9px;
+    spacing: {tk['esp_s'] + 1}px;
     color: {c['texto']};
 }}
 QCheckBox::indicator, QRadioButton::indicator {{
@@ -440,7 +486,7 @@ QCheckBox::indicator, QRadioButton::indicator {{
     border: 1.5px solid {c['borde']};
     background-color: {c['panel']};
 }}
-QCheckBox::indicator {{ border-radius: 5px; }}
+QCheckBox::indicator {{ border-radius: {tk['radio_control'] - 3}px; }}
 QRadioButton::indicator {{ border-radius: 10px; }}
 QCheckBox::indicator:hover, QRadioButton::indicator:hover {{ border-color: {c['acento']}; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
@@ -455,16 +501,16 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
 /* ------------------------------------------------------------ listas */
 QListWidget, QTreeWidget, QTableWidget, QListView, QTreeView, QTableView {{
     background-color: {c['panel']};
-    border: 1px solid {c['borde_suave']};
-    border-radius: 12px;
-    padding: 4px;
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
+    border-radius: {tk['radio_menu']}px;
+    padding: {tk['esp_xs']}px;
     color: {c['texto']};
     outline: 0;
 }}
 QListWidget::item, QTreeWidget::item, QListView::item, QTreeView::item {{
-    border-radius: 7px;
-    padding: 6px 8px;
-    margin: 1px 2px;
+    border-radius: {tk['radio_item'] - 1}px;
+    padding: {tk['esp_s'] - 2}px {tk['esp_s']}px;
+    margin: 1px {tk['esp_xs'] // 2}px;
 }}
 QListWidget::item:hover, QTreeView::item:hover, QListView::item:hover {{
     background-color: {c['panel_hover']};
@@ -477,8 +523,8 @@ QListWidget::item:selected:active, QTreeView::item:selected:active {{
 QHeaderView::section {{
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid {c['borde_suave']};
-    padding: 6px 8px;
+    border-bottom: {tk['grosor_borde']}px solid {c['borde_suave']};
+    padding: {tk['esp_s'] - 2}px {tk['esp_s']}px;
     color: {c['texto_sec']};
     font-weight: 600;
 }}
@@ -486,12 +532,12 @@ QHeaderView::section {{
 /* ------------------------------------------------------------ texto */
 QPlainTextEdit, QTextEdit {{
     background-color: {c['fondo']};
-    border: 1px solid {c['borde_suave']};
-    border-radius: 12px;
-    padding: 9px;
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
+    border-radius: {tk['radio_menu']}px;
+    padding: {tk['esp_s'] + 1}px;
     color: {c['texto']};
     font-family: {c['mono']};
-    font-size: {base - 1}px;
+    font-size: {base - tk['tipo_pequeno']}px;
     selection-background-color: {c['acento']};
     selection-color: #FFFFFF;
 }}
@@ -500,23 +546,26 @@ QPlainTextEdit, QTextEdit {{
 QProgressBar {{
     background-color: {c['panel_alt']};
     border: none;
-    border-radius: 3px;
-    height: 6px;
+    border-radius: {tk['grosor_barra'] // 2}px;
+    height: {tk['grosor_barra']}px;
     text-align: center;
     color: transparent;
 }}
 QProgressBar::chunk {{
     background-color: {c['acento']};
-    border-radius: 3px;
+    border-radius: {tk['grosor_barra'] // 2}px;
 }}
 
 /* ------------------------------------------------------------- slider */
 QSlider::groove:horizontal {{
-    height: 4px;
+    height: {tk['esp_xs']}px;
     background: {c['panel_alt']};
-    border-radius: 2px;
+    border-radius: {tk['esp_xs'] // 2}px;
 }}
-QSlider::sub-page:horizontal {{ background: {c['acento']}; border-radius: 2px; }}
+QSlider::sub-page:horizontal {{
+    background: {c['acento']};
+    border-radius: {tk['esp_xs'] // 2}px;
+}}
 QSlider::handle:horizontal {{
     width: 18px;
     height: 18px;
@@ -530,24 +579,24 @@ QSlider::handle:horizontal:hover {{ background: {c['panel']}; }}
 /* --------------------------------------------------------- scrollbars */
 QScrollBar:vertical {{
     background: transparent;
-    width: 11px;
+    width: {tk['grosor_scroll']}px;
     margin: 2px;
 }}
 QScrollBar::handle:vertical {{
     background: {c['borde']};
-    border-radius: 5px;
-    min-height: 32px;
+    border-radius: {tk['grosor_scroll'] // 2}px;
+    min-height: {tk['esp_xxl']}px;
 }}
 QScrollBar::handle:vertical:hover {{ background: {c['texto_disc']}; }}
 QScrollBar:horizontal {{
     background: transparent;
-    height: 11px;
+    height: {tk['grosor_scroll']}px;
     margin: 2px;
 }}
 QScrollBar::handle:horizontal {{
     background: {c['borde']};
-    border-radius: 5px;
-    min-width: 32px;
+    border-radius: {tk['grosor_scroll'] // 2}px;
+    min-width: {tk['esp_xxl']}px;
 }}
 QScrollBar::handle:horizontal:hover {{ background: {c['texto_disc']}; }}
 QScrollBar::add-line, QScrollBar::sub-line,
@@ -561,18 +610,18 @@ QScrollBar::add-page, QScrollBar::sub-page {{
 /* ------------------------------------------------------ barra lateral */
 QWidget#panelLateral {{
     background-color: {c['fondo_lateral']};
-    border-right: 1px solid {c['borde_suave']};
+    border-right: {tk['grosor_borde']}px solid {c['borde_suave']};
 }}
 QListWidget[rol="lateral"] {{
     background-color: transparent;
     border: none;
     border-radius: 0;
-    padding: 12px 8px;
+    padding: {tk['esp_m']}px {tk['esp_s']}px;
 }}
 QListWidget[rol="lateral"]::item {{
-    border-radius: 9px;
-    padding: 9px 12px;
-    margin: 2px 4px;
+    border-radius: {tk['radio_item'] + 1}px;
+    padding: {tk['esp_s'] + 1}px {tk['esp_m']}px;
+    margin: 2px {tk['esp_xs']}px;
     color: {c['texto']};
     font-weight: 500;
 }}
@@ -594,10 +643,10 @@ QTabBar {{ qproperty-drawBase: 0; }}
 QTabBar::tab {{
     background: transparent;
     color: {c['texto_sec']};
-    padding: 6px 12px;
-    margin-right: 4px;
-    border-radius: 8px;
-    font-size: {base - 1}px;
+    padding: {tk['esp_s'] - 2}px {tk['esp_m']}px;
+    margin-right: {tk['esp_xs']}px;
+    border-radius: {tk['radio_control']}px;
+    font-size: {base - tk['tipo_pequeno']}px;
 }}
 QTabBar::tab:selected {{
     background: {c['acento']};
@@ -613,18 +662,18 @@ QTabBar::tab:hover:!selected {{
 QStatusBar {{
     background: transparent;
     color: {c['texto_sec']};
-    border-top: 1px solid {c['borde_suave']};
+    border-top: {tk['grosor_borde']}px solid {c['borde_suave']};
 }}
 QStatusBar::item {{ border: none; }}
 QMenu {{
     background-color: {c['panel']};
-    border: 1px solid {c['borde']};
-    border-radius: 10px;
-    padding: 5px;
+    border: {tk['grosor_borde']}px solid {c['borde']};
+    border-radius: {tk['radio_menu']}px;
+    padding: {tk['esp_xs'] + 1}px;
 }}
 QMenu::item {{
-    border-radius: 7px;
-    padding: 6px 22px 6px 12px;
+    border-radius: {tk['radio_item'] - 1}px;
+    padding: {tk['esp_s'] - 2}px {tk['esp_xl'] - 2}px {tk['esp_s'] - 2}px {tk['esp_m']}px;
 }}
 QMenu::item:selected {{
     background-color: {c['acento']};
@@ -633,13 +682,13 @@ QMenu::item:selected {{
 QMenu::separator {{
     height: 1px;
     background: {c['borde_suave']};
-    margin: 4px 8px;
+    margin: {tk['esp_xs']}px {tk['esp_s']}px;
 }}
 QMenuBar {{ background: transparent; }}
 QMenuBar::item {{
     background: transparent;
-    padding: 5px 10px;
-    border-radius: 6px;
+    padding: {tk['esp_xs'] + 1}px {tk['esp_m'] - 2}px;
+    border-radius: {tk['radio_control'] - 2}px;
 }}
 QMenuBar::item:selected {{ background: {c['panel_hover']}; }}
 

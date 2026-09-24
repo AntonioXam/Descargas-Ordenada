@@ -825,6 +825,73 @@ def test_asistente_primer_arranque():
     print("✅ Asistente de primer arranque correcto")
 
 
+def test_iconos_propios():
+    """El set de iconos existe, se dibuja y responde al tema."""
+    from organizer import iconos
+
+    nombres = iconos.disponibles()
+    assert nombres, "No hay iconos definidos"
+    assert len(nombres) >= 20, f"El set es demasiado pobre: {len(nombres)} iconos"
+
+    # Todos los que usa la interfaz deben existir
+    necesarios = [
+        "inicio", "historial", "actividad", "ajustes", "avanzado",
+        "carpeta", "organizar", "deshacer", "refrescar", "escudo",
+        "exito", "error", "info", "campana", "red",
+    ]
+    faltan = [n for n in necesarios if n not in nombres]
+    assert not faltan, f"Faltan iconos que usa la interfaz: {faltan}"
+
+    # Un nombre desconocido no debe reventar: cae al icono por defecto
+    iconos.limpiar_cache()
+    pixmap = iconos.pixmap("no_existe_este_icono", 20, tema="claro")
+    assert not pixmap.isNull(), "Un icono desconocido debe devolver algo válido"
+
+    # El color cambia con el tema
+    assert iconos.color_texto("claro") != iconos.color_texto("oscuro"), (
+        "El color del icono debe seguir al tema"
+    )
+
+    # Se dibuja al tamaño pedido, teniendo en cuenta la densidad de pantalla
+    pm = iconos.pixmap("carpeta", 24, tema="claro")
+    assert not pm.isNull(), "El icono de carpeta no se dibujó"
+    assert pm.width() >= 24, f"Tamaño inesperado: {pm.width()}"
+
+    # La caché no debe devolver objetos distintos para la misma petición
+    iconos.limpiar_cache()
+    primero = iconos.pixmap("inicio", 20, tema="claro")
+    segundo = iconos.pixmap("inicio", 20, tema="claro")
+    assert not primero.isNull() and not segundo.isNull()
+
+    iconos.limpiar_cache()
+    print("✅ Iconos propios correctos")
+
+
+def test_tokens_de_diseno():
+    """Los tokens de diseño existen y la hoja de estilo se genera a partir de ellos."""
+    from organizer import estilos
+
+    assert estilos.TOKENS, "No hay tokens de diseño"
+    # Los tokens más usados por los componentes
+    for clave in ("radio_tarjeta", "radio_campo", "radio_boton", "esp_m",
+                  "esp_l", "esp_xl", "mov_transicion"):
+        assert clave in estilos.TOKENS, f"Falta el token '{clave}'"
+        assert isinstance(estilos.TOKENS[clave], int), f"'{clave}' debe ser entero"
+
+    # La hoja de estilo se genera en los dos temas y con transparencia
+    for tema in ("claro", "oscuro"):
+        css = estilos.hoja_estilo(tema)
+        assert css.strip(), f"Hoja vacía para el tema {tema}"
+        assert "QPushButton" in css and "QListWidget" in css
+
+    css_translucido = estilos.hoja_estilo("claro", transparencia=0.7)
+    assert "rgba(" in css_translucido, (
+        "Con transparencia los fondos deben expresarse en rgba"
+    )
+
+    print("✅ Tokens de diseño correctos")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -854,6 +921,8 @@ def main():
     test_sistema_de_permisos()
     test_permisos_conectados()
     test_asistente_primer_arranque()
+    test_iconos_propios()
+    test_tokens_de_diseno()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 
