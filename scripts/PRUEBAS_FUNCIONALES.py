@@ -533,7 +533,66 @@ def test_efectos_nativos():
     resultado = efectos.aplicar_efecto_ventana(object())
     assert resultado is False, "Sin ventana real no debe aplicar nada"
 
+    # La detección de compositor en Linux debe responder sin lanzar
+    assert isinstance(efectos.hay_compositor(), bool)
+
+    # La variable de entorno desactiva la transparencia por completo
+    os.environ[efectos.VARIABLE_DESACTIVAR] = "1"
+    try:
+        assert efectos.desactivado_por_entorno() is True
+        assert efectos.soportado() is False, (
+            "Con la transparencia desactivada, soportado() debe ser False"
+        )
+        assert efectos.aplicar_efecto_ventana(object()) is False
+    finally:
+        del os.environ[efectos.VARIABLE_DESACTIVAR]
+    assert efectos.desactivado_por_entorno() is False
+
     print("✅ Efectos nativos degradan con elegancia")
+
+
+def test_translucidez_legible():
+    """Con material detrás, el fondo deja pasar la luz pero las tarjetas no.
+
+    Regresión: antes el fondo se quedaba en alfa 0.86, así que del material solo
+    se transparentaba un 14% y el efecto no se veía. Ahora el fondo baja a 0.70
+    y los paneles se mantienen casi opacos para no perder legibilidad.
+    """
+    from organizer import estilos
+
+    for tema in ("claro", "oscuro"):
+        c = estilos.colores_translucidos(tema, 0.70)
+        assert "rgba(" in c["fondo"], f"El fondo de {tema} debe ser translúcido"
+        assert "rgba(" in c["panel"], f"El panel de {tema} debe llevar alfa"
+        # El panel tiene que ser más opaco que el fondo, o el texto se pierde
+        fondo_alfa = float(c["fondo"].rsplit(",", 1)[1].rstrip(")"))
+        panel_alfa = float(c["panel"].rsplit(",", 1)[1].rstrip(")"))
+        assert panel_alfa > fondo_alfa, (
+            f"En {tema} el panel ({panel_alfa}) debe ser más opaco que el "
+            f"fondo ({fondo_alfa})"
+        )
+        assert fondo_alfa <= 0.75, (
+            f"En {tema} el fondo apenas deja ver el material (alfa {fondo_alfa})"
+        )
+        assert panel_alfa >= 0.9, (
+            f"En {tema} las tarjetas quedan demasiado transparentes "
+            f"(alfa {panel_alfa})"
+        )
+
+    # A opacidad 1.0 todo queda opaco: el aspecto de siempre
+    opaco = estilos.colores_translucidos("claro", 1.0)
+    alfa_opaco = float(opaco["fondo"].rsplit(",", 1)[1].rstrip(")"))
+    assert alfa_opaco == 1.0, (
+        f"A opacidad 1.0 el fondo debe ser opaco, no alfa {alfa_opaco}"
+    )
+
+    # Y la hoja de estilo sin transparencia no debe contener alfa en el fondo
+    css_opaco = estilos.hoja_estilo("claro")
+    assert "rgba(242, 242, 247, 0.7" not in css_opaco, (
+        "Sin efecto nativo el fondo no debe ser translúcido"
+    )
+
+    print("✅ Con material detrás, fondo translúcido y tarjetas legibles")
 
 
 def test_flujo_organizar_carpeta_cli():
@@ -884,9 +943,16 @@ def test_tokens_de_diseno():
         assert css.strip(), f"Hoja vacía para el tema {tema}"
         assert "QPushButton" in css and "QListWidget" in css
 
-    css_translucido = estilos.hoja_estilo("claro", transparencia=0.7)
+    css_translucido = estilos.hoja_estilo("claro", opacidad=0.7)
     assert "rgba(" in css_translucido, (
         "Con transparencia los fondos deben expresarse en rgba"
+    )
+    # El fondo translúcido y las tarjetas casi opacas: es lo que hace que el
+    # material se aprecie sin perder legibilidad.
+    claro = estilos.colores_translucidos("claro", 0.70)
+    assert "rgba(" in claro["fondo"], claro["fondo"]
+    assert claro["panel"] != claro["fondo"], (
+        "Las tarjetas deben ser más opacas que el fondo"
     )
 
     print("✅ Tokens de diseño correctos")
@@ -913,6 +979,7 @@ def main():
     test_programacion_horaria()
     test_analisis_disco()
     test_efectos_nativos()
+    test_translucidez_legible()
     test_flujo_organizar_carpeta_cli()
     test_cli_diagnostico()
     test_configuracion_no_escribible()

@@ -91,6 +91,12 @@ ANCHO_LATERAL_NORMAL = 200
 ANCHO_LATERAL_AMPLIO = 224
 ANCHO_CONTENIDO_MAXIMO = 980
 
+# Opacidad del fondo cuando hay un material nativo detrás (vibrancy/Mica).
+# Lo bastante baja para que se vea el material y lo bastante alta para que el
+# texto no pierda legibilidad. Las tarjetas se quedan casi opacas: ver
+# ``estilos.colores_translucidos``.
+OPACIDAD_CON_EFECTO = 0.70
+
 
 class Switch(QCheckBox):
     """Interruptor encendido/apagado estilo iOS (sobre QCheckBox)."""
@@ -477,11 +483,13 @@ class OrganizadorAvanzado(QMainWindow):
         tema_efectivo = self._tema_efectivo()
         Switch._tema = tema_efectivo
 
-        transparencia = 1.0
+        # Con un material nativo detrás, el fondo se vuelve translúcido para
+        # que se aprecie. Sin efecto, todo opaco: el aspecto de siempre.
+        opacidad = 1.0
         if getattr(self, "_efecto_nativo_activo", False):
-            transparencia = 0.86
+            opacidad = OPACIDAD_CON_EFECTO
         self.setStyleSheet(
-            estilos.hoja_estilo(tema_efectivo, transparencia=transparencia)
+            estilos.hoja_estilo(tema_efectivo, opacidad=opacidad)
         )
         # Repintar los interruptores dibujados a mano
         for interruptor in self.findChildren(Switch):

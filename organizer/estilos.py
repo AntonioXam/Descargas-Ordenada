@@ -220,19 +220,25 @@ def paleta(nombre: str) -> dict:
     return PALETA_OSCURA if nombre == "oscuro" else PALETA_CLARA
 
 
-def colores_translucidos(nombre: str, transparencia: float = 0.82) -> dict:
+def colores_translucidos(nombre: str, opacidad: float = 0.70) -> dict:
     """Convierte los colores base a versiones con alfa (rgba).
 
-    Se usa cuando la ventana tiene un efecto nativo detrás (vibrancy en macOS,
-    Mica en Windows): el fondo del contenido se vuelve semitransparente para
-    dejar ver el material del sistema, manteniendo los paneles legibles.
+    Se usa cuando hay un material nativo detrás (vibrancy en macOS, Mica en
+    Windows): el fondo del contenido se vuelve semitransparente para **dejar ver
+    el material**, mientras que las tarjetas y los paneles se mantienen bastante
+    opacos para que el texto se lea sin esfuerzo.
+
+    Ese contraste entre fondo y panel es lo que hace que se aprecie el efecto:
+    antes el fondo se quedaba en alfa 0.86, así que del material solo se
+    transparentaba un 14% y el resultado parecía un color plano.
 
     Args:
         nombre: 'claro' u 'oscuro'.
-        transparencia: opacidad de los fondos (1.0 = opaco).
+        opacidad: opacidad del **fondo** del contenido (1.0 = opaco). Los
+            paneles siempre son más opacos que el fondo.
     """
     c = dict(paleta(nombre))
-    alpha = max(0.0, min(1.0, transparencia))
+    alpha = max(0.0, min(1.0, opacidad))
 
     def rgba(color_hex: str, alfa: float) -> str:
         color_hex = color_hex.lstrip("#")
@@ -243,28 +249,29 @@ def colores_translucidos(nombre: str, transparencia: float = 0.82) -> dict:
         b = int(color_hex[4:6], 16)
         return f"rgba({r}, {g}, {b}, {alfa:.3f})"
 
-    # Fondos con el alfa indicado; los paneles un poco más opacos para que el
-    # texto siempre se lea bien.
+    # El fondo deja pasar el material; los paneles se quedan casi opacos para
+    # no sacrificar la legibilidad del texto.
     c["fondo"] = rgba(c["fondo"], alpha)
-    c["fondo_lateral"] = rgba(c["fondo_lateral"], min(1.0, alpha + 0.08))
-    c["panel"] = rgba(c["panel"], min(1.0, alpha + 0.12))
-    c["panel_alt"] = rgba(c["panel_alt"], min(1.0, alpha + 0.10))
-    c["panel_hover"] = rgba(c["panel_hover"], min(1.0, alpha + 0.10))
+    c["fondo_barra"] = rgba(c["fondo_barra"], min(1.0, alpha + 0.08))
+    c["fondo_lateral"] = rgba(c["fondo_lateral"], min(1.0, alpha + 0.06))
+    c["panel"] = rgba(c["panel"], min(1.0, alpha + 0.26))
+    c["panel_alt"] = rgba(c["panel_alt"], min(1.0, alpha + 0.22))
+    c["panel_hover"] = rgba(c["panel_hover"], min(1.0, alpha + 0.22))
     return c
 
 
-def hoja_estilo(nombre: str = "auto", transparencia: float = 1.0) -> str:
+def hoja_estilo(nombre: str = "auto", opacidad: float = 1.0) -> str:
     """Genera la hoja de estilo Qt completa para la paleta indicada.
 
     Args:
         nombre: 'claro', 'oscuro' o 'auto' (usar el tema del sistema).
-        transparencia: opacidad de los fondos (menor que 1.0 activa el efecto
+        opacidad: opacidad del fondo (menor que 1.0 activa el efecto
             translúcido, pensado para cuando hay un material nativo detrás).
     """
     if nombre == "auto":
         nombre = tema_del_sistema()
-    if transparencia < 1.0:
-        c = colores_translucidos(nombre, transparencia)
+    if opacidad < 1.0:
+        c = colores_translucidos(nombre, opacidad)
     else:
         c = paleta(nombre)
     c = dict(c)
