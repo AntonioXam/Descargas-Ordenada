@@ -380,12 +380,38 @@ _COMPROBADORES = {
 # Rutas a los ajustes del sistema
 # --------------------------------------------------------------------------
 
-# Anclas de macOS 13 (Ventura) en adelante. En versiones anteriores el enlace
-# abre el panel general de Privacidad, que sigue siendo mejor que nada.
-_ANCLAS_MACOS = {
-    "acceso_total_disco": "Privacy_AllFiles",
-    "automatizacion_finder": "Privacy_Automation",
-    "notificaciones": "Privacy_Notifications",
+# Paneles de macOS, en orden de preferencia: primero el identificador moderno
+# (Ventura 13 y posteriores) y después el clásico, que sigue funcionando en
+# versiones anteriores. Se prueban en orden hasta que uno abra algo.
+#
+# Detalle importante: «Notificaciones» **no** vive en Privacidad y seguridad,
+# es un panel propio. Antes se usaba un ancla inventada (Privacy_Notifications)
+# que no abría nada.
+_PANELES_MACOS = {
+    "acceso_total_disco": [
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+    ],
+    "automatizacion_finder": [
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Automation",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+    ],
+    "notificaciones": [
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+        "x-apple.systempreferences:com.apple.preference.notifications",
+    ],
+}
+
+# Ruta escrita, para cuando el enlace no funciona: el usuario siempre debe
+# saber exactamente dónde ir.
+_RUTA_MANUAL_MACOS = {
+    "acceso_total_disco": (
+        "Ajustes del sistema → Privacidad y seguridad → Acceso total al disco"
+    ),
+    "automatizacion_finder": (
+        "Ajustes del sistema → Privacidad y seguridad → Automatización"
+    ),
+    "notificaciones": "Ajustes del sistema → Notificaciones → DescargasOrdenadas",
 }
 
 _AJUSTES_WINDOWS = {
@@ -395,33 +421,56 @@ _AJUSTES_WINDOWS = {
     "red": "ms-settings:network",
 }
 
+# Ruta absoluta: al arrancar desde el Finder el PATH del proceso es mínimo y no
+# conviene depender de que «open» aparezca en él.
+_OPEN_MACOS = "/usr/bin/open"
+
+
+def _abrir_url_macos(url: str) -> bool:
+    """Intenta abrir una URL con el mecanismo del sistema. No lanza excepción."""
+    try:
+        resultado = subprocess.run(
+            [_OPEN_MACOS, url], capture_output=True, text=True, timeout=10, check=False
+        )
+        if resultado.returncode != 0:
+            logger.debug(
+                "No se pudo abrir %s: %s", url, (resultado.stderr or "").strip()[:160]
+            )
+        return resultado.returncode == 0
+    except Exception as e:
+        logger.debug(f"No se pudo abrir {url}: {e}")
+        return False
+
 
 def abrir_ajustes_del_sistema(capacidad_id: str) -> tuple[bool, str]:
     """Abre el panel del sistema donde se concede el permiso indicado.
 
-    Devuelve (abierto, mensaje). Si no hay forma de abrirlo automáticamente se
-    devuelve el texto que el usuario debe buscar a mano: es mejor dar
-    instrucciones que fallar en silencio.
+    Devuelve (abierto, mensaje). Si no se puede abrir automáticamente se
+    devuelven las instrucciones para llegar a mano: es mejor dar indicaciones
+    que decir que se ha abierto algo que en realidad no se ha abierto.
     """
     try:
         if _es_macos():
-            ancla = _ANCLAS_MACOS.get(capacidad_id)
-            if not ancla:
-                return False, "Abre Ajustes del sistema → Privacidad y seguridad."
-            destino = f"x-apple.systempreferences:com.apple.preference.security?{ancla}"
-            resultado = subprocess.run(
-                ["open", destino], capture_output=True, text=True, timeout=10, check=False
-            )
-            if resultado.returncode == 0:
-                return True, "Se ha abierto Ajustes del sistema."
-            # macOS 12 y anteriores no aceptan todos los anclas.
-            subprocess.run(
-                ["open", "x-apple.systempreferences:com.apple.preference.security"],
-                capture_output=True, timeout=10, check=False,
-            )
-            return True, (
-                "Se ha abierto Privacidad y seguridad. Busca la sección "
-                "correspondiente en la lista."
+            for url in _PANELES_MACOS.get(capacidad_id, []):
+                if _abrir_url_macos(url):
+                    return True, (
+                        "Se ha abierto en: "
+                        f"{_RUTA_MANUAL_MACOS.get(capacidad_id, 'Ajustes del sistema')}"
+                    )
+
+            # Ningún enlace funcionó: se abre al menos Ajustes del sistema,
+            # que sigue siendo más útil que no hacer nada, y se indica la ruta.
+            if _abrir_url_macos("x-apple.systempreferences:com.apple.preference.security"):
+                return True, (
+                    "Se ha abierto Ajustes del sistema, pero no directamente en "
+                    "la sección. Entra en:\n"
+                    f"{_RUTA_MANUAL_MACOS.get(capacidad_id, 'la sección correspondiente')}"
+                )
+
+            return False, (
+                "No se ha podido abrir Ajustes del sistema automáticamente.\n\n"
+                "Ábrelo a mano en:\n"
+                f"{_RUTA_MANUAL_MACOS.get(capacidad_id, 'Ajustes del sistema')}"
             )
 
         if _es_windows():
@@ -435,6 +484,12 @@ def abrir_ajustes_del_sistema(capacidad_id: str) -> tuple[bool, str]:
         )
     except Exception as e:
         logger.debug(f"No se pudieron abrir los ajustes: {e}")
+        if _es_macos():
+            return False, (
+                "No se pudo abrir la configuración automáticamente.\n\n"
+                "Ve a:\n"
+                f"{_RUTA_MANUAL_MACOS.get(capacidad_id, 'Ajustes del sistema')}"
+            )
         return False, "No se pudo abrir la configuración automáticamente."
 
 

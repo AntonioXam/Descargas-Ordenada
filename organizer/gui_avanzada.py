@@ -3141,7 +3141,12 @@ class OrganizadorAvanzado(QMainWindow):
         self._solicitar_permiso(capacidad_id)
 
     def _solicitar_permiso(self, capacidad_id: str):
-        """Abre el sitio donde se concede el permiso y queda a la espera."""
+        """Abre el sitio donde se concede el permiso y queda a la espera.
+
+        El aviso se da en la barra de estado y en el registro, **no** con una
+        ventana modal: antes aparecía un diálogo justo encima de Ajustes del
+        sistema, tapándolo, y daba la impresión de que no se había abierto nada.
+        """
         try:
             resultado = self.permisos.solicitar(capacidad_id)
         except KeyError:
@@ -3150,8 +3155,18 @@ class OrganizadorAvanzado(QMainWindow):
         self._permisos_pendientes.add(capacidad_id)
         self._actualizar_centro_permisos()
 
-        if resultado.detalle:
-            QMessageBox.information(self, resultado.capacidad.nombre, resultado.detalle)
+        mensaje = resultado.detalle or "Concede el permiso y vuelve a esta ventana."
+        if capacidad_id == "acceso_total_disco":
+            # macOS necesita releer el permiso: sin este aviso, el usuario
+            # concede y cree que sigue sin funcionar.
+            mensaje += (
+                "\n\nSi después de concederlo sigue igual, cierra y vuelve a "
+                "abrir DescargasOrdenadas."
+            )
+
+        # Aviso no bloqueante: la ventana de Ajustes debe quedar visible.
+        self.statusBar().showMessage(mensaje.replace("\n\n", "  ·  "), 15000)
+        self._agregar_log(mensaje.replace("\n", " "))
 
     def _mostrar_permiso_o_error(self, titulo: str, mensaje: str):
         """Explica un fallo, y ofrece pedir el permiso si es lo que falta."""
@@ -3391,13 +3406,24 @@ class OrganizadorAvanzado(QMainWindow):
             aviso = QMessageBox(self)
             aviso.setWindowTitle("Instalar actualización")
             aviso.setText(f"DescargasOrdenadas v{version} se instalará ahora.")
-            aviso.setInformativeText(
-                "La aplicación se cerrará, el instalador se ejecutará y volverá a "
-                "abrirse automáticamente al terminar.\n\n"
-                "No se abrirá ninguna copia duplicada."
-            )
+            if sys.platform == "darwin":
+                # En macOS el Instalador pide la contraseña con su propio
+                # diálogo, así que no se puede prometer que se reabra sola.
+                aviso.setInformativeText(
+                    "La aplicación se cerrará y se abrirá el Instalador de macOS.\n\n"
+                    "Escribe tu contraseña y sigue los pasos. Cuando termine, "
+                    "vuelve a abrir DescargasOrdenadas desde Aplicaciones."
+                )
+                etiqueta_instalar = "Instalar ahora"
+            else:
+                aviso.setInformativeText(
+                    "La aplicación se cerrará, el instalador se ejecutará y volverá a "
+                    "abrirse automáticamente al terminar.\n\n"
+                    "No se abrirá ninguna copia duplicada."
+                )
+                etiqueta_instalar = "Instalar y reabrir"
             aviso.setIcon(QMessageBox.Information)
-            btn_instalar = aviso.addButton("Instalar y reabrir", QMessageBox.AcceptRole)
+            btn_instalar = aviso.addButton(etiqueta_instalar, QMessageBox.AcceptRole)
             aviso.addButton("Más tarde", QMessageBox.RejectRole)
             aviso.exec()
             if aviso.clickedButton() is not btn_instalar:

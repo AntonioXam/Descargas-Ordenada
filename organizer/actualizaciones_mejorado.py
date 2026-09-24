@@ -17,7 +17,7 @@ from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
 from .version import obtener_version
-from .app_paths import obtener_directorio_configuracion
+from .app_paths import crear_directorio, directorio_temporal_app, obtener_directorio_configuracion
 
 logger = logging.getLogger('organizador.actualizaciones')
 
@@ -47,8 +47,19 @@ class GestorActualizacionesMejorado:
     def _obtener_ruta_config(self) -> Path:
         """Obtiene la ruta del archivo de configuración."""
         config_dir = obtener_directorio_configuracion()
-        config_dir.mkdir(parents=True, exist_ok=True)
+        crear_directorio(config_dir)
         return config_dir / "actualizaciones.json"
+
+    def _directorio_temporal(self) -> Path:
+        """Carpeta de trabajo para descargas y scripts de actualización.
+
+        **No** se usa la carpeta de la aplicación. En macOS la app vive en un
+        paquete firmado dentro de ``/Applications`` y en Windows en ``Program
+        Files``: en ambos casos escribir ahí falla (o rompe la firma), que era
+        justo el motivo por el que «Descargar e instalar» daba error en Mac.
+        Se usa el directorio temporal del usuario, que siempre es escribible.
+        """
+        return directorio_temporal_app() / "actualizacion"
     
     def _cargar_config(self):
         """Carga la configuración de actualizaciones.
@@ -86,6 +97,13 @@ class GestorActualizacionesMejorado:
         except Exception as e:
             logger.error(f"Error cargando config actualizaciones: {e}")
 
+        # El aviso guardado puede corresponder a una versión que ya está
+        # instalada (justo lo que pasa al actualizar la aplicación). Se
+        # descarta al cargar para no anunciarla ni una vez.
+        if self.nueva_version_disponible and not self._version_guardada_sigue_siendo_nueva():
+            self.nueva_version_disponible = None
+            logger.info("Se descarta un aviso de actualización ya obsoleto")
+
     def _guardar_config(self):
         """Guarda la configuración de actualizaciones."""
         try:
@@ -117,7 +135,13 @@ class GestorActualizacionesMejorado:
         if not forzar and self.ultima_verificacion and not self.comprobacion_fallida():
             if datetime.now() - self.ultima_verificacion < timedelta(hours=24):
                 if self.nueva_version_disponible:
-                    return True, self.nueva_version_disponible
+                    # Lo guardado puede haberse quedado obsoleto: si el usuario
+                    # ya instaló esa versión, hay que dejar de anunciarla. Sin
+                    # esta comprobación, al actualizar la app seguiría avisando
+                    # durante 24 h de la versión que acaba de instalar.
+                    if self._version_guardada_sigue_siendo_nueva():
+                        return True, self.nueva_version_disponible
+                    self._descartar_version_guardada()
                 return False, None
 
         # 1) API de GitHub (datos completos: notas, assets…)
@@ -171,6 +195,30 @@ class GestorActualizacionesMejorado:
         """Registra que la comprobación se hizo correctamente."""
         self._ultima_comprobacion_fallida = False
         self.ultima_verificacion = datetime.now()
+        self._guardar_config()
+
+    def _version_guardada_sigue_siendo_nueva(self) -> bool:
+        """Comprueba que la versión que se anunció sigue siendo más nueva.
+
+        La información de «hay una versión nueva» se guarda en disco para no
+        consultar GitHub en cada arranque. El problema es que sobrevive a la
+        propia actualización: si se avisó de la 6.0.0 estando en la 5.1.0, al
+        instalar la 6.0.0 el aviso seguía apareciendo durante 24 horas. Aquí se
+        vuelve a comparar contra la versión instalada.
+        """
+        version = str(self.nueva_version_disponible.get('version', '')).lstrip('vV')
+        if not version:
+            return False
+        return self._es_version_nueva(version)
+
+    def _descartar_version_guardada(self):
+        """Olvida el aviso de versión nueva, porque ya está instalada."""
+        version = str((self.nueva_version_disponible or {}).get('version', ''))
+        logger.info(
+            f"El aviso de la versión {version} ya no aplica: está instalada la "
+            f"{self.VERSION_ACTUAL}. Se descarta."
+        )
+        self.nueva_version_disponible = None
         self._guardar_config()
 
     def _leer_release_api(self) -> Optional[Dict]:
@@ -413,12 +461,12 @@ class GestorActualizacionesMejorado:
             return self.descargar_actualizacion(info, callback_progreso)
 
         try:
-            if getattr(sys, 'frozen', False):
-                base_dir = Path(sys.executable).parent
-            else:
-                base_dir = Path(__file__).parent.parent
-            temp_dir = base_dir / ".temp_update"
-            temp_dir.mkdir(exist_ok=True)
+            temp_dir = self._directorio_temporal()
+            if not crear_directorio(temp_dir):
+                return False, (
+                    "No se pudo preparar la carpeta de descarga:\n"
+                    f"{temp_dir}"
+                )
 
             version = info.get('version', 'latest')
             extension = ".pkg" if sys.platform == "darwin" else (".deb" if sys.platform.startswith("linux") else ".exe")
@@ -479,9 +527,12 @@ class GestorActualizacionesMejorado:
         fiable es: cerrar → instalar encima → reabrir. El script se ejecuta
         desacoplado de la app para sobrevivir a su cierre.
         """
-        base_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent.parent
-        script = base_dir / ".temp_actualizar.bat"
-        log = base_dir / ".temp_actualizar.log"
+        # El script y su registro viven en la carpeta temporal del usuario: en
+        # ``Program Files`` no se puede escribir sin permisos de administrador.
+        carpeta = self._directorio_temporal()
+        crear_directorio(carpeta)
+        script = carpeta / "actualizar_descargasordenadas.bat"
+        log = carpeta / "actualizar.log"
 
         lineas = [
             "@echo off",
@@ -499,8 +550,12 @@ class GestorActualizacionesMejorado:
             'echo [%date% %time%] Lanzando instalador >> "%LOG%"',
             f'"%INSTALADOR%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS >> "%LOG%" 2>&1',
             'echo [%date% %time%] Instalador terminado >> "%LOG%"',
-            "rem Reabrir la aplicación actualizada",
-            'start "" "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            "rem Reabrir la aplicación actualizada (la ruta puede estar en uno u otro)",
+            'if exist "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" (',
+            '  start "" "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            ") else (",
+            '  start "" "%ProgramFiles(x86)%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            ")",
             'del "%~f0"',
             "endlocal",
         ]
@@ -510,18 +565,33 @@ class GestorActualizacionesMejorado:
     def _script_actualizacion_unix(self, ruta_instalador: Path) -> Path:
         """Script para macOS/Linux: espera el cierre, instala y reabre.
 
-        En macOS, el .pkg se instala con ``installer -pkg`` sobre /Applications;
-        en Linux, el .deb se instala con el gestor del sistema pidiendo permisos
+        En macOS **no** se usa el comando ``installer``, porque exige ser root y
+        fallaba siempre: se abre el .pkg con ``open``, que lanza el Instalador
+        del sistema y pide la contraseña con su propio diálogo. Por eso en macOS
+        la aplicación no se reabre sola (el Instalador tiene el control).
+
+        En Linux, el .deb se instala con el gestor del sistema pidiendo permisos
         de forma explícita (pkexec o sudo en una terminal).
         """
-        base_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent.parent
-        script = base_dir / ".temp_actualizar.sh"
-        log = base_dir / ".temp_actualizar.log"
-        reabrir = " ".join(f'"{parte}"' for parte in self._comando_reabrir())
+        # En la carpeta temporal del usuario: dentro del paquete .app de macOS
+        # no se puede escribir.
+        carpeta = self._directorio_temporal()
+        crear_directorio(carpeta)
+        script = carpeta / "actualizar_descargasordenadas.sh"
+        log = carpeta / "actualizar.log"
 
         if sys.platform == "darwin":
+            # ``installer -pkg -target /`` exige ser root, así que fallaba
+            # siempre. Abrir el .pkg con ``open`` lanza el Instalador de macOS,
+            # que pide la contraseña con su propio diálogo: es la vía correcta
+            # y no necesita privilegios previos.
             instalacion = (
-                f'installer -pkg "{ruta_instalador}" -target / >>"{log}" 2>&1'
+                'echo "[$(date)] Abriendo el Instalador de macOS" >>"$LOG"\n'
+                f'/usr/bin/open "{ruta_instalador}" >>"$LOG" 2>&1'
+            )
+            reabrir_linea = (
+                'echo "[$(date)] El Instalador sigue abierto; no se reabre sola" '
+                '>>"$LOG"'
             )
         else:
             instalacion = (
@@ -529,6 +599,8 @@ class GestorActualizacionesMejorado:
                 f'pkexec apt-get install -y "{ruta_instalador}" >>"{log}" 2>&1; '
                 f'else xdg-terminal-exec sudo apt-get install -y "{ruta_instalador}" >>"{log}" 2>&1; fi'
             )
+            reabrir = " ".join(f'"{parte}"' for parte in self._comando_reabrir())
+            reabrir_linea = f"nohup {reabrir} >/dev/null 2>&1 &"
 
         cuerpo = chr(10).join([
             "#!/usr/bin/env bash",
@@ -541,8 +613,8 @@ class GestorActualizacionesMejorado:
             "done",
             'echo "[$(date)] Instalando la nueva versión" >>"$LOG"',
             instalacion,
-            'echo "[$(date)] Instalación terminada; reabriendo" >>"$LOG"',
-            f"nohup {reabrir} >/dev/null 2>&1 &",
+            'echo "[$(date)] Proceso terminado" >>"$LOG"',
+            reabrir_linea,
             'rm -f -- "$0"',
             "",
         ])
@@ -622,6 +694,14 @@ class GestorActualizacionesMejorado:
         else:
             _cerrar()
 
+        if sys.platform == "darwin":
+            # En macOS el Instalador pide la contraseña con su propio diálogo,
+            # así que no se puede reabrir la aplicación automáticamente.
+            return True, (
+                "La aplicación se cerrará y se abrirá el Instalador de macOS.\n\n"
+                "Escribe tu contraseña y sigue los pasos. Cuando termine, vuelve "
+                "a abrir DescargasOrdenadas desde Aplicaciones."
+            )
         return True, (
             "La aplicación se cerrará, el instalador se ejecutará en segundo plano "
             "y volverá a abrirse automáticamente al terminar."
@@ -646,15 +726,11 @@ class GestorActualizacionesMejorado:
             return False, "URL de descarga no disponible"
         
         try:
-            # Crear carpeta temporal
-            if getattr(sys, 'frozen', False):
-                base_dir = Path(sys.executable).parent
-            else:
-                base_dir = Path(__file__).parent.parent
-            
-            temp_dir = base_dir / ".temp_update"
-            temp_dir.mkdir(exist_ok=True)
-            
+            # Carpeta temporal del usuario, nunca la de la aplicación
+            temp_dir = self._directorio_temporal()
+            if not crear_directorio(temp_dir):
+                return False, f"No se pudo preparar la carpeta de descarga:\n{temp_dir}"
+
             # Nombre del archivo
             version = info.get('version', 'latest')
             zip_path = temp_dir / f"DescargasOrdenadas_v{version}.zip"
@@ -706,9 +782,12 @@ class GestorActualizacionesMejorado:
                 base_dir = Path(sys.executable).parent
             else:
                 base_dir = Path(__file__).parent.parent
-            
-            # Crear backup del proyecto actual
-            backup_dir = base_dir.parent / f"DescargasOrdenadas_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # El respaldo va a la carpeta temporal, no junto a la aplicación:
+            # dentro de un paquete .app o de Program Files no se puede escribir.
+            backup_dir = self._directorio_temporal() / (
+                f"DescargasOrdenadas_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
             logger.info(f"Creando backup en: {backup_dir}")
             
             try:
@@ -716,9 +795,10 @@ class GestorActualizacionesMejorado:
             except Exception as e:
                 logger.warning(f"Error creando backup: {e}")
             
-            # Descomprimir actualización
-            temp_extract = base_dir / ".temp_extract"
-            temp_extract.mkdir(exist_ok=True)
+            # Descomprimir actualización (en la carpeta temporal del usuario,
+            # nunca dentro de la aplicación, que puede ser de solo lectura)
+            temp_extract = self._directorio_temporal() / "extraido"
+            crear_directorio(temp_extract)
             
             logger.info(f"Descomprimiendo: {zip_path}")
             
@@ -792,7 +872,9 @@ class GestorActualizacionesMejorado:
                     iniciar_bat = base_dir / "INICIAR.bat"
 
                     if iniciar_bat.exists():
-                        temp_script = base_dir / ".temp_restart.bat"
+                        carpeta_temp = self._directorio_temporal()
+                        crear_directorio(carpeta_temp)
+                        temp_script = carpeta_temp / "reiniciar_descargasordenadas.bat"
                         with open(temp_script, 'w') as f:
                             f.write('@echo off\n')
                             f.write('timeout /t 2 /nobreak >nul\n')

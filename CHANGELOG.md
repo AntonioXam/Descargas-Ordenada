@@ -4,6 +4,63 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [6.0.1] - 2026-09-24
+
+Correcciones a partir de la primera instalación real en macOS. Los tres fallos
+venían de dar por buenas cosas que no se habían probado en un Mac.
+
+### 🔔 Dejaba de avisar de una versión nueva… que ya estaba instalada
+El aviso «hay una versión nueva» se guarda en disco para no consultar GitHub en
+cada arranque. El problema es que sobrevivía a la propia actualización: si te
+avisó de la 6.0.0 estando en la 5.1.0, al instalar la 6.0.0 el aviso seguía
+saliendo durante 24 horas más. Al pulsar «Buscar actualizaciones» desaparecía,
+porque esa comprobación sí consulta de verdad. Ahora el aviso guardado se
+compara con la versión instalada y se descarta si ya no aplica.
+
+### 🔐 El botón de conceder un permiso no abría Ajustes
+- Se usaba un identificador de panel **inventado** para Notificaciones
+  (`Privacy_Notifications`), que no existe: las notificaciones tienen su propio
+  panel, no están dentro de Privacidad y seguridad
+- Ahora se prueba primero el identificador moderno (macOS 13 y posteriores) y
+  después el clásico, y si ninguno funciona se abre al menos Ajustes del sistema
+  indicando la ruta exacta a mano
+- Se usa la ruta absoluta `/usr/bin/open`: al abrir la app desde el Finder, el
+  `PATH` del proceso es mínimo
+- **El diálogo que aparecía encima de Ajustes ha desaparecido.** Se mostraba una
+  ventana modal justo después de abrir Ajustes, tapándolo, y daba la impresión
+  de que no se había abierto nada. Ahora el aviso va a la barra de estado
+- Para el Acceso total al disco se avisa de que puede hacer falta cerrar y
+  volver a abrir la aplicación
+
+### 💾 «Descargar e instalar» daba error en Mac
+La causa no era un permiso que faltara, sino **dónde se escribía**: el
+instalador, los scripts y el respaldo se guardaban dentro de la carpeta de la
+aplicación. En macOS la app vive en un paquete firmado dentro de `/Applications`
+y en Windows en `Program Files`, así que escribir ahí falla con un error de
+permisos. Ahora todo va a la carpeta temporal del usuario.
+
+Además, en macOS se usaba `installer -pkg -target /`, que **exige ser root** y
+por tanto fallaba siempre, en silencio, escribiendo el error en un registro que
+no se mostraba. Ahora se abre el `.pkg` con `open`, que lanza el Instalador del
+sistema y pide la contraseña con su propio diálogo. Como consecuencia, en macOS
+la aplicación ya no se reabre sola: el Instalador tiene el control, y el aviso
+lo dice claramente en lugar de prometer algo que no ocurre.
+
+### 🧪 Pruebas
+- **33 pruebas funcionales** (eran 30): aviso de actualización no obsoleto,
+  que la actualización no escriba dentro de la aplicación, y los paneles de
+  macOS con su respaldo
+- **Un fallo en una prueba ya no cuelga la suite.** Al instalarse el manejador
+  de errores de la aplicación, cualquier fallo abría una ventana modal y la
+  ejecución se quedaba esperando indefinidamente. Ahora las pruebas usan un
+  manejador que informa por consola
+
+### 📝 Documentación
+Corregida una docstring que seguía diciendo que en macOS se usa `installer`,
+cuando precisamente ese era el fallo.
+
+---
+
 ## [6.0.0] - 2026-09-24
 
 Versión centrada en dos cosas: que la aplicación **pida los permisos en lugar de

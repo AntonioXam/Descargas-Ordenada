@@ -8,6 +8,7 @@ Ejecutar desde la raíz del proyecto: python scripts/PRUEBAS_FUNCIONALES.py
 import sys
 import tempfile
 import os
+import json
 import subprocess
 import shutil
 import time
@@ -687,7 +688,6 @@ def test_manejador_de_errores():
     errores.instalar_manejador_global()
     assert sys.excepthook is errores._manejador_excepciones, \
         "El excepthook no quedó instalado"
-
     # Desde un hilo de trabajo no se puede abrir una ventana: debe caer a
     # consola en lugar de intentarlo y bloquearse.
     resultado = {}
@@ -704,7 +704,20 @@ def test_manejador_de_errores():
     assert resultado["ventana"] is False, \
         "No debería intentar abrir ventanas fuera del hilo principal"
 
+    # El manejador de la aplicación muestra una ventana modal cuando algo falla,
+    # que es lo correcto al usarla pero dejaría la suite colgada esperando a que
+    # alguien pulse un botón. Al terminar esta prueba se vuelve a un manejador
+    # que imprime por consola, para que un fallo se reporte en vez de colgarse.
+    sys.excepthook = _manejador_consola_pruebas
+
     print("✅ Manejador global de errores funciona")
+
+
+def _manejador_consola_pruebas(tipo, valor, rastro):
+    """Manejador de excepciones para las pruebas: informa y no abre ventanas."""
+    import traceback
+
+    traceback.print_exception(tipo, valor, rastro)
 
 
 def test_error_por_consola_sin_gui():
@@ -1069,7 +1082,188 @@ def test_responsive_tres_modos():
     print("✅ Interfaz adaptable en los tres modos, sin desbordes")
 
 
+def test_aviso_actualizacion_no_obsoleto():
+    """No debe avisarse de una versión que ya está instalada.
+
+    Regresión: al actualizar la aplicación, el aviso «hay una versión nueva»
+    seguía guardado en la configuración y se mostraba durante 24 horas más,
+    anunciando justo la versión que el usuario acababa de instalar. Solo se
+    corregía al pulsar «Buscar actualizaciones», que consulta de verdad.
+    """
+    from datetime import datetime
+
+    from organizer.actualizaciones_mejorado import GestorActualizacionesMejorado
+    from organizer.version import obtener_version
+
+    actual = obtener_version()
+    carpeta = Path(tempfile.mkdtemp(prefix="do_act_"))
+
+    def gestor_con(config: dict):
+        """Crea un gestor con una configuración guardada concreta."""
+        g = GestorActualizacionesMejorado.__new__(GestorActualizacionesMejorado)
+        g._api_latest = "https://example.invalid"
+        g._api_tags = "https://example.invalid"
+        g.ultima_verificacion = None
+        g.nueva_version_disponible = None
+        g._ultima_comprobacion_fallida = False
+        g.config_path = carpeta / f"cfg_{len(list(carpeta.iterdir()))}.json"
+        g.config_path.write_text(json.dumps(config), encoding="utf-8")
+        g._cargar_config()
+        return g
+
+    def config_con(version_anunciada: str) -> dict:
+        return {
+            "ultima_verificacion": datetime.now().isoformat(),
+            "nueva_version": {"version": version_anunciada, "download_url": None},
+            "version_actual": "5.1.0",
+            "comprobacion_fallida": False,
+        }
+
+    # 1) Un aviso de la versión instalada se descarta al cargar
+    g = gestor_con(config_con(actual))
+    assert g.nueva_version_disponible is None, (
+        f"Sigue anunciándose la versión {actual}, que es la instalada"
+    )
+
+    # 2) Un aviso de una versión realmente más nueva se conserva
+    g2 = gestor_con(config_con("99.0.0"))
+    assert g2.nueva_version_disponible is not None, (
+        "No debería descartarse el aviso de una versión más nueva"
+    )
+    assert g2._version_guardada_sigue_siendo_nueva() is True
+
+    # 3) Y aunque llegue ya cargado, verificar no debe devolver el aviso viejo
+    g3 = gestor_con(config_con("99.0.0"))
+    g3.nueva_version_disponible = {"version": actual}
+    g3.ultima_verificacion = datetime.now()
+    hay, info = g3.verificar_actualizaciones()      # sin forzar: usa la caché
+    assert hay is False and info is None, (
+        f"Verificar sin forzar devolvió un aviso obsoleto: {info}"
+    )
+    assert g3.nueva_version_disponible is None, "No se descartó el aviso obsoleto"
+
+    # 4) Con una versión nueva de verdad, la caché sí se devuelve (sin red)
+    g4 = gestor_con(config_con("99.0.0"))
+    g4.nueva_version_disponible = {"version": "99.0.0"}
+    g4.ultima_verificacion = datetime.now()
+    hay, info = g4.verificar_actualizaciones()
+    assert hay is True and info and info["version"] == "99.0.0", info
+
+    print("✅ No se avisa de una versión ya instalada")
+    shutil.rmtree(carpeta, ignore_errors=True)
+
+
+def _codigo_efectivo(fuente: str) -> str:
+    """Devuelve el código sin comentarios ni textos de documentación.
+
+    Hace falta para poder comprobar el código fuente: los comentarios y las
+    docstrings explican en prosa por qué ya no se usa algo, y no deben contar
+    como si se siguiera usando.
+    """
+    lineas = []
+    dentro_de_texto = False
+    for linea in fuente.splitlines():
+        limpia = linea.strip()
+        comillas = limpia.count('"""') + limpia.count("'''")
+        if dentro_de_texto:
+            if comillas:
+                dentro_de_texto = False
+            continue
+        if comillas == 1:
+            dentro_de_texto = True
+            continue
+        if limpia.startswith("#"):
+            continue
+        lineas.append(linea)
+    return "\n".join(lineas)
+
+
+def test_actualizacion_no_escribe_dentro_de_la_app():
+    """Las descargas y scripts de actualización van fuera de la aplicación.
+
+    Regresión: se escribían en la carpeta de la app. En macOS la aplicación vive
+    en un paquete firmado dentro de ``/Applications`` y en Windows en ``Program
+    Files``, así que «Descargar e instalar» fallaba con un error de permisos.
+    """
+    from organizer.actualizaciones_mejorado import GestorActualizacionesMejorado
+
+    gestor = GestorActualizacionesMejorado()
+    temporal = gestor._directorio_temporal()
+    app = project_root.resolve()
+
+    assert temporal != app, "La carpeta temporal no puede ser la de la aplicación"
+    assert app not in temporal.resolve().parents, (
+        f"La carpeta temporal ({temporal}) está dentro de la aplicación ({app})"
+    )
+
+    # Debe poder crearse: si no, la descarga volvería a fallar
+    from organizer.app_paths import crear_directorio
+
+    assert crear_directorio(temporal), f"No se pudo crear {temporal}"
+
+    # Y ninguna ruta del módulo debe seguir colgando de la carpeta de la app
+    fuente = (project_root / "organizer" / "actualizaciones_mejorado.py").read_text(
+        encoding="utf-8"
+    )
+    codigo = _codigo_efectivo(fuente)
+    for patron in ('base_dir / ".temp_update"', 'base_dir / ".temp_extract"',
+                   'base_dir / ".temp_actualizar', 'base_dir / ".temp_restart'):
+        assert patron not in codigo, f"Queda una ruta dentro de la app: {patron}"
+
+    # El script de macOS no puede usar «installer -pkg», que exige ser root
+    assert "installer -pkg" not in codigo, (
+        "En macOS el .pkg debe abrirse con «open»: «installer -pkg» necesita root"
+    )
+    assert "/usr/bin/open" in codigo or '"open"' in codigo, (
+        "El instalador de macOS debe abrirse con «open»"
+    )
+
+    print("✅ La actualización no escribe dentro de la aplicación")
+
+
+def test_paneles_de_ajustes_macos():
+    """Los enlaces a los paneles de macOS son correctos y tienen alternativa.
+
+    Regresión: «Notificaciones» usaba un ancla inventada (Privacy_Notifications)
+    que no abría nada, y el resto dependía de un único enlace sin respaldo.
+    """
+    from organizer import permission_manager as pm
+
+    assert pm._PANELES_MACOS, "No hay paneles definidos para macOS"
+    assert pm._OPEN_MACOS.startswith("/"), (
+        "Conviene usar la ruta absoluta de «open»: desde el Finder el PATH es mínimo"
+    )
+
+    for capacidad_id, urls in pm._PANELES_MACOS.items():
+        assert urls, f"«{capacidad_id}» no tiene ningún enlace"
+        assert all(u.startswith("x-apple.systempreferences:") for u in urls), urls
+        # Todo panel debe tener su ruta escrita, o el aviso de respaldo
+        # quedaría vacío justo cuando más falta hace
+        assert pm._RUTA_MANUAL_MACOS.get(capacidad_id), (
+            f"«{capacidad_id}» no tiene ruta manual de respaldo"
+        )
+
+    # Notificaciones es un panel propio, no está dentro de Privacidad y seguridad
+    notificaciones = " ".join(pm._PANELES_MACOS["notificaciones"])
+    assert "Notifications" in notificaciones, notificaciones
+    assert "Privacy" not in notificaciones, (
+        "Las notificaciones no están en Privacidad y seguridad"
+    )
+
+    # Privacidad sí, y con el identificador moderno y el clásico
+    disco = " ".join(pm._PANELES_MACOS["acceso_total_disco"])
+    assert "Privacy_AllFiles" in disco and "PrivacySecurity.extension" in disco, disco
+
+    # Abrir un panel inventado no debe abrir nada y debe dar instrucciones
+    abierto, texto = pm.abrir_ajustes_del_sistema("capacidad_sin_panel")
+    assert isinstance(abierto, bool) and texto, (abierto, texto)
+
+    print("✅ Paneles de Ajustes de macOS correctos y con respaldo")
+
+
 def main():
+    # Un fallo debe verse en la salida, no quedarse esperando en una ventana.
+    sys.excepthook = _manejador_consola_pruebas
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
     test_no_toca_descargas_en_curso()
@@ -1102,6 +1296,9 @@ def main():
     test_asistente_primer_arranque()
     test_iconos_propios()
     test_tokens_de_diseno()
+    test_aviso_actualizacion_no_obsoleto()
+    test_actualizacion_no_escribe_dentro_de_la_app()
+    test_paneles_de_ajustes_macos()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 
