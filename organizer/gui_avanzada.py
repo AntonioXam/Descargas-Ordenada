@@ -86,16 +86,22 @@ if ACTUALIZACIONES_HEREDADAS:
     )
 
 # Medidas del layout adaptable (en píxeles lógicos)
-ANCHO_LATERAL_COMPACTO = 64
-ANCHO_LATERAL_NORMAL = 200
-ANCHO_LATERAL_CAJON = 224      # ancho cuando la barra flota sobre el contenido
-ANCHO_CONTENIDO_MAXIMO = 980
+ANCHO_LATERAL_COMPACTO = 60
+ANCHO_LATERAL_NORMAL = 188
+ANCHO_LATERAL_CAJON = 212      # ancho cuando el raíl flota sobre el contenido
+
+# Ancho de lectura. Sale de los tokens: una utilidad se lee en columna, y con
+# 980 px la etiqueta y su valor quedaban a 750 px de distancia, que cansa.
+ANCHO_CONTENIDO_MAXIMO = estilos.TOKENS["ancho_lectura"]
 
 # Umbrales de ancho de ventana (píxeles lógicos) para cambiar de modo.
 # Con tres modos no hay saltos bruscos: la barra solo cambia de forma cuando
 # de verdad hace falta sitio.
-UMBRAL_CAJON = 660             # por debajo, la barra flota y se abre con un botón
-UMBRAL_LATERAL_AMPLIO = 1100   # a partir de aquí, la barra muestra texto
+UMBRAL_CAJON = 660             # por debajo, el raíl flota y se abre con un botón
+# A partir de aquí el raíl muestra sus etiquetas. El marcador carmesí y el
+# nombre de la sección son la seña de identidad, así que conviene que aparezcan
+# en cuanto la ventana tiene un tamaño normal, no solo en pantallas grandes.
+UMBRAL_LATERAL_AMPLIO = 880
 
 # Opacidad del fondo cuando hay un material nativo detrás (vibrancy/Mica).
 # Lo bastante baja para que se vea el material y lo bastante alta para que el
@@ -205,11 +211,10 @@ class DialogoPrevisualizacion(QDialog):
         cabecera.addWidget(titulo)
 
         tamano = plan.get("tamaño", 0)
-        detalle = QLabel(
-            f"Modo {modo} · {self._formatear_bytes(tamano)} en total"
-            + (f" · {plan.get('ya_ordenados', 0)} ya estaban en su sitio"
-               if plan.get("ya_ordenados") else "")
-        )
+        frase = f"Modo {modo}, {self._formatear_bytes(tamano)} en total."
+        if plan.get("ya_ordenados"):
+            frase += f" {plan['ya_ordenados']} ya estaban en su sitio."
+        detalle = QLabel(frase)
         detalle.setProperty("rol", "secundaria")
         cabecera.addWidget(detalle)
         layout.addLayout(cabecera)
@@ -1336,7 +1341,9 @@ class OrganizadorAvanzado(QMainWindow):
             intervalo = self.combo_intervalo_auto.currentText() if hasattr(self, "combo_intervalo_auto") else ""
             if activo:
                 self._punto_estado.setProperty("estado", "activo")
-                self.lbl_estado.setText(f"Auto-organización activa · modo {modo or 'Básico'}")
+                self.lbl_estado.setText(
+                    f"Organización automática activa en modo {modo or 'Básico'}"
+                )
                 self.lbl_estado_detalle.setText(f"Revisando la carpeta cada {intervalo.lower()}")
                 if getattr(self, 'tray_icon', None):
                     self.tray_icon.setToolTip(f"Auto-organización {modo or 'Básico'} ({intervalo})")
@@ -1737,14 +1744,17 @@ class OrganizadorAvanzado(QMainWindow):
         textos.addWidget(self.lbl_titulo_vista)
 
         self.lbl_carpeta_cabecera = QLabel(str(self.organizador.carpeta_descargas))
-        self.lbl_carpeta_cabecera.setProperty("rol", "secundaria")
+        # Es una ruta: va en monoespaciada, como todos los valores.
+        self.lbl_carpeta_cabecera.setProperty("rol", "ruta")
         self.lbl_carpeta_cabecera.setTextInteractionFlags(Qt.TextSelectableByMouse)
         textos.addWidget(self.lbl_carpeta_cabecera)
 
         cabecera.addLayout(textos, 1)
 
         self.btn_cabecera_principal = QPushButton("Cambiar carpeta")
-        self.btn_cabecera_principal.setProperty("rol", "primario")
+        # Deliberadamente **no** es primario: el carmesí se reserva para una sola
+        # acción por pantalla, y esa es «Organizar ahora». Con los dos en el
+        # mismo color, ninguno de los dos destacaba.
         self.btn_cabecera_principal.clicked.connect(self._seleccionar_carpeta)
         cabecera.addWidget(self.btn_cabecera_principal, 0, Qt.AlignVCenter)
 
@@ -2117,7 +2127,9 @@ class OrganizadorAvanzado(QMainWindow):
         col = QVBoxLayout()
         col.setSpacing(2)
         self.lbl_estado = QLabel("Auto-organización desactivada")
-        self.lbl_estado.setProperty("rol", "titulo")
+        # Rol propio: un escalón por debajo del título de la sección, para que
+        # se vea qué es el nombre de la pantalla y qué es el estado.
+        self.lbl_estado.setProperty("rol", "estado")
         col.addWidget(self.lbl_estado)
         self.lbl_estado_detalle = QLabel("Actívala para que la carpeta se ordene sola")
         self.lbl_estado_detalle.setProperty("rol", "secundaria")
@@ -2162,6 +2174,9 @@ class OrganizadorAvanzado(QMainWindow):
         tiempo_layout.addWidget(lbl_tiempo)
         tiempo_layout.addStretch()
         self.combo_intervalo_auto = QComboBox()
+        # Muestra un valor, así que va en monoespaciada como todos los demás.
+        self.combo_intervalo_auto.setProperty("rol", "dato")
+        self.combo_intervalo_auto.setToolTip("Cada cuánto se revisa la carpeta")
         for texto, seg in [
             ("30 segundos", 30), ("1 minuto", 60), ("5 minutos", 300),
             ("10 minutos", 600), ("30 minutos", 1800), ("1 hora", 3600),
@@ -2195,16 +2210,22 @@ class OrganizadorAvanzado(QMainWindow):
         fila_acciones = QHBoxLayout()
         fila_acciones.setSpacing(10)
 
+        # Botones con su ancho natural, alineados a la izquierda, y el aire
+        # detrás. Estirados a lo ancho de la ventana, el carmesí deja de ser un
+        # sello y se convierte en una banda.
         self.btn_organizar = QPushButton("Organizar ahora")
         self.btn_organizar.setProperty("rol", "primario")
         self.btn_organizar.clicked.connect(self._reorganizar)
-        fila_acciones.addWidget(self.btn_organizar, 2)
+        fila_acciones.addWidget(self.btn_organizar, 0)
 
         btn_deshacer = QPushButton("Deshacer")
-        btn_deshacer.setProperty("rol", "peligro")
+        # No es una acción destructiva: deshace lo que se acaba de hacer. El rol
+        # de peligro se reserva para lo que borra o sobrescribe.
         btn_deshacer.setToolTip("Devuelve los archivos organizados a la raíz de la carpeta")
         btn_deshacer.clicked.connect(self._deshacer_organizacion)
-        fila_acciones.addWidget(btn_deshacer, 1)
+        fila_acciones.addWidget(btn_deshacer, 0)
+
+        fila_acciones.addStretch(1)
 
         acciones_layout.addLayout(fila_acciones)
         layout.addWidget(acciones_grupo)
@@ -2628,6 +2649,7 @@ class OrganizadorAvanzado(QMainWindow):
         fila_hora.addStretch()
 
         self.edit_hora = QTimeEdit()
+        self.edit_hora.setProperty("rol", "dato")   # es un valor: monoespaciada
         self.edit_hora.setDisplayFormat("HH:mm")
         self.edit_hora.setWrapping(True)
         if self._hora_programada:
@@ -3165,7 +3187,7 @@ class OrganizadorAvanzado(QMainWindow):
             )
 
         # Aviso no bloqueante: la ventana de Ajustes debe quedar visible.
-        self.statusBar().showMessage(mensaje.replace("\n\n", "  ·  "), 15000)
+        self.statusBar().showMessage(mensaje.replace("\n\n", "     "), 15000)
         self._agregar_log(mensaje.replace("\n", " "))
 
     def _mostrar_permiso_o_error(self, titulo: str, mensaje: str):

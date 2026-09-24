@@ -113,11 +113,16 @@ class DialogoPrimerArranque(QDialog):
     # ------------------------------------------------------------------ UI
 
     def _crear_fila(self, capacidad: permisos.Capacidad) -> QWidget:
-        """Crea la fila de una capacidad con su explicación y su botón."""
+        """Crea la fila de una capacidad con su explicación y su botón.
+
+        Las filas se separan con una línea fina, como una lista. Sin ella, con
+        el estilo plano del rediseño, los cuatro permisos se leían como un
+        bloque continuo sin principio ni fin.
+        """
         marco = QFrame()
-        marco.setProperty("rol", "tarjeta")
+        marco.setProperty("rol", "fila")
         layout = QHBoxLayout(marco)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(0, 14, 0, 14)
         layout.setSpacing(12)
 
         textos = QVBoxLayout()

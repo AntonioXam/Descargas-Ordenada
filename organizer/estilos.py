@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Sistema de estilos tipo Apple para DescargasOrdenadas.
+"""Sistema de estilos de DescargasOrdenadas.
 
-Un único punto de verdad para la apariencia de la aplicación:
+Un único punto de verdad para la apariencia de la aplicación.
 
-- Paleta clara y oscura inspirada en macOS (System Colors).
-- Tipografía nativa de cada sistema (San Francisco, Segoe UI Variable, Inter...).
-- Componentes con esquinas redondeadas, tarjetas, separadores finos y estados
-  de hover/pressed discretos.
-- Adaptación automática al tema del sistema si no hay preferencia guardada.
+## La identidad: «mesa de clasificación»
+
+La aplicación ordena archivos, así que se parece a una mesa donde las cosas se
+colocan. De ahí las decisiones, que no son de adorno sino de estructura:
+
+- **Sin cajas.** El material nativo de un organizador de archivos es una lista
+  alineada, no una pila de tarjetas. La jerarquía la llevan el espacio y una
+  línea fina, nunca un contenedor redondeado alrededor de cada bloque.
+- **Etiqueta a la izquierda, valor a la derecha**, en columna. Es como se lee
+  una lista de archivos con sus tamaños y fechas.
+- **El carmesí es un sello, no un fondo.** Sale del propio icono de la
+  aplicación (una seta roja) y aparece en dos sitios: el marcador de la sección
+  activa y la acción principal. Nunca como relleno decorativo.
+- **Los números se alinean.** Todo valor que puede cambiar —recuentos, tamaños,
+  intervalos, rutas— va en monoespaciada con cifras tabulares, porque ahí la
+  alineación significa algo.
+- **Cálido, no clínico.** El papel y la tinta llevan una traza del rojo de la
+  seta, para que la aplicación tenga temperatura en vez de ser gris de sistema.
 
 Cualquier widget puede marcar su rol con ``setProperty("rol", "...")`` para
-recibir el estilo adecuado (tarjeta, titulo, subtitulo, primario...).
+recibir el estilo adecuado (titulo, dato, primario, banda...).
 """
 
 from __future__ import annotations
@@ -23,43 +36,47 @@ import sys
 # Tokens de diseño
 # --------------------------------------------------------------------------
 # Una sola escala para toda la aplicación. Los componentes se describen en
-# términos de estos valores y no de números sueltos, de modo que cambiar el
-# radio de todas las tarjetas sea una línea y no una cacería por el archivo.
+# términos de estos valores y no de números sueltos.
 
 TOKENS = {
-    # Escala de espaciado (múltiplos de 4)
+    # Escala de espaciado (múltiplos de 4). Generosa en vertical: la estructura
+    # se apoya en el aire, no en cajas.
     "esp_xs": 4,
     "esp_s": 8,
     "esp_m": 12,
     "esp_l": 16,
-    "esp_xl": 24,
-    "esp_xxl": 32,
+    "esp_xl": 28,
+    "esp_xxl": 40,
 
-    # Radios
-    "radio_control": 8,     # botones pequeños, chips
-    "radio_campo": 10,      # campos de texto, desplegables
-    "radio_boton": 10,      # botones
-    "radio_tarjeta": 16,    # tarjetas y grupos
-    "radio_menu": 12,       # menús y listas desplegables
-    "radio_item": 8,        # elementos de lista
+    # Radios. Contenidos a propósito: las cajas redondeadas de tarjeta
+    # desaparecen, así que el radio queda para controles, campos y menús.
+    "radio_control": 6,
+    "radio_campo": 7,
+    "radio_boton": 7,
+    "radio_menu": 10,
+    "radio_item": 6,
+    "radio_panel": 12,
 
     # Alturas y grosores
-    "alto_control": 20,     # min-height de botones y campos
+    "alto_control": 22,
     "grosor_borde": 1,
-    "grosor_borde_campo": 1,
-    "grosor_barra": 6,      # barra de progreso
-    "grosor_scroll": 11,
+    "grosor_barra": 3,       # la barra de progreso es un filamento, no un bloque
+    "grosor_scroll": 10,
+    "grosor_marcador": 3,    # barra carmesí del elemento activo
 
     # Tipografía (se suman al tamaño base del sistema)
-    "tipo_titulo": 9,
+    "tipo_titulo": 11,       # la voz de la aplicación
+    "tipo_seccion": 3,
     "tipo_subtitulo": 1,
     "tipo_pequeno": 1,
     "tipo_discreto": 2,
 
+    # Ancho de lectura: una utilidad se lee en columna, no a todo lo ancho.
+    "ancho_lectura": 760,
+
     # Movimiento (milisegundos)
     "mov_micro": 80,
     "mov_transicion": 140,
-    "mov_entrada": 220,
 }
 
 
@@ -69,53 +86,61 @@ TOKENS = {
 
 PALETA_CLARA = {
     "nombre": "claro",
-    "fondo": "#F2F2F7",
-    "fondo_barra": "#ECECEF",
-    "fondo_lateral": "#E7E7EB",
+    # Papel: off-white cálido, no el gris clínico de sistema.
+    "fondo": "#F7F5F3",
+    "fondo_barra": "#F2EEEB",
+    "fondo_lateral": "#EFEAE6",   # el raíl, un escalón por detrás del papel
     "panel": "#FFFFFF",
-    "panel_alt": "#F7F7F9",
-    "panel_hover": "#EFEFF4",
-    "seleccion": "#E4EBF8",
-    "borde": "#D6D6DC",
-    "borde_suave": "#E4E4EA",
-    "texto": "#1D1D1F",
-    "texto_sec": "#6E6E73",
-    "texto_disc": "#A9A9B0",
-    "acento": "#0071E3",
-    "acento_hover": "#0077ED",
-    "acento_pulsado": "#0062C4",
-    "acento_suave": "#E1EEFB",
+    "panel_alt": "#F2EDE9",
+    "panel_hover": "#EAE2DD",
+    "seleccion": "#F7E4E8",
+    # Líneas: el único recurso estructural que queda.
+    "borde": "#DCD1CA",
+    "borde_suave": "#E9E1DB",
+    # Tinta: negro cálido, con una traza del rojo de la seta.
+    "texto": "#241C1B",
+    "texto_sec": "#6E615D",
+    "texto_disc": "#A3988F",
+    # Carmesí del sombrero de la seta. Un sello, no un relleno.
+    "acento": "#C4123C",
+    "acento_hover": "#A90E32",
+    "acento_pulsado": "#8E0A29",
+    "acento_suave": "#FBE8EC",
     "acento_texto": "#FFFFFF",
-    "exito": "#248A3D",
-    "aviso": "#B25000",
-    "error": "#D70015",
-    "sombra": "rgba(0, 0, 0, 0.10)",
+    "exito": "#3F7D4E",
+    "aviso": "#A26400",
+    # El rojo de error es más cálido y más oscuro que el carmesí de marca
+    # (#C4123C). Si fueran del mismo tono, «Reiniciar modelo» parecería la
+    # acción principal en lugar de una acción que hay que pensar.
+    "error": "#9A2B24",
+    "sombra": "rgba(36, 28, 27, 0.10)",
     "mono": "'SF Mono', 'Menlo', 'Consolas', 'DejaVu Sans Mono', monospace",
 }
 
 PALETA_OSCURA = {
     "nombre": "oscuro",
-    "fondo": "#161618",
-    "fondo_barra": "#1C1C1E",
-    "fondo_lateral": "#1A1A1C",
-    "panel": "#242426",
-    "panel_alt": "#2C2C2E",
-    "panel_hover": "#333336",
-    "seleccion": "#2C3B52",
-    "borde": "#3A3A3D",
-    "borde_suave": "#2E2E31",
-    "texto": "#F5F5F7",
-    "texto_sec": "#A1A1A6",
-    "texto_disc": "#66666C",
-    "acento": "#0A84FF",
-    "acento_hover": "#3D9BFF",
-    "acento_pulsado": "#0060DF",
-    "acento_suave": "#1D344E",
+    "fondo": "#171314",
+    "fondo_barra": "#1D1819",
+    "fondo_lateral": "#131011",
+    "panel": "#201B1C",
+    "panel_alt": "#262021",
+    "panel_hover": "#2E2728",
+    "seleccion": "#3B1C26",
+    "borde": "#372E2F",
+    "borde_suave": "#2A2324",
+    "texto": "#F4EFEC",
+    "texto_sec": "#A79A96",
+    "texto_disc": "#6F6461",
+    "acento": "#E0355C",
+    "acento_hover": "#F04A6E",
+    "acento_pulsado": "#C42A4E",
+    "acento_suave": "#3B1C26",
     "acento_texto": "#FFFFFF",
-    "exito": "#30D158",
-    "aviso": "#FF9F0A",
-    "error": "#FF453A",
-    "sombra": "rgba(0, 0, 0, 0.45)",
+    "exito": "#5FAF72",
+    "aviso": "#E0A03A",
+    # Más cálido que el carmesí de marca, por el mismo motivo que en claro.
+    "error": "#D9584C",
+    "sombra": "rgba(0, 0, 0, 0.50)",
     "mono": "'SF Mono', 'Menlo', 'Consolas', 'DejaVu Sans Mono', monospace",
 }
 
@@ -125,7 +150,13 @@ PALETA_OSCURA = {
 # --------------------------------------------------------------------------
 
 def familias_sistema() -> str:
-    """Devuelve la lista de familias tipográficas nativas del sistema."""
+    """Devuelve la lista de familias tipográficas nativas del sistema.
+
+    Es una elección, no una dejadez: una utilidad de escritorio que se ejecuta
+    en tres sistemas debe leer el texto con la fuente del sistema, porque es la
+    que el usuario tiene calibrada. El carácter no lo pone aquí una tipografía
+    exótica, lo ponen el color, la estructura y los números.
+    """
     if sys.platform == "darwin":
         familias = ["SF Pro Text", "SF Pro Display", "Helvetica Neue"]
     elif sys.platform == "win32":
@@ -224,18 +255,17 @@ def colores_translucidos(nombre: str, opacidad: float = 0.70) -> dict:
     """Convierte los colores base a versiones con alfa (rgba).
 
     Se usa cuando hay un material nativo detrás (vibrancy en macOS, Mica en
-    Windows): el fondo del contenido se vuelve semitransparente para **dejar ver
-    el material**, mientras que las tarjetas y los paneles se mantienen bastante
-    opacos para que el texto se lea sin esfuerzo.
+    Windows): el fondo del contenido se vuelve semitransparente para dejar ver
+    el material, mientras que las superficies se mantienen bastante opacas para
+    que el texto se lea sin esfuerzo.
 
-    Ese contraste entre fondo y panel es lo que hace que se aprecie el efecto:
-    antes el fondo se quedaba en alfa 0.86, así que del material solo se
-    transparentaba un 14% y el resultado parecía un color plano.
+    Nota: desde la 6.0.2 la transparencia está **apagada por defecto** (ver
+    ``efectos.py``), porque en un Mac real la ventana translúcida dejaba restos
+    entre fotogramas. Esta función se conserva para cuando se active.
 
     Args:
         nombre: 'claro' u 'oscuro'.
-        opacidad: opacidad del **fondo** del contenido (1.0 = opaco). Los
-            paneles siempre son más opacos que el fondo.
+        opacidad: opacidad del fondo del contenido (1.0 = opaco).
     """
     c = dict(paleta(nombre))
     alpha = max(0.0, min(1.0, opacidad))
@@ -249,11 +279,9 @@ def colores_translucidos(nombre: str, opacidad: float = 0.70) -> dict:
         b = int(color_hex[4:6], 16)
         return f"rgba({r}, {g}, {b}, {alfa:.3f})"
 
-    # El fondo deja pasar el material; los paneles se quedan casi opacos para
-    # no sacrificar la legibilidad del texto.
     c["fondo"] = rgba(c["fondo"], alpha)
-    c["fondo_barra"] = rgba(c["fondo_barra"], min(1.0, alpha + 0.08))
-    c["fondo_lateral"] = rgba(c["fondo_lateral"], min(1.0, alpha + 0.06))
+    c["fondo_barra"] = rgba(c["fondo_barra"], min(1.0, alpha + 0.10))
+    c["fondo_lateral"] = rgba(c["fondo_lateral"], min(1.0, alpha + 0.08))
     c["panel"] = rgba(c["panel"], min(1.0, alpha + 0.26))
     c["panel_alt"] = rgba(c["panel_alt"], min(1.0, alpha + 0.22))
     c["panel_hover"] = rgba(c["panel_hover"], min(1.0, alpha + 0.22))
@@ -275,15 +303,13 @@ def hoja_estilo(nombre: str = "auto", opacidad: float = 1.0) -> str:
     else:
         c = paleta(nombre)
     c = dict(c)
-    # Propagar el tema a los elementos que lo necesitan
     c.setdefault("nombre", "oscuro" if nombre == "oscuro" else "claro")
     fuente = familias_sistema()
     base = tamano_fuente_base()
-    # Los tokens se referencian como tk["..."] dentro de la hoja de estilo.
     tk = TOKENS
 
     return f"""
-/* ---------------------------------------------------------------- base */
+/* ================================================================= base */
 * {{
     font-family: {fuente};
     font-size: {base}px;
@@ -297,31 +323,41 @@ QMainWindow, QDialog {{
     background-color: {c['fondo']};
 }}
 QToolTip {{
-    background-color: {c['panel']};
+    background-color: {c['fondo_barra']};
     color: {c['texto']};
     border: {tk['grosor_borde']}px solid {c['borde']};
     border-radius: {tk['radio_control']}px;
-    padding: {tk['esp_xs'] + 2}px {tk['esp_s'] + 1}px;
+    padding: {tk['esp_xs'] + 2}px {tk['esp_s']}px;
     font-size: {base - tk['tipo_pequeno']}px;
 }}
 
-/* ---------------------------------------------------------- tipografía */
+/* ============================================================ tipografía */
+/* La jerarquía la lleva el tamaño y el peso, no las cajas que la envuelven. */
 QLabel[rol="titulo"] {{
     font-size: {base + tk['tipo_titulo']}px;
-    font-weight: 700;
+    font-weight: 600;
+    color: {c['texto']};
+    letter-spacing: -0.4px;
+}}
+/* El estado de la aplicación es un titular, pero un escalón por debajo del
+   título de la sección: antes los dos iban al mismo tamaño y no había
+   jerarquía ninguna. */
+QLabel[rol="estado"] {{
+    font-size: {base + 5}px;
+    font-weight: 600;
     color: {c['texto']};
     letter-spacing: -0.2px;
+}}
+QLabel[rol="seccion"] {{
+    font-size: {base + tk['tipo_seccion']}px;
+    font-weight: 600;
+    color: {c['texto']};
+    letter-spacing: -0.1px;
+    padding: 0 0 {tk['esp_s']}px 0;
 }}
 QLabel[rol="subtitulo"] {{
     font-size: {base + tk['tipo_subtitulo']}px;
     color: {c['texto_sec']};
-}}
-QLabel[rol="seccion"] {{
-    font-size: {base}px;
-    font-weight: 600;
-    color: {c['texto_sec']};
-    letter-spacing: 0.2px;
-    padding: {tk['esp_xs'] // 2}px 0;
 }}
 QLabel[rol="etiqueta"] {{
     font-size: {base}px;
@@ -334,45 +370,47 @@ QLabel[rol="secundaria"] {{
 QLabel[rol="discreta"] {{
     font-size: {base - tk['tipo_discreto']}px;
     color: {c['texto_disc']};
+    letter-spacing: 0.2px;
+}}
+
+/* Los valores que cambian van en monoespaciada y se alinean entre sí. Es lo
+   que hace legible una lista de archivos con sus tamaños y sus fechas. */
+QLabel[rol="dato"] {{
+    font-family: {c['mono']};
+    font-size: {base}px;
+    color: {c['texto']};
+}}
+QLabel[rol="dato_grande"] {{
+    font-family: {c['mono']};
+    font-size: {base + 7}px;
+    font-weight: 600;
+    color: {c['texto']};
+    letter-spacing: -0.5px;
+}}
+QLabel[rol="ruta"] {{
+    font-family: {c['mono']};
+    font-size: {base - tk['tipo_pequeno']}px;
+    color: {c['texto_sec']};
 }}
 QLabel[rol="exito"] {{ color: {c['exito']}; font-weight: 600; }}
 QLabel[rol="aviso"] {{ color: {c['aviso']}; font-weight: 600; }}
 QLabel[rol="error"] {{ color: {c['error']}; font-weight: 600; }}
 
-/* ------------------------------------------------------------- tarjetas */
-QFrame[rol="tarjeta"] {{
-    background-color: {c['panel']};
-    border: {tk['grosor_borde']}px solid {c['borde_suave']};
-    border-radius: {tk['radio_tarjeta']}px;
+/* ============================================================== estructura */
+/* Aquí no hay tarjetas: los bloques se separan con aire y con una línea fina.
+   Las reglas de «tarjeta» se conservan solo para que el código antiguo que las
+   usa no se rompa, y las aplana. */
+QFrame[rol="tarjeta"], QFrame[rol="banda"] {{
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
 }}
+/* La única marca de la casa: un bloque destacado se señala con el sello. */
 QFrame[rol="tarjeta_destacada"] {{
-    background-color: {c['panel']};
-    border: {tk['grosor_borde']}px solid {c['acento']};
-    border-radius: {tk['radio_tarjeta']}px;
-}}
-QLabel[rol="punto"] {{
-    font-size: {base + 10}px;
-    color: {c['texto_disc']};
-}}
-QLabel[rol="punto"][estado="activo"] {{
-    color: {c['exito']};
-}}
-QLabel[rol="punto"][estado="inactivo"] {{
-    color: {c['texto_disc']};
-}}
-QLabel[rol="punto"][estado="aviso"] {{
-    color: {c['aviso']};
-}}
-QLabel[rol="punto"][estado="error"] {{
-    color: {c['error']};
-}}
-QLabel[rol="chip"] {{
-    background-color: {c['panel_alt']};
-    color: {c['texto_sec']};
-    border: {tk['grosor_borde']}px solid {c['borde_suave']};
-    border-radius: {tk['radio_campo']}px;
-    padding: {tk['esp_xs']}px {tk['esp_m'] - 2}px;
-    font-size: {base - tk['tipo_pequeno']}px;
+    background-color: transparent;
+    border: none;
+    border-left: {tk['grosor_marcador']}px solid {c['acento']};
+    padding-left: {tk['esp_l']}px;
 }}
 QFrame[rol="separador"] {{
     background-color: {c['borde_suave']};
@@ -380,26 +418,59 @@ QFrame[rol="separador"] {{
     max-height: 1px;
     min-height: 1px;
 }}
+/* Filas de una lista: se separan con una línea, como una lista de archivos.
+   Sin ella, varios bloques planos seguidos se leen como un solo párrafo. */
+QFrame[rol="fila"] {{
+    background-color: transparent;
+    border: none;
+    border-bottom: {tk['grosor_borde']}px solid {c['borde_suave']};
+}}
+QFrame[rol="fila"][ultima="si"] {{
+    border-bottom: none;
+}}
+
+/* Grupo = sección: una línea arriba y aire. Nunca una caja. */
 QGroupBox {{
-    background-color: {c['panel']};
-    border: {tk['grosor_borde']}px solid {c['borde_suave']};
-    border-radius: {tk['radio_tarjeta']}px;
-    margin-top: {tk['esp_m'] + 2}px;
-    padding: {tk['esp_xl'] - 2}px {tk['esp_l']}px {tk['esp_m'] + 2}px {tk['esp_l']}px;
+    background-color: transparent;
+    border: none;
+    border-top: {tk['grosor_borde']}px solid {c['borde_suave']};
+    margin-top: {tk['esp_xl']}px;
+    padding: {tk['esp_l']}px 0 0 0;
     font-weight: 600;
 }}
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: {tk['esp_l']}px;
-    top: {tk['esp_xs']}px;
-    padding: 0 {tk['esp_xs']}px;
-    color: {c['texto_sec']};
-    font-size: {base - tk['tipo_pequeno']}px;
+    left: 0;
+    top: {tk['esp_s']}px;
+    padding: 0;
+    /* En tinta, no en gris: antes los títulos de sección se leían como
+       etiquetas secundarias y no se veía dónde empieza cada bloque. */
+    color: {c['texto']};
+    font-size: {base + tk['tipo_subtitulo']}px;
     font-weight: 600;
+    letter-spacing: 0;
 }}
 
-/* ------------------------------------------------------------- botones */
+/* Chips: contorno fino, sin relleno. Informan sin competir. */
+QLabel[rol="chip"] {{
+    background-color: transparent;
+    color: {c['texto_sec']};
+    border: {tk['grosor_borde']}px solid {c['borde']};
+    border-radius: {tk['radio_control']}px;
+    padding: {tk['esp_xs'] - 1}px {tk['esp_s']}px;
+    font-size: {base - tk['tipo_discreto']}px;
+}}
+QLabel[rol="punto"] {{
+    font-size: {base + 10}px;
+    color: {c['texto_disc']};
+}}
+QLabel[rol="punto"][estado="activo"] {{ color: {c['exito']}; }}
+QLabel[rol="punto"][estado="inactivo"] {{ color: {c['texto_disc']}; }}
+QLabel[rol="punto"][estado="aviso"] {{ color: {c['aviso']}; }}
+QLabel[rol="punto"][estado="error"] {{ color: {c['error']}; }}
+
+/* =============================================================== controles */
 QPushButton {{
     background-color: {c['panel']};
     color: {c['texto']};
@@ -411,22 +482,22 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background-color: {c['panel_hover']};
-    border-color: {c['acento']};
+    border-color: {c['texto_disc']};
 }}
 QPushButton:pressed {{
     background-color: {c['seleccion']};
 }}
 QPushButton:disabled {{
     color: {c['texto_disc']};
-    background-color: {c['panel_alt']};
+    background-color: transparent;
     border-color: {c['borde_suave']};
 }}
+/* El sello. Una sola acción por pantalla lleva el carmesí. */
 QPushButton[rol="primario"] {{
     background-color: {c['acento']};
     color: {c['acento_texto']};
     border: none;
     font-weight: 600;
-    padding: {tk['esp_s'] + 1}px {tk['esp_l'] + 2}px;
 }}
 QPushButton[rol="primario"]:hover {{ background-color: {c['acento_hover']}; }}
 QPushButton[rol="primario"]:pressed {{ background-color: {c['acento_pulsado']}; }}
@@ -435,6 +506,7 @@ QPushButton[rol="primario"]:disabled {{
     color: {c['texto_disc']};
 }}
 QPushButton[rol="peligro"] {{
+    background-color: transparent;
     color: {c['error']};
     border-color: {c['borde']};
 }}
@@ -444,26 +516,35 @@ QPushButton[rol="peligro"]:hover {{
     border-color: {c['error']};
 }}
 QPushButton[rol="plano"] {{
-    background: transparent;
+    background-color: transparent;
     border: none;
     color: {c['acento']};
-    padding: 6px 10px;
+    padding: {tk['esp_xs']}px {tk['esp_s']}px;
+    font-weight: 500;
 }}
-QPushButton[rol="plano"]:hover {{ color: {c['acento_hover']}; }}
+QPushButton[rol="plano"]:hover {{
+    color: {c['acento_hover']};
+    background-color: {c['acento_suave']};
+    border-radius: {tk['radio_control']}px;
+}}
 
-/* --------------------------------------------------------------- campos */
+/* Campos: hundidos en el papel, sin caja. Se reconocen por su tono. */
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {{
-    background-color: {c['panel']};
-    border: {tk['grosor_borde_campo']}px solid {c['borde']};
+    background-color: {c['fondo_barra']};
+    border: {tk['grosor_borde']}px solid {c['borde_suave']};
     border-radius: {tk['radio_campo']}px;
-    padding: {tk['esp_s'] - 1}px {tk['esp_m']}px;
+    padding: {tk['esp_s'] - 1}px {tk['esp_m'] - 2}px;
     min-height: {tk['alto_control']}px;
+    color: {c['texto']};
     selection-background-color: {c['acento']};
     selection-color: #FFFFFF;
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QDateEdit:focus, QTimeEdit:focus {{
-    border: {tk['grosor_borde_campo']}px solid {c['acento']};
+    border-color: {c['acento']};
+}}
+QLineEdit[rol="dato"], QComboBox[rol="dato"] {{
+    font-family: {c['mono']};
 }}
 QComboBox::drop-down {{ border: none; width: {tk['esp_xl']}px; }}
 QComboBox QAbstractItemView {{
@@ -477,24 +558,23 @@ QComboBox QAbstractItemView {{
     outline: 0;
 }}
 QComboBox QAbstractItemView::item {{
-    border-radius: {tk['radio_item'] - 2}px;
+    border-radius: {tk['radio_item']}px;
     padding: {tk['esp_xs'] + 1}px {tk['esp_s']}px;
     min-height: {tk['alto_control']}px;
 }}
 
-/* ------------------------------------------------------ checks y radios */
 QCheckBox, QRadioButton {{
-    spacing: {tk['esp_s'] + 1}px;
+    spacing: {tk['esp_s']}px;
     color: {c['texto']};
 }}
 QCheckBox::indicator, QRadioButton::indicator {{
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 1.5px solid {c['borde']};
-    background-color: {c['panel']};
+    background-color: {c['fondo_barra']};
 }}
 QCheckBox::indicator {{ border-radius: {tk['radio_control'] - 3}px; }}
-QRadioButton::indicator {{ border-radius: 10px; }}
+QRadioButton::indicator {{ border-radius: 8px; }}
 QCheckBox::indicator:hover, QRadioButton::indicator:hover {{ border-color: {c['acento']}; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
     background-color: {c['acento']};
@@ -502,46 +582,47 @@ QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
 }}
 QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
     border-color: {c['borde_suave']};
-    background-color: {c['panel_alt']};
+    background-color: transparent;
 }}
 
-/* ------------------------------------------------------------ listas */
+/* ================================================================== listas */
 QListWidget, QTreeWidget, QTableWidget, QListView, QTreeView, QTableView {{
-    background-color: {c['panel']};
-    border: {tk['grosor_borde']}px solid {c['borde_suave']};
-    border-radius: {tk['radio_menu']}px;
-    padding: {tk['esp_xs']}px;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
     color: {c['texto']};
     outline: 0;
 }}
 QListWidget::item, QTreeWidget::item, QListView::item, QTreeView::item {{
-    border-radius: {tk['radio_item'] - 1}px;
-    padding: {tk['esp_s'] - 2}px {tk['esp_s']}px;
-    margin: 1px {tk['esp_xs'] // 2}px;
+    border-radius: {tk['radio_item']}px;
+    padding: {tk['esp_s']}px {tk['esp_m'] - 2}px;
+    margin: 1px 0;
 }}
 QListWidget::item:hover, QTreeView::item:hover, QListView::item:hover {{
     background-color: {c['panel_hover']};
 }}
-QListWidget::item:selected, QTreeWidget::item:selected, QListView::item:selected, QTreeView::item:selected,
-QListWidget::item:selected:active, QTreeView::item:selected:active {{
-    background-color: {c['acento']};
-    color: #FFFFFF;
+QListWidget::item:selected, QTreeWidget::item:selected, QListView::item:selected,
+QTreeView::item:selected, QListWidget::item:selected:active,
+QTreeView::item:selected:active {{
+    background-color: {c['seleccion']};
+    color: {c['texto']};
 }}
 QHeaderView::section {{
     background-color: transparent;
     border: none;
     border-bottom: {tk['grosor_borde']}px solid {c['borde_suave']};
-    padding: {tk['esp_s'] - 2}px {tk['esp_s']}px;
+    padding: {tk['esp_s']}px {tk['esp_s']}px;
     color: {c['texto_sec']};
     font-weight: 600;
 }}
+QHeaderView::section:last {{ border-bottom-color: {c['borde_suave']}; }}
 
-/* ------------------------------------------------------------ texto */
 QPlainTextEdit, QTextEdit {{
-    background-color: {c['fondo']};
+    background-color: {c['fondo_barra']};
     border: {tk['grosor_borde']}px solid {c['borde_suave']};
     border-radius: {tk['radio_menu']}px;
-    padding: {tk['esp_s'] + 1}px;
+    padding: {tk['esp_s']}px;
     color: {c['texto']};
     font-family: {c['mono']};
     font-size: {base - tk['tipo_pequeno']}px;
@@ -549,45 +630,41 @@ QPlainTextEdit, QTextEdit {{
     selection-color: #FFFFFF;
 }}
 
-/* --------------------------------------------------------- progreso */
+/* ============================================================== indicadores */
 QProgressBar {{
-    background-color: {c['panel_alt']};
+    background-color: {c['borde_suave']};
     border: none;
-    border-radius: {tk['grosor_barra'] // 2}px;
+    border-radius: 0;
     height: {tk['grosor_barra']}px;
     text-align: center;
     color: transparent;
 }}
 QProgressBar::chunk {{
     background-color: {c['acento']};
-    border-radius: {tk['grosor_barra'] // 2}px;
+    border-radius: 0;
 }}
 
-/* ------------------------------------------------------------- slider */
 QSlider::groove:horizontal {{
     height: {tk['esp_xs']}px;
-    background: {c['panel_alt']};
-    border-radius: {tk['esp_xs'] // 2}px;
+    background: {c['borde_suave']};
+    border-radius: 0;
 }}
-QSlider::sub-page:horizontal {{
-    background: {c['acento']};
-    border-radius: {tk['esp_xs'] // 2}px;
-}}
+QSlider::sub-page:horizontal {{ background: {c['acento']}; border-radius: 0; }}
 QSlider::handle:horizontal {{
-    width: 18px;
-    height: 18px;
-    margin: -7px 0;
-    border-radius: 9px;
-    background: #FFFFFF;
-    border: 0.5px solid {c['borde']};
+    width: 14px;
+    height: 14px;
+    margin: -6px 0;
+    border-radius: 7px;
+    background: {c['panel']};
+    border: 1px solid {c['borde']};
 }}
-QSlider::handle:horizontal:hover {{ background: {c['panel']}; }}
+QSlider::handle:horizontal:hover {{ border-color: {c['acento']}; }}
 
-/* --------------------------------------------------------- scrollbars */
+/* ============================================================ desplazamiento */
 QScrollBar:vertical {{
     background: transparent;
     width: {tk['grosor_scroll']}px;
-    margin: 2px;
+    margin: 0;
 }}
 QScrollBar::handle:vertical {{
     background: {c['borde']};
@@ -598,7 +675,7 @@ QScrollBar::handle:vertical:hover {{ background: {c['texto_disc']}; }}
 QScrollBar:horizontal {{
     background: transparent;
     height: {tk['grosor_scroll']}px;
-    margin: 2px;
+    margin: 0;
 }}
 QScrollBar::handle:horizontal {{
     background: {c['borde']};
@@ -614,7 +691,9 @@ QScrollBar::add-page, QScrollBar::sub-page {{
     width: 0;
 }}
 
-/* ------------------------------------------------------ barra lateral */
+/* =================================================================== raíl */
+/* La barra lateral es el raíl: un escalón por detrás del papel, con el sello
+   carmesí marcando dónde estás. Sin píldoras de color, sin iconos blancos. */
 QWidget#panelLateral {{
     background-color: {c['fondo_lateral']};
     border-right: {tk['grosor_borde']}px solid {c['borde_suave']};
@@ -623,25 +702,29 @@ QListWidget[rol="lateral"] {{
     background-color: transparent;
     border: none;
     border-radius: 0;
-    padding: {tk['esp_m']}px {tk['esp_s']}px;
+    padding: {tk['esp_l']}px 0;
 }}
 QListWidget[rol="lateral"]::item {{
-    border-radius: {tk['radio_item'] + 1}px;
-    padding: {tk['esp_s'] + 1}px {tk['esp_m']}px;
-    margin: 2px {tk['esp_xs']}px;
-    color: {c['texto']};
+    border-radius: 0;
+    border-left: {tk['grosor_marcador']}px solid transparent;
+    padding: {tk['esp_s'] + 1}px {tk['esp_m']}px {tk['esp_s'] + 1}px {tk['esp_l']}px;
+    margin: 0;
+    color: {c['texto_sec']};
     font-weight: 500;
 }}
 QListWidget[rol="lateral"]::item:hover {{
-    background-color: rgba(120, 120, 128, 0.14);
+    color: {c['texto']};
+    background-color: {c['panel_hover']};
 }}
 QListWidget[rol="lateral"]::item:selected {{
-    background-color: {c['acento']};
-    color: #FFFFFF;
+    background-color: transparent;
+    color: {c['texto']};
     font-weight: 600;
+    border-left: {tk['grosor_marcador']}px solid {c['acento']};
 }}
 
-/* -------------------------------------------------------- barra tabs */
+/* ================================================================= lengüetas */
+/* Subrayado, no píldora: más cerca de una herramienta que de una tarjeta. */
 QTabWidget::pane {{
     border: none;
     background: transparent;
@@ -650,41 +733,46 @@ QTabBar {{ qproperty-drawBase: 0; }}
 QTabBar::tab {{
     background: transparent;
     color: {c['texto_sec']};
-    padding: {tk['esp_s'] - 2}px {tk['esp_m']}px;
-    margin-right: {tk['esp_xs']}px;
-    border-radius: {tk['radio_control']}px;
-    font-size: {base - tk['tipo_pequeno']}px;
+    padding: {tk['esp_s']}px 0;
+    margin-right: {tk['esp_xl']}px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: {base}px;
 }}
 QTabBar::tab:selected {{
-    background: {c['acento']};
-    color: #FFFFFF;
+    color: {c['texto']};
     font-weight: 600;
+    border-bottom: 2px solid {c['acento']};
 }}
 QTabBar::tab:hover:!selected {{
     color: {c['texto']};
-    background: {c['panel_hover']};
+    border-bottom-color: {c['borde']};
 }}
 
-/* -------------------------------------------------------- status y menú */
+/* ========================================================= barra de estado */
 QStatusBar {{
     background: transparent;
     color: {c['texto_sec']};
     border-top: {tk['grosor_borde']}px solid {c['borde_suave']};
+    font-size: {base - tk['tipo_pequeno']}px;
 }}
 QStatusBar::item {{ border: none; }}
+
+/* =================================================================== menús */
 QMenu {{
     background-color: {c['panel']};
     border: {tk['grosor_borde']}px solid {c['borde']};
     border-radius: {tk['radio_menu']}px;
-    padding: {tk['esp_xs'] + 1}px;
+    padding: {tk['esp_xs']}px;
 }}
 QMenu::item {{
-    border-radius: {tk['radio_item'] - 1}px;
-    padding: {tk['esp_s'] - 2}px {tk['esp_xl'] - 2}px {tk['esp_s'] - 2}px {tk['esp_m']}px;
+    border-radius: {tk['radio_item']}px;
+    padding: {tk['esp_s'] - 2}px {tk['esp_xl']}px {tk['esp_s'] - 2}px {tk['esp_s']}px;
 }}
 QMenu::item:selected {{
-    background-color: {c['acento']};
-    color: #FFFFFF;
+    background-color: {c['acento_suave']};
+    color: {c['texto']};
 }}
 QMenu::separator {{
     height: 1px;
@@ -694,12 +782,12 @@ QMenu::separator {{
 QMenuBar {{ background: transparent; }}
 QMenuBar::item {{
     background: transparent;
-    padding: {tk['esp_xs'] + 1}px {tk['esp_m'] - 2}px;
+    padding: {tk['esp_xs'] + 1}px {tk['esp_s']}px;
     border-radius: {tk['radio_control'] - 2}px;
 }}
 QMenuBar::item:selected {{ background: {c['panel_hover']}; }}
 
-/* ---------------------------------------------------- diálogos y misc */
+/* ================================================================ diálogos */
 QMessageBox {{ background-color: {c['fondo']}; }}
 QMessageBox QLabel {{ color: {c['texto']}; font-size: {base}px; }}
 QMessageBox QPushButton {{ min-width: 84px; }}
@@ -708,26 +796,32 @@ QProgressDialog QLabel {{ color: {c['texto']}; }}
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QSplitter::handle {{ background: {c['borde_suave']}; }}
-QToolBar {{ background: transparent; border: none; spacing: 6px; }}
+QToolBar {{ background: transparent; border: none; spacing: {tk['esp_s']}px; }}
 
-/* --------------------------------------------------- barra lateral flotante */
-/* Velo que oscurece el contenido cuando la barra lateral flota encima. Al
-   pulsarlo se cierra el menú. */
+/* Velo que cubre el contenido cuando el raíl flota encima, en ventanas
+   estrechas. Al pulsarlo se cierra el menú. */
 QWidget#veloLateral {{
-    background-color: rgba(0, 0, 0, 0.28);
+    background-color: rgba(36, 28, 27, 0.32);
 }}
 """
 
 
 def hoja_estilo_switch(nombre: str = "auto") -> dict:
     """Colores que necesita el interruptor dibujado a mano (clase Switch)."""
-    c = paleta("oscuro" if nombre == "auto" and tema_del_sistema() == "oscuro" else ("oscuro" if nombre == "oscuro" else "claro"))
+    c = paleta(_resolver_tema(nombre))
     return {
         "on": c["acento"],
-        "off": "#48484A" if c["nombre"] == "oscuro" else "#D1D1D6",
-        "on_disabled": "#3A3A3C" if c["nombre"] == "oscuro" else "#E4E4EA",
-        "off_disabled": "#2E2E31" if c["nombre"] == "oscuro" else "#EDEDF2",
+        "off": "#4A4042" if c["nombre"] == "oscuro" else "#CFC5BF",
+        "on_disabled": "#3B2A2E" if c["nombre"] == "oscuro" else "#EBD9DD",
+        "off_disabled": "#302A2B" if c["nombre"] == "oscuro" else "#E4DCD6",
         "thumb": "#FFFFFF",
         "texto": c["texto"],
         "texto_disabled": c["texto_disc"],
     }
+
+
+def _resolver_tema(nombre: str) -> str:
+    """Traduce 'auto' al tema real del sistema."""
+    if nombre == "auto":
+        return tema_del_sistema()
+    return "oscuro" if nombre == "oscuro" else "claro"

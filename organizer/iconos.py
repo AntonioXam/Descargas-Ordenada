@@ -249,8 +249,13 @@ def icono(nombre: str, tamano: int = 20, color: str | None = None,
 
 
 def icono_lateral(nombre: str, tamano: int = 18, tema: str = "auto") -> QIcon:
-    """Icono para la barra lateral: normal en el tema, blanco al seleccionar."""
-    return icono(nombre, tamano, tema=tema, color_seleccionado="#FFFFFF")
+    """Icono del raíl lateral.
+
+    El elemento activo **no** lleva fondo relleno (el raíl lo marca con una
+    barra carmesí a su izquierda), así que el icono activo va en carmesí sobre
+    el papel en vez de en blanco sobre un color.
+    """
+    return icono(nombre, tamano, tema=tema, color_seleccionado=color_acento(tema))
 
 
 def _factor_escala() -> float:

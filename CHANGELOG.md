@@ -4,6 +4,69 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [7.0.0] - 2026-09-24
+
+**Identidad visual nueva.** Se abandona el aspecto de tarjetas redondeadas
+heredado y se construye uno propio, a partir de la propia marca de la
+aplicación: su icono es una seta roja.
+
+### 🎨 La identidad: «mesa de clasificación»
+La aplicación ordena archivos, así que ahora se parece a una mesa donde las
+cosas se colocan. Cada decisión sale de ahí:
+
+- **Se acabaron las tarjetas.** El material nativo de un organizador de archivos
+  es una lista alineada, no una pila de cajas. La jerarquía la llevan ahora el
+  espacio y una línea fina: ningún bloque va dentro de un contenedor redondeado
+- **El carmesí es un sello, no un fondo.** Sale del sombrero de la seta
+  (`#C4123C`) y aparece en dos sitios: el marcador de la sección activa y **una**
+  acción por pantalla. Antes el azul del sistema estaba en todas partes y por eso
+  no destacaba nada
+- **Los números se alinean.** Todo valor que cambia —recuentos, tamaños,
+  intervalos, rutas— va en monoespaciada con cifras tabulares, porque ahí la
+  alineación significa algo
+- **Cálido, no clínico.** El papel y la tinta llevan una traza del rojo de la
+  seta, en vez del gris de sistema
+- **Más estrecho.** El ancho de lectura baja de 980 a 760 px: con 980, una
+  etiqueta y su valor quedaban a 750 px de distancia y la vista se cansaba
+
+### 🧭 El raíl lateral
+- La barra lateral pasa a ser un raíl: un escalón por detrás del papel, con el
+  nombre de cada sección y **una barra carmesí** marcando dónde estás
+- Ya no es una píldora de color con el icono en blanco: el icono activo va en
+  carmesí sobre el papel
+- Las etiquetas aparecen a partir de 880 px en vez de 1100, porque el raíl con
+  nombres es la seña de identidad y conviene verlo en una ventana normal
+
+### ✍️ Jerarquía y lenguaje
+- El estado de la aplicación tenía el mismo tamaño que el título de la sección,
+  así que no había jerarquía: ahora va un escalón por debajo
+- Los títulos de sección estaban en gris y se leían como etiquetas secundarias;
+  ahora van en tinta
+- El botón de la cabecera ya no comparte el carmesí con la acción principal
+- «Deshacer» deja de ser una acción de peligro: deshace, no destruye
+- Se quitan las cadenas con puntos medios («Activa · modo Básico»), que son un
+  recurso de plantilla; ahora se leen como frases
+- Las lengüetas pasan de píldoras a subrayado
+
+### 🐛 Correcciones
+- **El permiso de notificaciones ya no se pide cuando no consta que falte.**
+  Se declaraba «sin comprobar» (honesto: no se puede saber desde dentro si el
+  sistema mostrará los avisos) pero la interfaz lo interpretaba como «no lo
+  tienes», así que con el permiso ya concedido seguía pidiéndolo
+- **La transparencia pasa a estar apagada por defecto.** En un Mac real, la
+  ventana translúcida dejaba restos del fotograma anterior y al cambiar de
+  sección el título se dibujaba encima del viejo. Se activa a propósito con
+  `DESCARGASORDENADAS_TRANSPARENCIA=1`
+- El asistente de permisos separa sus filas con líneas: con el estilo plano se
+  leían como un bloque continuo
+
+### 🧪 Pruebas
+35 pruebas funcionales. Las de responsive y de tokens se derivan ahora de los
+umbrales y de la lista real de tokens, así que no hay que reescribirlas cada vez
+que se ajusta el diseño.
+
+---
+
 ## [6.0.1] - 2026-09-24
 
 Correcciones a partir de la primera instalación real en macOS. Los tres fallos

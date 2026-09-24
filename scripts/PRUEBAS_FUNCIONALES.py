@@ -944,11 +944,22 @@ def test_tokens_de_diseno():
     from organizer import estilos
 
     assert estilos.TOKENS, "No hay tokens de diseño"
-    # Los tokens más usados por los componentes
-    for clave in ("radio_tarjeta", "radio_campo", "radio_boton", "esp_m",
-                  "esp_l", "esp_xl", "mov_transicion"):
+    # Los tokens que usan los componentes del sistema actual
+    for clave in ("radio_control", "radio_campo", "radio_boton", "radio_item",
+                  "radio_menu", "radio_panel", "esp_s", "esp_m", "esp_l", "esp_xl",
+                  "grosor_marcador", "mov_transicion", "ancho_lectura"):
         assert clave in estilos.TOKENS, f"Falta el token '{clave}'"
         assert isinstance(estilos.TOKENS[clave], int), f"'{clave}' debe ser entero"
+
+    # Ya no hay cajas de tarjeta: el token de radio de tarjeta no debe existir,
+    # porque existir invitaría a volver a envolver bloques en cajas.
+    assert "radio_tarjeta" not in estilos.TOKENS, (
+        "El rediseño elimina las tarjetas: no debe quedar un radio para ellas"
+    )
+    # El ancho de lectura debe ser más estrecho que el que se usaba con tarjetas
+    assert estilos.TOKENS["ancho_lectura"] <= 800, (
+        "El ancho de lectura era 980 y separaba demasiado la etiqueta del valor"
+    )
 
     # La hoja de estilo se genera en los dos temas y con transparencia
     for tema in ("claro", "oscuro"):
@@ -1000,11 +1011,13 @@ def test_responsive_tres_modos():
         f"El ancho mínimo sigue siendo grande: {ventana.minimumSize().width()}"
     )
 
+    # Los anchos se derivan de los umbrales en lugar de escribirlos a mano: así
+    # la prueba sigue siendo válida si algún día se ajustan los umbrales.
     casos = [
-        (600, "cajon"),
-        (700, "compacto"),
-        (1000, "compacto"),
-        (1400, "normal"),
+        (UMBRAL_CAJON - 60, "cajon"),                      # por debajo del cajón
+        (UMBRAL_CAJON + 40, "compacto"),                   # justo por encima
+        (UMBRAL_LATERAL_AMPLIO - 60, "compacto"),          # justo por debajo del ancho
+        (UMBRAL_LATERAL_AMPLIO + 200, "normal"),           # ventana holgada
     ]
     for ancho, modo_esperado in casos:
         ventana.resize(ancho, 640)
