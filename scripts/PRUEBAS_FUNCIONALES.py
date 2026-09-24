@@ -666,6 +666,84 @@ def test_error_por_consola_sin_gui():
     print("✅ Los errores se explican sin interfaz gráfica")
 
 
+def test_sistema_de_permisos():
+    """El motor de permisos comprueba, pide y degrada sin lanzar excepciones."""
+    from organizer import permission_manager as pm
+
+    base = Path(tempfile.mkdtemp(prefix="do_perm_"))
+    gestor = pm.GestorPermisos(carpeta_descargas=base)
+
+    # El catálogo tiene que estar bien formado
+    assert pm.CATALOGO, "El catálogo de capacidades está vacío"
+    ids = [c.id for c in pm.CATALOGO]
+    assert len(ids) == len(set(ids)), f"Hay capacidades duplicadas: {ids}"
+    assert "carpeta_descargas" in ids
+    # Solo la carpeta es imprescindible: todo lo demás debe ser omitible
+    obligatorias = [c.id for c in pm.CATALOGO if c.obligatoria]
+    assert obligatorias == ["carpeta_descargas"], (
+        f"Demasiadas capacidades obligatorias: {obligatorias}"
+    )
+    for capacidad in pm.CATALOGO:
+        assert capacidad.nombre and capacidad.para_que, (
+            f"La capacidad {capacidad.id} no se explica al usuario"
+        )
+
+    # Comprobar cualquier capacidad real no debe lanzar nunca
+    for capacidad in pm.CATALOGO:
+        if capacidad.id == "red":
+            continue  # implica una llamada de red
+        resultado = gestor.comprobar(capacidad.id)
+        assert isinstance(resultado.estado, pm.EstadoPermiso), resultado
+        assert resultado.estado.disponible in (True, False)
+
+    # Una capacidad inventada sí es un error de programación
+    try:
+        gestor.comprobar("inventada")
+        raise AssertionError("Debería haber lanzado KeyError")
+    except KeyError:
+        pass
+
+    # Con una carpeta escribible, requerir deja seguir
+    ok, mensaje = gestor.requerir("carpeta_descargas")
+    assert ok, f"Debería permitir seguir: {mensaje}"
+    assert not mensaje
+
+    # Con una ruta que no es carpeta, requerir lo explica y no deja seguir
+    bloqueada = base / "no_soy_carpeta"
+    bloqueada.write_text("x")
+    gestor_bloqueado = pm.GestorPermisos(carpeta_descargas=bloqueada)
+    ok, mensaje = gestor_bloqueado.requerir("carpeta_descargas")
+    assert not ok, "No debería permitir seguir con una ruta inválida"
+    assert "carpeta" in mensaje.lower(), mensaje
+    assert "Hace falta para" in mensaje, (
+        f"El mensaje debe explicar para qué sirve el permiso:\n{mensaje}"
+    )
+
+    # El diagnóstico incluye todas las capacidades salvo la red
+    resultados = gestor.diagnostico()
+    assert len(resultados) == len(pm.CATALOGO) - 1, (
+        f"Diagnóstico incompleto: {len(resultados)} de {len(pm.CATALOGO)}"
+    )
+
+    # Solicitar un permiso denegado deja el estado en PENDIENTE, sin reventar
+    denegada = next(
+        (r for r in resultados if r.estado is pm.EstadoPermiso.DENEGADO), None
+    )
+    if denegada is not None:
+        tras_pedir = gestor.solicitar(denegada.capacidad.id)
+        assert tras_pedir.estado is pm.EstadoPermiso.PENDIENTE, tras_pedir.estado
+
+    # Sin ancla conocida debe dar instrucciones en lugar de abrir nada.
+    # (Se usa una capacidad inventada a propósito para no abrir los ajustes
+    # reales del sistema durante las pruebas.)
+    abierto, texto = pm.abrir_ajustes_del_sistema("capacidad_sin_ancla")
+    assert abierto is False, "No debería abrir nada sin ancla conocida"
+    assert texto, "Debe devolver instrucciones legibles"
+
+    print("✅ Sistema de permisos comprueba, pide y degrada correctamente")
+    shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -692,6 +770,7 @@ def main():
     test_configuracion_no_escribible()
     test_manejador_de_errores()
     test_error_por_consola_sin_gui()
+    test_sistema_de_permisos()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 
