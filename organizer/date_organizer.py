@@ -13,6 +13,8 @@ import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+from .app_paths import crear_directorio, directorio_temporal_app
+
 logger = logging.getLogger(__name__)
 
 class OrganizadorPorFecha:
@@ -24,7 +26,11 @@ class OrganizadorPorFecha:
     def __init__(self, carpeta_descargas: Path):
         self.carpeta_descargas = carpeta_descargas
         self.carpeta_config = carpeta_descargas / ".config"
-        self.carpeta_config.mkdir(exist_ok=True)
+        if not crear_directorio(self.carpeta_config):
+            # Sin permiso de escritura en la carpeta de descargas, el registro
+            # se guarda aparte para no impedir el arranque.
+            self.carpeta_config = directorio_temporal_app() / "fechas"
+            crear_directorio(self.carpeta_config)
         self.archivo_registro = self.carpeta_config / "organizacion_fechas.json"
         self.activo = False
         self.patron_fechas = "YYYY/MM-Mes"  # Patrón por defecto

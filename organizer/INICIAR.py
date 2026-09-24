@@ -24,10 +24,15 @@ import platform
 import subprocess
 import shutil
 import time
+import traceback
 
 from organizer.version import obtener_version
 from organizer.app_paths import obtener_archivo_version, obtener_base_recursos, obtener_directorio_configuracion
 from organizer.single_instance import InstanciaUnica
+from organizer import errores
+
+# Lo antes posible: a partir de aquí ningún fallo acaba en una traza ilegible.
+errores.instalar_manejador_global()
 
 def obtener_python_ejecutable() -> str:
     """Obtiene un intérprete Python válido incluso cuando la app está empaquetada."""
@@ -679,19 +684,26 @@ if __name__ == "__main__":
         # Salir silenciosamente en interrupciones de teclado
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ Error inesperado: {e}")
-        # Solo mostrar input si se ejecuta directamente desde consola
-        # Si hay GUI activa, salir silenciosamente
+        # El manejador global ya registró el rastro; aquí solo se decide si
+        # conviene mantener la consola abierta para que el usuario lo lea.
+        detalle = traceback.format_exc()
+        errores.guardar_rastro(detalle)
+        errores.mostrar_error(
+            "No se pudo iniciar DescargasOrdenadas",
+            str(e),
+            detalle=detalle,
+            sugerencia=(
+                "El detalle completo está en:\n"
+                f"{errores.ruta_registro_errores()}"
+            ),
+        )
+
+        # En modo consola explícito se espera a que el usuario lea el mensaje;
+        # en modo gráfico se sale sin bloquear.
         try:
-            # Verificar si hay argumentos que indican modo GUI
-            import sys
             if len(sys.argv) == 1 or '--auto' not in sys.argv:
-                # Modo GUI o sin argumentos específicos - salir silenciosamente
                 sys.exit(1)
-            else:
-                # Modo consola explícito - mostrar input
-                input("Presiona Enter para cerrar...")
-                sys.exit(1)
-        except:
-            # En caso de error, salir silenciosamente
-            sys.exit(1) 
+            input("Presiona Enter para cerrar...")
+            sys.exit(1)
+        except Exception:
+            sys.exit(1)

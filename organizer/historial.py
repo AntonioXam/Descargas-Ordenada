@@ -22,7 +22,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .app_paths import obtener_directorio_configuracion
+from .app_paths import (
+    crear_directorio,
+    directorio_temporal_app,
+    obtener_directorio_configuracion,
+)
 
 logger = logging.getLogger('organizador.historial')
 
@@ -41,10 +45,12 @@ class HistorialOperaciones:
     def _obtener_ruta(self) -> Path:
         try:
             carpeta = obtener_directorio_configuracion()
-            carpeta.mkdir(parents=True, exist_ok=True)
+            crear_directorio(carpeta)
             return carpeta / "historial.json"
         except Exception:
-            return Path.cwd() / ".historial_descargasordenadas.json"
+            # Último recurso: el directorio temporal del sistema, que siempre
+            # es escribible. ``Path.cwd()`` puede no serlo.
+            return directorio_temporal_app() / "historial.json"
 
     # ------------------------------------------------------------- lectura
 

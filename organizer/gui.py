@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Interfaz gráfica — **versión heredada**, solo como último recurso.
+
+La interfaz vigente es :mod:`organizer.gui_avanzada`. Este módulo se conserva
+como respaldo por si el paquete instalado no incluyera la nueva, y avisa por el
+registro cuando se usa. No añadir aquí funcionalidad nueva: los cambios van en
+``gui_avanzada``.
+"""
 
 import os
 import sys

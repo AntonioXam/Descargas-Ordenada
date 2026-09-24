@@ -38,7 +38,7 @@ except ImportError:
 from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
 from .version import obtener_version
-from . import efectos, estilos, programacion
+from . import efectos, errores, estilos, programacion
 
 # Importar notificaciones nativas
 try:
@@ -54,13 +54,6 @@ try:
 except ImportError:
     CONFIG_PORTABLE = False
 
-# Importar sistema de temas
-try:
-    from .temas import obtener_gestor_temas
-    TEMAS_DISPONIBLES = True
-except ImportError:
-    TEMAS_DISPONIBLES = False
-
 # Importar menú contextual
 try:
     from .context_menu import GestorMenuContextual
@@ -72,14 +65,24 @@ except ImportError:
 try:
     from .actualizaciones_mejorado import obtener_gestor_actualizaciones
     ACTUALIZACIONES_DISPONIBLES = True
+    ACTUALIZACIONES_HEREDADAS = False
 except ImportError:
     try:
         from .actualizaciones import obtener_gestor_actualizaciones
         ACTUALIZACIONES_DISPONIBLES = True
+        ACTUALIZACIONES_HEREDADAS = True
     except ImportError:
         ACTUALIZACIONES_DISPONIBLES = False
+        ACTUALIZACIONES_HEREDADAS = False
 
 logger = logging.getLogger('organizador.gui_avanzada')
+
+if ACTUALIZACIONES_HEREDADAS:
+    # Un respaldo silencioso esconde que faltan funciones: mejor dejarlo dicho.
+    logger.warning(
+        "No se encontró el sistema de actualizaciones actual; se usa el heredado "
+        "(sin descarga integrada). Reinstala la aplicación para recuperarlo."
+    )
 
 # Medidas del layout adaptable (en píxeles lógicos)
 ANCHO_LATERAL_COMPACTO = 64
@@ -312,15 +315,14 @@ class OrganizadorAvanzado(QMainWindow):
             if guardada and programacion.parsear_hora(guardada):
                 self._hora_programada = guardada
 
-        # Inicializar sistema de temas (claro / oscuro / automático del sistema)
-        self.gestor_temas = None
+        # Tema visual (claro / oscuro / automático del sistema). La única
+        # fuente de verdad de la apariencia es ``estilos.py``.
         self._tema = self._cargar_preferencia_tema()
+        # Las preferencias antiguas (``minimal_claro`` / ``minimal_oscuro``)
+        # migran al sistema nuevo.
+        if self._tema not in ("claro", "oscuro", "auto"):
+            self._tema = "auto"
         Switch._tema = self._tema
-        if TEMAS_DISPONIBLES:
-            self.gestor_temas = obtener_gestor_temas()
-            # Los temas antiguos (minimal_*) migran al sistema nuevo
-            if self._tema not in ("claro", "oscuro", "auto"):
-                self._tema = "auto"
         
         # Inicializar notificaciones nativas
         if NOTIFICACIONES_NATIVAS:
@@ -2735,23 +2737,19 @@ class OrganizadorAvanzado(QMainWindow):
                 self.config_portable.establecer("notificaciones_habilitadas", activo)
     
     def _cambiar_tema(self, index):
-        """Cambia el tema visual de la aplicación."""
-        if not self.gestor_temas:
-            return
-        
+        """Cambia el tema visual de la aplicación (claro / oscuro / automático)."""
         tema_nombre = self.combo_temas.itemData(index)
-        if tema_nombre:
-            self._tema = tema_nombre
-            self.gestor_temas.establecer_tema_actual(
-                "minimal_claro" if tema_nombre == "claro" else "minimal_oscuro"
-            )
-            self._aplicar_tema()
-            
-            # Guardar en configuración
-            if self.config_portable:
-                self.config_portable.establecer("tema", tema_nombre)
-            
-            self._agregar_log(f"Tema cambiado a: {self.combo_temas.currentText()}")
+        if not tema_nombre:
+            return
+
+        self._tema = tema_nombre
+        self._aplicar_tema()
+
+        # Guardar en configuración
+        if self.config_portable:
+            self.config_portable.establecer("tema", tema_nombre)
+
+        self._agregar_log(f"Tema cambiado a: {self.combo_temas.currentText()}")
     
     def _toggle_menu_contextual(self, activo):
         """Toggle integración menú contextual."""
@@ -3846,6 +3844,10 @@ def run_advanced_gui(
 ):
     """Ejecuta la GUI avanzada."""
     app = QApplication.instance() or QApplication(sys.argv)
+
+    # Garantiza que los fallos dentro de la interfaz se muestren de forma
+    # legible en lugar de morir en la consola (que en modo ventana no se ve).
+    errores.instalar_manejador_global()
 
     window = OrganizadorAvanzado(
         directorio,

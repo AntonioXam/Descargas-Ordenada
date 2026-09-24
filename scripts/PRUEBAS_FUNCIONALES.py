@@ -578,6 +578,94 @@ def test_cli_diagnostico():
     print("✅ CLI de diagnóstico funciona")
 
 
+def test_configuracion_no_escribible():
+    """Sin permiso de escritura, la app avisa en vez de caerse.
+
+    El fallo de permisos se simula sin privilegios: se usa una ruta cuyo padre
+    es un archivo, así que ``mkdir`` falla siempre con ``NotADirectoryError``,
+    que es un ``OSError`` como el que devolvería un permiso denegado.
+    """
+    from organizer.app_paths import crear_directorio, crear_directorio_con_respaldo
+    from organizer.date_organizer import OrganizadorPorFecha
+    from organizer.statistics import EstadisticasOrganizador
+
+    base = Path(tempfile.mkdtemp(prefix="do_sinperm_"))
+    bloqueado = base / "bloqueado"
+    bloqueado.write_text("no soy una carpeta")
+
+    # El helper no lanza: devuelve False y quien llama decide qué hacer.
+    assert crear_directorio(bloqueado / "sub" / "carpeta") is False, \
+        "crear_directorio debería devolver False en lugar de lanzar"
+
+    # Con respaldo, siempre se obtiene una ruta usable.
+    alternativa = crear_directorio_con_respaldo(bloqueado / "otra")
+    assert alternativa.is_dir(), f"No se obtuvo una carpeta alternativa: {alternativa}"
+
+    # Los módulos que antes reventaban al arrancar ahora degradan solos.
+    estadisticas = EstadisticasOrganizador(bloqueado)
+    assert estadisticas.carpeta_stats.is_dir(), estadisticas.carpeta_stats
+
+    fechas = OrganizadorPorFecha(bloqueado)
+    assert fechas.carpeta_config.is_dir(), fechas.carpeta_config
+
+    print("✅ Sin permisos de escritura se avisa en vez de caerse")
+    shutil.rmtree(base, ignore_errors=True)
+
+
+def test_manejador_de_errores():
+    """El manejador global registra el rastro y se instala sin fallar."""
+    from organizer import errores
+
+    rastro = "Traceback de prueba\n  linea 1"
+    errores.guardar_rastro(rastro)
+    registro = errores.ruta_registro_errores()
+    assert registro.exists(), f"No se creó el registro de errores: {registro}"
+    assert rastro in registro.read_text(encoding="utf-8"), \
+        "El rastro no se guardó en el registro"
+
+    # Instalarlo dos veces debe ser inocuo (es idempotente).
+    errores.instalar_manejador_global()
+    errores.instalar_manejador_global()
+    assert sys.excepthook is errores._manejador_excepciones, \
+        "El excepthook no quedó instalado"
+
+    # Desde un hilo de trabajo no se puede abrir una ventana: debe caer a
+    # consola en lugar de intentarlo y bloquearse.
+    resultado = {}
+
+    def en_hilo():
+        resultado["ventana"] = errores._podemos_abrir_ventanas()
+        errores.mostrar_error("Prueba", "Desde un hilo")
+
+    import threading
+    hilo = threading.Thread(target=en_hilo)
+    hilo.start()
+    hilo.join(timeout=15)
+    assert not hilo.is_alive(), "mostrar_error se bloqueó desde un hilo"
+    assert resultado["ventana"] is False, \
+        "No debería intentar abrir ventanas fuera del hilo principal"
+
+    print("✅ Manejador global de errores funciona")
+
+
+def test_error_por_consola_sin_gui():
+    """Sin interfaz gráfica, un error se explica por consola sin traza cruda."""
+    codigo = (
+        "import sys; sys.path.insert(0, r'%s');"
+        "from organizer import errores;"
+        "errores.mostrar_error('Titulo', 'Mensaje claro', detalle='detalle tecnico')"
+        % str(project_root)
+    )
+    resultado = subprocess.run(
+        [sys.executable, "-c", codigo],
+        capture_output=True, text=True, timeout=60
+    )
+    assert resultado.returncode == 0, resultado.stderr
+    assert "Titulo" in resultado.stderr and "Mensaje claro" in resultado.stderr, \
+        f"El error no se explicó por consola:\n{resultado.stderr}"
+    print("✅ Los errores se explican sin interfaz gráfica")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -601,6 +689,9 @@ def main():
     test_efectos_nativos()
     test_flujo_organizar_carpeta_cli()
     test_cli_diagnostico()
+    test_configuracion_no_escribible()
+    test_manejador_de_errores()
+    test_error_por_consola_sin_gui()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 

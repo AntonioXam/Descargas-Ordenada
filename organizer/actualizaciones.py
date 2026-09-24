@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Sistema de actualizaciones automáticas para DescargasOrdenadas v3.1"""
+"""Sistema de actualizaciones — **versión heredada**, solo como último recurso.
+
+La implementación vigente es :mod:`organizer.actualizaciones_mejorado`, que
+maneja los límites de la API de GitHub y las descargas sin conexión. Este
+módulo se conserva únicamente como respaldo por si el paquete instalado no
+incluyera el nuevo, y avisa por el registro cuando se usa. No añadir aquí
+funcionalidad nueva: los cambios van en ``actualizaciones_mejorado``.
+"""
 
 import logging
 import json

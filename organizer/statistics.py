@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Any
 import logging
 
+from .app_paths import crear_directorio, directorio_temporal_app
+
 logger = logging.getLogger(__name__)
 
 class EstadisticasOrganizador:
@@ -22,7 +24,11 @@ class EstadisticasOrganizador:
     def __init__(self, carpeta_descargas: Path):
         self.carpeta_descargas = carpeta_descargas
         self.carpeta_stats = carpeta_descargas / ".config" / "stats"
-        self.carpeta_stats.mkdir(parents=True, exist_ok=True)
+        if not crear_directorio(self.carpeta_stats):
+            # Si la carpeta de descargas no admite escritura, las estadísticas
+            # se guardan aparte en lugar de impedir el arranque.
+            self.carpeta_stats = directorio_temporal_app() / "stats"
+            crear_directorio(self.carpeta_stats)
         self.archivo_stats = self.carpeta_stats / "statistics.json"
         self.stats = self._cargar_estadisticas()
     
