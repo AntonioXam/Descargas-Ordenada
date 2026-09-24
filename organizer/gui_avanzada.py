@@ -1760,17 +1760,18 @@ class OrganizadorAvanzado(QMainWindow):
         self.progress_bar.setFixedHeight(6)
         contenido_layout.addWidget(self.progress_bar)
 
-        # Centrado horizontal: márgenes elásticos a los lados. El contenido
-        # tiene ancho MÁXIMO, nunca mínimo: fijar un mínimo igual al espacio
-        # disponible era lo que impedía que la ventana encogiera y obligaba a
-        # un tamaño mínimo de 760 px.
-        fila_centro = QHBoxLayout()
-        fila_centro.setContentsMargins(0, 0, 0, 0)
-        fila_centro.setSpacing(0)
-        fila_centro.addStretch(1)
-        fila_centro.addWidget(self._centro, 0)
-        fila_centro.addStretch(1)
-        zona_layout.addLayout(fila_centro)
+        # Centrado horizontal. El contenido se estira hasta su ancho máximo y
+        # el espacio sobrante se reparte en márgenes iguales, calculados en
+        # _actualizar_layout. Antes se fijaba un ancho MÍNIMO igual al espacio
+        # disponible, que es lo que impedía encoger la ventana; y con simples
+        # espaciadores elásticos el contenido se quedaba en su tamaño natural
+        # en lugar de llenar, que era el problema contrario.
+        self._centro.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._fila_centro = QHBoxLayout()
+        self._fila_centro.setContentsMargins(0, 0, 0, 0)
+        self._fila_centro.setSpacing(0)
+        self._fila_centro.addWidget(self._centro)
+        zona_layout.addLayout(self._fila_centro)
 
         raiz.addWidget(self.zona_contenido, 1)
 
@@ -1916,7 +1917,19 @@ class OrganizadorAvanzado(QMainWindow):
 
             self._centro.setMaximumWidth(ANCHO_CONTENIDO_MAXIMO)
 
-            # Los márgenes laterales del centro se reducen en ventanas pequeñas
+            # Márgenes simétricos: el contenido ocupa todo el ancho disponible
+            # hasta ANCHO_CONTENIDO_MAXIMO y, si sobra, se centra. Así se
+            # aprovecha el espacio en pantallas grandes y se puede encoger en
+            # las pequeñas sin forzar nada.
+            disponible = ancho - (
+                0 if getattr(self, "_lateral_flotante", False)
+                else self.panel_lateral.width()
+            )
+            margen_exterior = max(0, (disponible - ANCHO_CONTENIDO_MAXIMO) // 2)
+            if hasattr(self, "_fila_centro"):
+                self._fila_centro.setContentsMargins(margen_exterior, 0, margen_exterior, 0)
+
+            # Los márgenes interiores del centro se reducen en ventanas pequeñas
             margen = 24 if ancho > 900 else 16
             layout = self._centro.layout()
             if layout is not None:

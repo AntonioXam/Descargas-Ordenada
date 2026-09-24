@@ -1,4 +1,4 @@
-# DescargasOrdenadas v5.0
+# DescargasOrdenadas v6.0
 
 **Organiza automáticamente tu carpeta de descargas** con una interfaz moderna tipo Apple, menú contextual en los tres sistemas y actualización integrada.
 
@@ -74,7 +74,41 @@ Si necesitas instalar en un PC sin internet:
 
 ---
 
+## 🔐 Permisos: se piden antes, no se falla después
+
+La aplicación nunca debería fallar porque le falte un permiso. La primera vez
+que la abres, un asistente te explica qué necesita y **para qué**, y puedes
+omitir lo que no quieras: funciona sin ninguno, con menos funciones.
+
+| Permiso | Para qué sirve | ¿Hace falta? |
+|---|---|---|
+| Acceso a la carpeta | Leer y organizar los archivos | **Sí**, sin esto no hay nada que hacer |
+| Acceso total al disco (macOS) | Añadir «Organizar con DescargasOrdenadas» al clic derecho del Finder | Opcional |
+| Control del Finder (macOS) | Que la acción rápida aparezca sin reiniciar la sesión | Opcional |
+| Notificaciones | Avisarte cuando termina una organización automática | Opcional |
+| Conexión a internet | Buscar actualizaciones | Opcional |
+
+En **Ajustes → Permisos** tienes el estado en vivo de todos ellos, con un botón
+que abre el panel exacto donde se conceden. Si concedes uno fuera de la
+aplicación, se detecta al volver a ella: no hay que reiniciar nada.
+
+En **Windows no hace falta ser administrador**: el menú contextual se registra
+solo para tu usuario, que no requiere permisos especiales.
+
+Si quieres prescindir de la transparencia (por rendimiento, por gusto o para
+diagnosticar), arranca con `DESCARGASORDENADAS_SIN_TRANSPARENCIA=1`.
+
+---
+
 ## ✨ Características Principales
+
+### 🆕 Novedades v6.0
+- **Permisos que se piden, no que se sufren** - Asistente de primer arranque y centro de permisos con estado en vivo
+- **Transparencia que se ve** - *Vibrancy* real en macOS y efecto Mica en Windows 11, que antes estaban activados pero tapados por el fondo de Qt
+- **Iconos propios** - 23 iconos SVG dibujados para la aplicación, en lugar de los genéricos del sistema
+- **Adaptable de verdad** - La barra lateral pasa a flotante en ventanas estrechas y la ventana puede encogerse a 620×520 (antes no bajaba de 760×560)
+- **Nada falla en silencio** - Los errores se explican en una ventana legible y quedan guardados en `errores.log`
+- **Un solo sistema de estilos** - Se retiró el antiguo, con sus degradados y botones de otra época
 
 ### 🆕 Novedades v5.0
 - **Diseño tipo Apple** - Barra lateral, tarjetas, tipografía del sistema y **tema automático** (sigue al del sistema operativo)

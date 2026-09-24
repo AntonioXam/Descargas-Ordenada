@@ -1018,6 +1018,25 @@ def test_responsive_tres_modos():
         # El contenido se limita por arriba, nunca por abajo
         assert ventana._centro.maximumWidth() <= ANCHO_CONTENIDO_MAXIMO
 
+        # Y el contenido debe llenar el ancho disponible hasta el máximo. Si
+        # se quedara en su tamaño natural, aparecerían barras horizontales y
+        # los controles saldrían cortados por la derecha.
+        esperado = min(
+            real - (0 if flotante else ventana.panel_lateral.width()),
+            ANCHO_CONTENIDO_MAXIMO,
+        )
+        assert abs(ventana._centro.width() - esperado) <= 6, (
+            f"A {ancho}px el contenido mide {ventana._centro.width()} y debería "
+            f"ocupar {esperado}"
+        )
+
+        # Ninguna vista debe necesitar scroll horizontal
+        for indice in range(ventana.stack.count()):
+            area = ventana.stack.widget(indice)
+            assert not area.horizontalScrollBar().isVisible(), (
+                f"A {ancho}px la vista {indice} tiene scroll horizontal"
+            )
+
     # En modo cajón la barra flota y se abre con el botón
     ventana.resize(600, 640)
     for _ in range(8):

@@ -107,5 +107,21 @@ if sys.platform == "darwin":
             "CFBundleVersion": VERSION,
             "LSMinimumSystemVersion": "10.15",
             "NSHighResolutionCapable": True,
+            # Textos que macOS muestra en sus propios diálogos de permiso. Sin
+            # NSAppleEventsUsageDescription, macOS puede cerrar la aplicación
+            # cuando intenta avisar al Finder de que la acción rápida cambió.
+            "NSAppleEventsUsageDescription": (
+                "DescargasOrdenadas necesita controlar el Finder para que la "
+                "acción «Organizar con DescargasOrdenadas» aparezca en el menú "
+                "del clic derecho sin tener que reiniciar la sesión."
+            ),
+            "NSDownloadsFolderUsageDescription": (
+                "DescargasOrdenadas necesita acceder a tu carpeta de descargas "
+                "para poder organizar los archivos que contiene."
+            ),
+            "NSDesktopFolderUsageDescription": (
+                "DescargasOrdenadas puede organizar el escritorio si lo eliges "
+                "como carpeta de trabajo."
+            ),
         },
     )

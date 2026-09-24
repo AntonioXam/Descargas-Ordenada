@@ -4,6 +4,83 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [6.0.0] - 2026-09-24
+
+Versión centrada en dos cosas: que la aplicación **pida los permisos en lugar de
+fallar**, y que la interfaz deje de parecer anticuada, con transparencia real y
+un comportamiento correcto en cualquier tamaño de ventana.
+
+### 🔐 Los permisos se piden antes de fallar
+- **Nuevo sistema de permisos**: un único punto por el que pasa todo lo que
+  depende del sistema operativo. Comprueba de verdad si el permiso está
+  concedido (escribiendo un archivo de prueba, no preguntando), y si falta lo
+  solicita abriendo el panel exacto donde se concede
+- **Asistente de primer arranque**: la primera vez que se abre la aplicación,
+  una ventana explica qué necesita y para qué, en lenguaje llano. Todo es
+  omitible y se puede volver a revisar desde Ajustes
+- **Centro de permisos en Ajustes**: el estado de cada permiso en vivo, con un
+  botón para resolverlo. Responde de un vistazo a «¿por qué no me funciona
+  esto?»
+- **Se detecta al volver**: si vas a Ajustes del sistema, concedes el permiso y
+  vuelves, la aplicación se da cuenta sola. Sin reiniciar
+- **Nada falla en silencio**: los errores que antes se descartaban sin más
+  (refrescar el Finder, notificaciones) ahora se avisan y quedan consultables
+- **Windows ya no necesita administrador**: el menú contextual se registra por
+  usuario, que no requiere permisos. Registrar para todo el equipo pasa a ser
+  una opción explícita
+- **Ningún fallo acaba en una traza**: un manejador global registra el error y
+  lo muestra en una ventana legible, con el detalle plegado
+
+### ✨ La transparencia ahora se ve de verdad
+- **El efecto estaba activado y tapado a la vez**: se creaba el material nativo
+  de macOS y se activaba Mica en Windows, pero la ventana nunca se declaraba
+  translúcida, así que Qt pintaba su fondo opaco encima. Ahora se ve
+- **macOS**: *vibrancy* real, con la capa insertada **por debajo** del contenido
+  (como subvista quedaría encima y taparía la interfaz)
+- **Windows 11**: efecto Mica y esquinas redondeadas del sistema. En Windows 10
+  se mantiene el fondo opaco, porque Mica no existe ahí
+- **Linux**: se acabó el `setWindowOpacity`, que no era translucidez sino bajar
+  la opacidad de la ventana entera, texto incluido. Ahora se comprueba que haya
+  compositor y, si no lo hay, la ventana se queda opaca
+- El fondo deja pasar el material (alfa 0.70) pero las tarjetas se mantienen
+  casi opacas (0.96), así que el texto no pierde contraste
+- Se puede desactivar con `DESCARGASORDENADAS_SIN_TRANSPARENCIA=1`
+
+### 📐 La ventana se adapta de verdad
+- **Arreglado el fallo de fondo**: el contenido fijaba un ancho *mínimo* igual
+  al espacio disponible, lo que impedía encoger la ventana por debajo de 760 px
+  y hacía que el layout desbordara en pantallas pequeñas. Ahora solo tiene
+  máximo
+- **Tres modos de barra lateral**, sin el salto brusco de antes: con texto en
+  ventanas anchas, solo iconos a partir de 660 px y **flotante** en ventanas
+  estrechas, donde se abre con un botón y se cierra al pulsar fuera
+- El tamaño mínimo de ventana baja de 760×560 a **620×520**
+
+### 🎨 Aspecto más cuidado
+- **Iconos propios**: 23 iconos SVG dibujados para la aplicación, en lugar de
+  los genéricos de Qt que no son el lenguaje visual de ningún sistema. Nítidos
+  en pantallas de alta densidad y pintados en el color del tema
+- **Sistema de diseño con tokens**: espaciado, radios, tipografía y duración de
+  las animaciones salen de una única escala, en lugar de números sueltos
+- **Se retiró el sistema de estilos antiguo** (`temas.py`), con sus degradados
+  y sus botones de otro tiempo. Ahora hay una sola fuente de verdad
+- El cambio de sección se siente inmediato (90 ms en lugar de 150)
+
+### 🧹 Otros
+- La versión se lee de un único sitio: antes había números fijos repartidos que
+  se quedaban desactualizados en cada publicación
+- Las descripciones de uso del `Info.plist` de macOS, que faltaban
+- **30 pruebas funcionales** (9 nuevas): permisos, degradación sin permisos,
+  asistente, iconos, tokens y los tres modos de la interfaz
+
+### ⚠️ Nota sobre la transparencia
+Las rutas de macOS y Windows 11 están implementadas pero se han desarrollado en
+un entorno Linux, así que no se han podido ejecutar. Conviene verificarlas en un
+Mac y en un Windows 11 reales. Si algo no se viera bien, se puede desactivar con
+la variable de entorno indicada arriba sin tocar el código.
+
+---
+
 ## [5.1.0] - 2026-09-23
 
 ### ✨ Interfaz que se siente nativa en cada sistema

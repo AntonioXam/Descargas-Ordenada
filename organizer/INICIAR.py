@@ -27,7 +27,7 @@ import time
 import traceback
 
 from organizer.version import obtener_version
-from organizer.app_paths import obtener_archivo_version, obtener_base_recursos, obtener_directorio_configuracion
+from organizer.app_paths import obtener_base_recursos, obtener_directorio_configuracion
 from organizer.single_instance import InstanciaUnica
 from organizer import errores
 
@@ -519,11 +519,9 @@ def main():
     
     # Solo mostrar prints si NO es modo silencioso
     if not (args.sin_consola or args.autostart or args.minimizado):
-        try:
-            version = obtener_archivo_version().read_text(encoding="utf-8").strip()
-        except Exception:
-            version = "5.1.0"
-        print(f"DescargasOrdenadas v{version}")
+        # La versión sale de un único sitio; antes había aquí un número fijo
+        # que se quedaba desactualizado en cada publicación.
+        print(f"DescargasOrdenadas v{obtener_version()}")
         print("=" * 50)
     
     # Solo configurar logger con salida a consola si NO es modo silencioso
