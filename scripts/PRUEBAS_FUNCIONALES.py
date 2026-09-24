@@ -958,6 +958,98 @@ def test_tokens_de_diseno():
     print("✅ Tokens de diseño correctos")
 
 
+def test_responsive_tres_modos():
+    """La interfaz se adapta sin desbordar en los tres modos de barra lateral.
+
+    Regresión: antes el contenedor de contenido fijaba un ``setMinimumWidth``
+    igual al espacio disponible, lo que impedía encoger la ventana por debajo
+    de 760 px y forzaba desbordes. Ahora el contenido solo tiene ancho máximo.
+    """
+    try:
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+        from organizer.gui_avanzada import (
+            OrganizadorAvanzado, UMBRAL_CAJON, UMBRAL_LATERAL_AMPLIO,
+            ANCHO_CONTENIDO_MAXIMO,
+        )
+    except ImportError:
+        print("⏭️  Responsive no probado: PySide6 no disponible")
+        return
+
+    app = QApplication.instance() or QApplication([])
+    with _ConfigAislada():
+        ventana = OrganizadorAvanzado()
+    ventana._asistente_comprobado = True
+    ventana.show()
+
+    # La ventana debe poder encogerse de verdad
+    assert ventana.minimumSize().width() <= 620, (
+        f"El ancho mínimo sigue siendo grande: {ventana.minimumSize().width()}"
+    )
+
+    casos = [
+        (600, "cajon"),
+        (700, "compacto"),
+        (1000, "compacto"),
+        (1400, "normal"),
+    ]
+    for ancho, modo_esperado in casos:
+        ventana.resize(ancho, 640)
+        for _ in range(8):
+            app.processEvents()
+        ventana._actualizar_layout()
+        for _ in range(4):
+            app.processEvents()
+
+        modo = getattr(ventana, "_modo_lateral", None)
+        assert modo == modo_esperado, (
+            f"A {ancho}px se esperaba el modo «{modo_esperado}» y salió «{modo}»"
+        )
+
+        real = ventana.width()
+        flotante = getattr(ventana, "_lateral_flotante", False)
+        ocupado = ventana.zona_contenido.width()
+        if not flotante:
+            ocupado += ventana.panel_lateral.width()
+        assert ocupado <= real + 2, (
+            f"El layout desborda a {real}px: ocupa {ocupado}px"
+        )
+
+        # El contenido se limita por arriba, nunca por abajo
+        assert ventana._centro.maximumWidth() <= ANCHO_CONTENIDO_MAXIMO
+
+    # En modo cajón la barra flota y se abre con el botón
+    ventana.resize(600, 640)
+    for _ in range(8):
+        app.processEvents()
+    ventana._actualizar_layout()
+    assert getattr(ventana, "_lateral_flotante", False), (
+        "En ventana estrecha la barra debe flotar"
+    )
+    assert ventana.btn_menu_lateral.isVisible(), "Falta el botón para abrir la barra"
+    assert not ventana.panel_lateral.isVisible(), "La barra debe empezar cerrada"
+
+    ventana._abrir_cajon_lateral()
+    assert ventana.panel_lateral.isVisible(), "La barra no se abrió"
+    assert ventana._velo_lateral.isVisible(), "Falta el velo al abrir la barra"
+
+    ventana._cerrar_cajon_lateral()
+    assert not ventana.panel_lateral.isVisible(), "La barra no se cerró"
+    assert not ventana._velo_lateral.isVisible(), "El velo no se retiró"
+
+    # Los umbrales deben estar ordenados o los modos no tendrían sentido
+    assert UMBRAL_CAJON < UMBRAL_LATERAL_AMPLIO, (
+        "Los umbrales de ancho están invertidos"
+    )
+
+    # Cierre programático: sin esto, closeEvent abre un diálogo modal y la
+    # prueba se quedaría esperando a que alguien pulse un botón.
+    ventana._cierre_programatico = True
+    ventana.cerrar_completamente = True
+    ventana.close()
+    print("✅ Interfaz adaptable en los tres modos, sin desbordes")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -968,6 +1060,7 @@ def main():
     test_configuracion_autoarranque()
     test_estilos_multiplataforma()
     test_gui_responsive()
+    test_responsive_tres_modos()
     test_tema_segun_sistema()
     test_controles_auto_organizacion()
     test_actualizaciones_sin_api()

@@ -709,6 +709,13 @@ QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QSplitter::handle {{ background: {c['borde_suave']}; }}
 QToolBar {{ background: transparent; border: none; spacing: 6px; }}
+
+/* --------------------------------------------------- barra lateral flotante */
+/* Velo que oscurece el contenido cuando la barra lateral flota encima. Al
+   pulsarlo se cierra el menú. */
+QWidget#veloLateral {{
+    background-color: rgba(0, 0, 0, 0.28);
+}}
 """
 
 

@@ -88,8 +88,14 @@ if ACTUALIZACIONES_HEREDADAS:
 # Medidas del layout adaptable (en píxeles lógicos)
 ANCHO_LATERAL_COMPACTO = 64
 ANCHO_LATERAL_NORMAL = 200
-ANCHO_LATERAL_AMPLIO = 224
+ANCHO_LATERAL_CAJON = 224      # ancho cuando la barra flota sobre el contenido
 ANCHO_CONTENIDO_MAXIMO = 980
+
+# Umbrales de ancho de ventana (píxeles lógicos) para cambiar de modo.
+# Con tres modos no hay saltos bruscos: la barra solo cambia de forma cuando
+# de verdad hace falta sitio.
+UMBRAL_CAJON = 660             # por debajo, la barra flota y se abre con un botón
+UMBRAL_LATERAL_AMPLIO = 1100   # a partir de aquí, la barra muestra texto
 
 # Opacidad del fondo cuando hay un material nativo detrás (vibrancy/Mica).
 # Lo bastante baja para que se vea el material y lo bastante alta para que el
@@ -359,7 +365,8 @@ class OrganizadorAvanzado(QMainWindow):
         
         # Configuración ventana
         self.setWindowTitle("DescargasOrdenadas")
-        self.setMinimumSize(760, 560)
+        # 620x520: con el cajón lateral, la ventana puede encogerse de verdad.
+        self.setMinimumSize(620, 520)
         self._ajustar_tamano_inicial()
         
         self._setup_ui()
@@ -407,7 +414,7 @@ class OrganizadorAvanzado(QMainWindow):
                 return
             
             geom = screen.availableGeometry()
-            min_w, min_h = 760, 560
+            min_w, min_h = 620, 520
 
             ventana_guardada = {}
             if self.config_portable:
@@ -1708,9 +1715,20 @@ class OrganizadorAvanzado(QMainWindow):
         contenido_layout.setContentsMargins(24, 20, 24, 14)
         contenido_layout.setSpacing(14)
 
-        # Cabecera: título + carpeta + acción principal
+        # Cabecera: botón de menú + título + carpeta + acción principal
         cabecera = QHBoxLayout()
         cabecera.setSpacing(12)
+
+        # Solo aparece cuando la barra lateral pasa a ser flotante (ventanas
+        # estrechas), para poder abrirla y cerrarla.
+        self.btn_menu_lateral = QPushButton()
+        self.btn_menu_lateral.setProperty("rol", "plano")
+        self.btn_menu_lateral.setIcon(iconos.icono("avanzado", 18, tema=self._tema))
+        self.btn_menu_lateral.setToolTip("Mostrar u ocultar el menú")
+        self.btn_menu_lateral.setFixedSize(34, 34)
+        self.btn_menu_lateral.setVisible(False)
+        self.btn_menu_lateral.clicked.connect(self._alternar_cajon_lateral)
+        cabecera.addWidget(self.btn_menu_lateral, 0, Qt.AlignVCenter)
 
         textos = QVBoxLayout()
         textos.setSpacing(2)
@@ -1742,7 +1760,10 @@ class OrganizadorAvanzado(QMainWindow):
         self.progress_bar.setFixedHeight(6)
         contenido_layout.addWidget(self.progress_bar)
 
-        # Centrado horizontal: márgenes elásticos a los lados
+        # Centrado horizontal: márgenes elásticos a los lados. El contenido
+        # tiene ancho MÁXIMO, nunca mínimo: fijar un mínimo igual al espacio
+        # disponible era lo que impedía que la ventana encogiera y obligaba a
+        # un tamaño mínimo de 760 px.
         fila_centro = QHBoxLayout()
         fila_centro.setContentsMargins(0, 0, 0, 0)
         fila_centro.setSpacing(0)
@@ -1752,6 +1773,19 @@ class OrganizadorAvanzado(QMainWindow):
         zona_layout.addLayout(fila_centro)
 
         raiz.addWidget(self.zona_contenido, 1)
+
+        # Se guardan los layouts: la barra lateral tiene que poder salir del
+        # layout para flotar encima del contenido en ventanas estrechas.
+        self._raiz_layout = raiz
+        self._zona_layout = zona_layout
+
+        # Velo que oscurece el contenido cuando la barra lateral flota. Al
+        # pulsarlo, se cierra el menú.
+        self._velo_lateral = QWidget(central)
+        self._velo_lateral.setObjectName("veloLateral")
+        self._velo_lateral.setAttribute(Qt.WA_StyledBackground, True)
+        self._velo_lateral.setVisible(False)
+        self._velo_lateral.mousePressEvent = lambda _evento: self._cerrar_cajon_lateral()
 
         self.statusBar().showMessage("Listo")
 
@@ -1796,7 +1830,7 @@ class OrganizadorAvanzado(QMainWindow):
                 continue
             item.setIcon(iconos.icono_lateral(nombre, 18, tema=self._tema))
 
-    def _aplicar_modo_lateral(self, compacta: bool):
+    def _aplicar_textos_lateral(self, compacta: bool):
         """Muestra la barra lateral solo con iconos o con icono y texto."""
         for indice in range(self.lista_lateral.count()):
             item = self.lista_lateral.item(indice)
@@ -1855,40 +1889,129 @@ class OrganizadorAvanzado(QMainWindow):
     def _actualizar_layout(self):
         """Adapta barra lateral y ancho del contenido al tamaño disponible.
 
-        - Barra lateral: compacta en ventanas estrechas, normal en el resto.
-        - Contenido: ancho máximo legible y centrado; el espacio sobrante se
-          reparte a los lados para que nada quede descolgado en las esquinas.
+        Tres modos de barra lateral, sin saltos bruscos de ancho:
+
+        - **Normal** (a partir de :data:`UMBRAL_LATERAL_AMPLIO`): iconos y texto.
+        - **Compacto** (a partir de :data:`UMBRAL_CAJON`): solo iconos.
+        - **Cajón** (por debajo de :data:`UMBRAL_CAJON`): la barra flota sobre
+          el contenido y se abre con un botón, de modo que en ventanas estrechas
+          el contenido no comparte espacio con ella.
+
+        El contenido se limita siempre por un ancho **máximo**, nunca por un
+        mínimo: fijar un mínimo igual al espacio disponible era lo que impedía
+        que la ventana encogiera.
         """
         try:
             ancho = self.width()
 
-            # Barra lateral: el ancho se guarda en una variable propia porque
-            # Qt puede aplicar setFixedWidth antes de que lo consultemos.
-            if ancho < 860:
-                ancho_lateral = ANCHO_LATERAL_COMPACTO
-            elif ancho > 1600:
-                ancho_lateral = ANCHO_LATERAL_AMPLIO
+            if ancho < UMBRAL_CAJON:
+                modo = "cajon"
+            elif ancho < UMBRAL_LATERAL_AMPLIO:
+                modo = "compacto"
             else:
-                ancho_lateral = ANCHO_LATERAL_NORMAL
+                modo = "normal"
 
-            if getattr(self, "_ancho_lateral_aplicado", None) != ancho_lateral:
-                self._ancho_lateral_aplicado = ancho_lateral
-                self.panel_lateral.setFixedWidth(ancho_lateral)
-                self._aplicar_modo_lateral(ancho_lateral == ANCHO_LATERAL_COMPACTO)
+            if modo != getattr(self, "_modo_lateral", None):
+                self._cambiar_modo_lateral(modo)
 
-            # Ancho del contenido centrado
-            disponible = max(320, ancho - ancho_lateral - 48)
-            ancho_contenido = min(disponible, ANCHO_CONTENIDO_MAXIMO)
             self._centro.setMaximumWidth(ANCHO_CONTENIDO_MAXIMO)
-            self._centro.setMinimumWidth(min(ancho_contenido, ANCHO_CONTENIDO_MAXIMO))
 
             # Los márgenes laterales del centro se reducen en ventanas pequeñas
             margen = 24 if ancho > 900 else 16
             layout = self._centro.layout()
             if layout is not None:
                 layout.setContentsMargins(margen, 20, margen, 14)
+
+            if modo == "cajon":
+                self._posicionar_cajon_lateral()
         except Exception as e:
             logger.debug(f"No se pudo ajustar el layout: {e}")
+
+    # -------------------------------------------------- barra lateral
+
+    def _cambiar_modo_lateral(self, modo: str):
+        """Aplica uno de los tres modos de barra lateral."""
+        self._modo_lateral = modo
+
+        if modo == "cajon":
+            self._sacar_lateral_del_layout()
+            self.panel_lateral.setFixedWidth(ANCHO_LATERAL_CAJON)
+            self._aplicar_textos_lateral(False)
+            self.btn_menu_lateral.setVisible(True)
+            self._cerrar_cajon_lateral()
+            return
+
+        self._meter_lateral_en_layout()
+        self.btn_menu_lateral.setVisible(False)
+        self._velo_lateral.setVisible(False)
+
+        if modo == "compacto":
+            self.panel_lateral.setFixedWidth(ANCHO_LATERAL_COMPACTO)
+            self._aplicar_textos_lateral(True)
+        else:
+            self.panel_lateral.setFixedWidth(ANCHO_LATERAL_NORMAL)
+            self._aplicar_textos_lateral(False)
+
+    def _sacar_lateral_del_layout(self):
+        """Hace que la barra lateral flote sobre el contenido.
+
+        Un widget dentro de un layout no puede superponerse al resto, así que
+        para el modo cajón hay que sacarlo del layout y colocarlo a mano.
+        """
+        if getattr(self, "_lateral_flotante", False):
+            return
+        self._raiz_layout.removeWidget(self.panel_lateral)
+        self.panel_lateral.setParent(self.centralWidget())
+        self.panel_lateral.setVisible(False)
+        self._lateral_flotante = True
+
+    def _meter_lateral_en_layout(self):
+        """Devuelve la barra lateral a su sitio, dentro del layout."""
+        if not getattr(self, "_lateral_flotante", False):
+            return
+        self.panel_lateral.setParent(self.centralWidget())
+        self._raiz_layout.insertWidget(0, self.panel_lateral)
+        self.panel_lateral.setVisible(True)
+        self._lateral_flotante = False
+
+    def _posicionar_cajon_lateral(self):
+        """Coloca la barra flotante y el velo sobre el área de contenido."""
+        if not getattr(self, "_lateral_flotante", False):
+            return
+        centro = self.centralWidget()
+        if centro is None:
+            return
+        alto = centro.height()
+        ancho = centro.width()
+        self.panel_lateral.setGeometry(0, 0, ANCHO_LATERAL_CAJON, alto)
+        self._velo_lateral.setGeometry(0, 0, ancho, alto)
+
+    def _alternar_cajon_lateral(self):
+        """Abre o cierra la barra lateral flotante."""
+        if self.panel_lateral.isVisible():
+            self._cerrar_cajon_lateral()
+        else:
+            self._abrir_cajon_lateral()
+
+    def _abrir_cajon_lateral(self):
+        if not getattr(self, "_lateral_flotante", False):
+            return
+        self._posicionar_cajon_lateral()
+        self._velo_lateral.setVisible(True)
+        self._velo_lateral.raise_()
+        self.panel_lateral.setVisible(True)
+        self.panel_lateral.raise_()
+        self.btn_menu_lateral.setIcon(iconos.icono("cerrar", 18, tema=self._tema))
+
+    def _cerrar_cajon_lateral(self):
+        if not getattr(self, "_lateral_flotante", False):
+            return
+        self.panel_lateral.setVisible(False)
+        self._velo_lateral.setVisible(False)
+        if hasattr(self, "btn_menu_lateral"):
+            self.btn_menu_lateral.setIcon(
+                iconos.icono("avanzado", 18, tema=self._tema)
+            )
 
     def _cambiar_vista(self, indice):
         """Cambia la vista activa con una transición suave."""
@@ -1901,6 +2024,9 @@ class OrganizadorAvanzado(QMainWindow):
             self.lbl_titulo_vista.setText(titulos[indice])
         # El botón de cabecera solo tiene sentido en Inicio y Ajustes
         self.btn_cabecera_principal.setVisible(indice in (0, 3))
+        # Al elegir una sección, la barra flotante se cierra sola: si no, tapa
+        # justo lo que el usuario acaba de pedir ver.
+        self._cerrar_cajon_lateral()
         self._animar_vista()
 
     def _animar_vista(self):
@@ -1926,8 +2052,11 @@ class OrganizadorAvanzado(QMainWindow):
             efecto = QGraphicsOpacityEffect(actual)
             actual.setGraphicsEffect(efecto)
             animacion = QPropertyAnimation(efecto, b"opacity", self)
-            animacion.setDuration(150)
-            animacion.setStartValue(0.4)
+            # 90 ms en lugar de 150: el cambio de sección se siente inmediato.
+            # Aplicar un efecto de opacidad sobre una página entera obliga a
+            # componerla en un búfer aparte, así que cuanto más corto, mejor.
+            animacion.setDuration(90)
+            animacion.setStartValue(0.55)
             animacion.setEndValue(1.0)
             animacion.setEasingCurve(QEasingCurve.OutCubic)
             # Guardar referencias fuertes: si no, el recolector se lleva la
@@ -2115,7 +2244,11 @@ class OrganizadorAvanzado(QMainWindow):
         self.text_patrones = QTextEdit()
         self.text_patrones.setReadOnly(True)
         self.text_patrones.setPlaceholderText("Los patrones aprendidos aparecerán aquí…")
-        layout.addWidget(self.text_patrones, 1)
+        # Altura acotada y el hueco sobrante debajo: antes llevaba todo el
+        # espacio disponible y quedaba un recuadro enorme y vacío.
+        self.text_patrones.setMinimumHeight(150)
+        layout.addWidget(self.text_patrones, 0)
+        layout.addStretch(1)
 
         contenedor = self._contenedor_scroll(tab)
         self.tabs_avanzado.addTab(contenedor, "IA")
@@ -3436,20 +3569,32 @@ class OrganizadorAvanzado(QMainWindow):
     def _actualizar_patrones(self):
         """Actualiza patrones IA."""
         if not self.ai_categorizer:
-            self.text_patrones.setText("IA no disponible en este sistema")
+            self.text_patrones.setPlainText(
+                "La categorización con IA no está disponible en este sistema."
+            )
             return
-        
+
         try:
             stats = self.ai_categorizer.analizar_patrones_usuario()
+            patrones = stats.get('patrones_por_categoria', {})
+
+            if not patrones:
+                # Antes se dejaba solo el encabezado y el recuadro parecía roto.
+                self.text_patrones.setPlainText(
+                    "Todavía no hay patrones aprendidos.\n\n"
+                    "La aplicación aprende de cómo organizas: cuanto más la uses, "
+                    "más precisas serán sus sugerencias de categoría."
+                )
+                return
+
             texto = "Patrones aprendidos:\n\n"
-            
-            for categoria, datos in stats.get('patrones_por_categoria', {}).items():
+            for categoria, datos in patrones.items():
                 texto += f"{categoria}:\n"
                 for palabra, peso in list(datos.items())[:5]:  # Top 5
                     texto += f"  • {palabra}: {peso:.2f}\n"
                 texto += "\n"
-            
-            self.text_patrones.setText(texto)
+
+            self.text_patrones.setPlainText(texto)
         except:
             self.text_patrones.setText("No se pudieron cargar los patrones")
     
