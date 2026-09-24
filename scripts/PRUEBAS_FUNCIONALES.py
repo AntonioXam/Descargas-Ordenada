@@ -784,6 +784,47 @@ def test_permisos_conectados():
     print("✅ Los permisos están conectados y los fallos dejan rastro")
 
 
+def test_asistente_primer_arranque():
+    """El asistente se muestra una vez, es omitible y no hace llamadas de red."""
+    from organizer import permission_manager as pm, primer_arranque
+
+    # --- memoria de «ya se ha mostrado» ---
+    class ConfigFalsa:
+        def __init__(self):
+            self.datos = {}
+
+        def obtener(self, clave, defecto=None):
+            return self.datos.get(clave, defecto)
+
+        def establecer(self, clave, valor):
+            self.datos[clave] = valor
+
+    config = ConfigFalsa()
+    assert primer_arranque.debe_mostrarse(config) is True, "La primera vez debe mostrarse"
+    primer_arranque.marcar_como_visto(config)
+    assert primer_arranque.debe_mostrarse(config) is False, "No debe repetirse"
+    primer_arranque.olvidar(config)
+    assert primer_arranque.debe_mostrarse(config) is True, "Debe poder repetirse"
+
+    # Sin configuración no se puede recordar nada: mejor no mostrarlo
+    assert primer_arranque.debe_mostrarse(None) is False
+    primer_arranque.marcar_como_visto(None)   # no debe lanzar
+    primer_arranque.olvidar(None)             # no debe lanzar
+
+    # --- la conexión a internet no se presenta como permiso a conceder ---
+    red = pm.CAPACIDADES_POR_ID["red"]
+    assert red.se_concede_en_ajustes is False, (
+        "La conexión no se concede en Ajustes: se comprueba"
+    )
+    presentables = [c for c in pm.CATALOGO if c.se_concede_en_ajustes]
+    assert "red" not in [c.id for c in presentables], (
+        "El asistente no debe comprobar la red (retrasaría la ventana)"
+    )
+    assert presentables, "El asistente debe tener algo que presentar"
+
+    print("✅ Asistente de primer arranque correcto")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -812,6 +853,7 @@ def main():
     test_error_por_consola_sin_gui()
     test_sistema_de_permisos()
     test_permisos_conectados()
+    test_asistente_primer_arranque()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 

@@ -38,7 +38,7 @@ except ImportError:
 from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
 from .version import obtener_version
-from . import efectos, errores, estilos, programacion
+from . import efectos, errores, estilos, programacion, primer_arranque
 from . import permission_manager as permisos
 
 # Importar notificaciones nativas
@@ -1793,6 +1793,32 @@ class OrganizadorAvanzado(QMainWindow):
             self._efecto_nativo_intentado = True
             QTimer.singleShot(0, self._aplicar_efecto_nativo)
 
+        # El asistente de permisos se muestra una sola vez, y con la ventana ya
+        # visible, para que no aparezca antes que la propia aplicación.
+        if not getattr(self, "_asistente_comprobado", False):
+            self._asistente_comprobado = True
+            QTimer.singleShot(400, self._mostrar_asistente_si_toca)
+
+    def _mostrar_asistente_si_toca(self):
+        """Presenta los permisos la primera vez que se abre la aplicación."""
+        try:
+            if not primer_arranque.debe_mostrarse(self.config_portable):
+                return
+            self.mostrar_asistente_permisos()
+        except Exception as e:
+            logger.debug(f"No se pudo mostrar el asistente: {e}")
+
+    def mostrar_asistente_permisos(self):
+        """Abre el asistente de permisos (también desde Ajustes)."""
+        try:
+            dialogo = primer_arranque.DialogoPrimerArranque(self.permisos, self)
+            dialogo.exec()
+            primer_arranque.marcar_como_visto(self.config_portable)
+            self._actualizar_centro_permisos()
+            self._agregar_log("Revisión de permisos completada")
+        except Exception as e:
+            logger.debug(f"No se pudo abrir el asistente de permisos: {e}")
+
     def resizeEvent(self, event):
         """Recalcula el layout al cambiar el tamaño de la ventana."""
         super().resizeEvent(event)
@@ -2829,6 +2855,11 @@ class OrganizadorAvanzado(QMainWindow):
         nota.setProperty("rol", "discreta")
         nota.setWordWrap(True)
         layout.addWidget(nota)
+
+        btn_revisar = QPushButton("Volver a revisar los permisos…")
+        btn_revisar.setProperty("rol", "plano")
+        btn_revisar.clicked.connect(self.mostrar_asistente_permisos)
+        layout.addWidget(btn_revisar, 0, Qt.AlignLeft)
 
         # Primer pintado del estado (la comprobación de red se omite aquí
         # porque implica una llamada de red que el usuario no ha pedido).

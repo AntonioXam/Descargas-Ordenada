@@ -79,6 +79,14 @@ class Capacidad:
     para_que: str
     obligatoria: bool = False
     degradacion: str = ""
+    se_concede_en_ajustes: bool = True
+    """False para lo que no es un permiso del sistema que el usuario conceda.
+
+    La conexión a internet es el caso claro: no se «concede», se comprueba. Por
+    eso queda fuera del asistente de primer arranque, que solo presenta lo que
+    el usuario puede ir a habilitar en los ajustes de su sistema. Además, su
+    comprobación implica una llamada de red y retrasaría la ventana.
+    """
 
 
 @dataclass
@@ -161,6 +169,7 @@ CATALOGO: tuple[Capacidad, ...] = (
         para_que="buscar actualizaciones de la aplicación",
         obligatoria=False,
         degradacion="No se comprobarán las actualizaciones automáticamente.",
+        se_concede_en_ajustes=False,
     ),
 )
 
