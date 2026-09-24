@@ -3249,8 +3249,16 @@ class OrganizadorAvanzado(QMainWindow):
                 detalle.setText(resultado.estado.etiqueta)
 
             # El botón solo tiene sentido mientras falte el permiso.
-            boton.setText("Conceder…")
-            boton.setVisible(not resultado.disponible)
+            # El botón no debe decir «Conceder» cuando en realidad no se sabe si
+            # falta: eso es lo que hacía que, con el permiso ya dado, la
+            # aplicación siguiera pidiéndolo.
+            if resultado.estado is permisos.EstadoPermiso.DESCONOCIDO:
+                boton.setText("Revisar")
+            else:
+                boton.setText("Conceder…")
+            # Se muestra siempre que haya algo que el usuario pueda mirar: incluso
+            # «no se puede comprobar» merece un atajo a los ajustes del sistema.
+            boton.setVisible(bool(resultado.accion) or not resultado.disponible)
 
     @staticmethod
     def _estado_a_color(estado) -> str:

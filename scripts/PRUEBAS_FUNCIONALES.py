@@ -1261,6 +1261,77 @@ def test_paneles_de_ajustes_macos():
     print("✅ Paneles de Ajustes de macOS correctos y con respaldo")
 
 
+def test_transparencia_opcional():
+    """La transparencia está apagada por defecto y se activa a propósito.
+
+    Regresión: en un Mac real la ventana translúcida dejaba restos del fotograma
+    anterior y, al cambiar de sección, el título nuevo se dibujaba encima del
+    viejo. Como no se puede verificar desde Linux, queda opcional.
+    """
+    from organizer import efectos
+
+    for variable in (efectos.VARIABLE_ACTIVAR, efectos.VARIABLE_DESACTIVAR):
+        os.environ.pop(variable, None)
+
+    assert efectos.transparencia_activa() is False, (
+        "La transparencia debe estar apagada por defecto"
+    )
+    assert efectos.soportado() is False, "Sin transparencia activa, no soportado"
+    assert efectos.aplicar_efecto_ventana(object()) is False
+
+    # Activada a propósito
+    os.environ[efectos.VARIABLE_ACTIVAR] = "1"
+    try:
+        assert efectos.transparencia_activa() is True, "No se activa con la variable"
+        assert efectos.soportado() is True
+
+        # La variable de desactivar manda siempre
+        os.environ[efectos.VARIABLE_DESACTIVAR] = "1"
+        assert efectos.transparencia_activa() is False, (
+            "La variable para desactivar debe tener prioridad"
+        )
+    finally:
+        for variable in (efectos.VARIABLE_ACTIVAR, efectos.VARIABLE_DESACTIVAR):
+            os.environ.pop(variable, None)
+
+    # Y no se debe tocar autoFillBackground: hacerlo impedía limpiar la ventana
+    # entre fotogramas, que es lo que producía el texto superpuesto
+    fuente = (project_root / "organizer" / "efectos.py").read_text(encoding="utf-8")
+    assert "setAutoFillBackground(False)" not in _codigo_efectivo(fuente), (
+        "No debe desactivarse autoFillBackground: deja restos del fotograma anterior"
+    )
+
+    print("✅ La transparencia es opcional y está apagada por defecto")
+
+
+def test_notificaciones_no_se_reportan_como_faltantes():
+    """Un permiso que no se puede comprobar no debe presentarse como ausente.
+
+    Regresión: en macOS se declaraba «desconocido» y la interfaz lo interpretaba
+    como «falta el permiso», así que con las notificaciones ya concedidas la
+    aplicación seguía pidiéndolas.
+    """
+    from organizer import permission_manager as pm
+
+    estado, detalle, _ = pm._comprobar_notificaciones()
+    assert estado is not pm.EstadoPermiso.DESCONOCIDO, (
+        "«No se puede comprobar» hacía que la interfaz lo tratara como si faltara"
+    )
+    assert estado is not pm.EstadoPermiso.PENDIENTE
+    assert detalle, "Debe explicar en qué consiste la capacidad"
+
+    # Si la herramienta existe, se informa de que se puede notificar
+    if shutil.which("notify-send"):
+        assert estado is pm.EstadoPermiso.CONCEDIDO, estado
+        assert estado.disponible is True
+
+    # «Desconocido» no cuenta como disponible: por eso no debe usarse para
+    # permisos que el usuario ya puede tener concedidos
+    assert pm.EstadoPermiso.DESCONOCIDO.disponible is False
+
+    print("✅ Las notificaciones no se reportan como permiso ausente")
+
+
 def main():
     # Un fallo debe verse en la salida, no quedarse esperando en una ventana.
     sys.excepthook = _manejador_consola_pruebas
@@ -1299,6 +1370,8 @@ def main():
     test_aviso_actualizacion_no_obsoleto()
     test_actualizacion_no_escribe_dentro_de_la_app()
     test_paneles_de_ajustes_macos()
+    test_transparencia_opcional()
+    test_notificaciones_no_se_reportan_como_faltantes()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 

@@ -302,16 +302,27 @@ def _comprobar_automatizacion_finder() -> tuple[EstadoPermiso, str, str]:
 
 
 def _comprobar_notificaciones() -> tuple[EstadoPermiso, str, str]:
-    """Comprueba que exista un mecanismo de notificación disponible.
+    """Comprueba que la aplicación pueda **enviar** avisos.
 
-    Es importante ser honesto: los tres sistemas permiten enviar la orden de
-    notificar aunque el usuario las tenga silenciadas, así que **no siempre se
-    puede saber si se verán**. Se comprueba que la herramienta exista y se
-    declara ``DESCONOCIDO`` cuando no hay forma de confirmarlo.
+    Punto importante, y motivo de un fallo real: esta capacidad **no se puede
+    verificar** desde dentro de la aplicación. Los tres sistemas permiten enviar
+    la orden de notificar aunque el usuario las tenga silenciadas o desactivadas
+    para esta aplicación, así que no hay forma de saber si se verán.
+
+    Antes se declaraba ``DESCONOCIDO`` en macOS y Windows, pero la interfaz
+    interpretaba ese estado como «falta el permiso» y mostraba un botón para
+    concederlo: si el usuario ya lo había concedido, la aplicación le seguía
+    diciendo que no. Ahora se informa de lo que sí se sabe —que se pueden enviar
+    avisos— y el texto explica que quien decide mostrarlos es el sistema.
     """
     if _es_linux():
         if shutil.which("notify-send"):
-            return EstadoPermiso.CONCEDIDO, "notify-send disponible.", ""
+            return (
+                EstadoPermiso.CONCEDIDO,
+                "Se pueden enviar avisos. Si no aparecen, revisa las "
+                "notificaciones de tu escritorio.",
+                "",
+            )
         return (
             EstadoPermiso.DENEGADO,
             "No se encontró «notify-send» en el sistema.",
@@ -321,8 +332,9 @@ def _comprobar_notificaciones() -> tuple[EstadoPermiso, str, str]:
     if _es_macos():
         if shutil.which("osascript"):
             return (
-                EstadoPermiso.DESCONOCIDO,
-                "Se pueden enviar avisos; macOS decide si se muestran.",
+                EstadoPermiso.CONCEDIDO,
+                "Se pueden enviar avisos. macOS decide si se muestran: si no "
+                "los ves, revisa Ajustes → Notificaciones → DescargasOrdenadas.",
                 "",
             )
         return EstadoPermiso.DENEGADO, "No se encontró «osascript».", ""
@@ -330,8 +342,9 @@ def _comprobar_notificaciones() -> tuple[EstadoPermiso, str, str]:
     if _es_windows():
         if shutil.which("powershell"):
             return (
-                EstadoPermiso.DESCONOCIDO,
-                "Se pueden enviar avisos; Windows decide si se muestran.",
+                EstadoPermiso.CONCEDIDO,
+                "Se pueden enviar avisos. Windows decide si se muestran: si no "
+                "los ves, revisa Configuración → Notificaciones.",
                 "",
             )
         return EstadoPermiso.DENEGADO, "No se encontró PowerShell.", ""

@@ -44,19 +44,45 @@ import sys
 
 logger = logging.getLogger('organizador.efectos')
 
-# Variable de entorno para desactivar la transparencia sin tocar el código.
-# Sirve para diagnosticar problemas de renderizado y para quien no la quiera.
+# La transparencia es **opcional y está desactivada por defecto**.
+#
+# Motivo: al probarla en un Mac real, la ventana translúcida dejaba restos del
+# fotograma anterior, y al cambiar de sección el título nuevo se dibujaba encima
+# del viejo. Es un problema conocido de las ventanas no opacas en Qt, y no se
+# puede comprobar desde Linux. Hasta que se pueda verificar en cada sistema,
+# quien la quiera la activa a propósito:
+#
+#     DESCARGASORDENADAS_TRANSPARENCIA=1
+#
+# La variable antigua sigue funcionando para desactivarla explícitamente.
+VARIABLE_ACTIVAR = "DESCARGASORDENADAS_TRANSPARENCIA"
 VARIABLE_DESACTIVAR = "DESCARGASORDENADAS_SIN_TRANSPARENCIA"
+
+
+def _puesta_a_false(nombre: str) -> bool:
+    return os.environ.get(nombre, "").strip() not in ("", "0", "false")
 
 
 def desactivado_por_entorno() -> bool:
     """Indica si se ha pedido explícitamente no usar transparencia."""
-    return os.environ.get(VARIABLE_DESACTIVAR, "").strip() not in ("", "0", "false")
+    return _puesta_a_false(VARIABLE_DESACTIVAR)
+
+
+def transparencia_activa() -> bool:
+    """Indica si hay que aplicar transparencia.
+
+    Está **apagada por defecto**: hay que activarla con
+    ``DESCARGASORDENADAS_TRANSPARENCIA=1``. La variable para desactivarla manda
+    siempre, aunque también esté puesta la de activar.
+    """
+    if desactivado_por_entorno():
+        return False
+    return _puesta_a_false(VARIABLE_ACTIVAR)
 
 
 def soportado() -> bool:
     """Indica si el sistema actual admite algún efecto de transparencia."""
-    if desactivado_por_entorno():
+    if not transparencia_activa():
         return False
     return sys.platform in ("darwin", "win32") or sys.platform.startswith("linux")
 
@@ -71,8 +97,11 @@ def aplicar_efecto_ventana(ventana) -> bool:
         True si el efecto quedó aplicado. Si es False, la ventana conserva su
         aspecto opaco y nada más cambia.
     """
-    if desactivado_por_entorno():
-        logger.info("Transparencia desactivada por %s", VARIABLE_DESACTIVAR)
+    if not transparencia_activa():
+        logger.info(
+            "Transparencia desactivada (por defecto). Actívala con %s=1",
+            VARIABLE_ACTIVAR,
+        )
         return False
 
     try:
@@ -92,11 +121,14 @@ def _hacer_ventana_translucida(ventana) -> None:
     Es el paso que faltaba: sin esto, cualquier material que se ponga detrás
     queda tapado por el propio fondo de Qt. El color lo sigue poniendo la hoja
     de estilo, pero con alfa.
+
+    Nota: **no** se toca ``setAutoFillBackground``. Desactivarlo impedía que Qt
+    limpiase la ventana entre fotogramas y dejaba restos del anterior, que es
+    justo el efecto de «texto superpuesto» que apareció al probarlo en un Mac.
     """
     from PySide6.QtCore import Qt
 
     ventana.setAttribute(Qt.WA_TranslucentBackground, True)
-    ventana.setAutoFillBackground(False)
 
 
 # --------------------------------------------------------------------------
