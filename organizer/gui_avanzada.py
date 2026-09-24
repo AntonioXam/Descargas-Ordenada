@@ -39,6 +39,7 @@ from .file_organizer import OrganizadorArchivos
 from .autostart import GestorAutoarranque
 from .version import obtener_version
 from . import efectos, errores, estilos, programacion
+from . import permission_manager as permisos
 
 # Importar notificaciones nativas
 try:
@@ -283,6 +284,15 @@ class OrganizadorAvanzado(QMainWindow):
             self.organizador = OrganizadorArchivos(usar_subcarpetas=True)
 
         self.gestor_autoarranque = GestorAutoarranque()
+
+        # Sistema de permisos: la puerta por la que pasa todo lo que depende del
+        # sistema operativo, para poder pedirlo antes de fallar.
+        self.permisos = permisos.obtener_gestor_permisos(
+            Path(self.organizador.carpeta_descargas)
+        )
+        # Se recalcula en cuanto la ventana recupera el foco, para detectar que
+        # el usuario acaba de conceder un permiso sin tener que reiniciar.
+        self._permisos_pendientes = set()
         
         # Inicializar menú contextual
         if MENU_CONTEXTUAL_DISPONIBLE:
@@ -655,6 +665,11 @@ class OrganizadorAvanzado(QMainWindow):
         """Inicializa módulos avanzados."""
         funciones = []
         carpeta = Path(self.organizador.carpeta_descargas)
+
+        # Se llama también al cambiar de carpeta, así que es el sitio adecuado
+        # para mantener el motor de permisos apuntando a la carpeta correcta.
+        if getattr(self, "permisos", None) is not None:
+            self._sincronizar_carpeta_permisos()
         
         # IA
         try:
@@ -1575,7 +1590,12 @@ class OrganizadorAvanzado(QMainWindow):
                 self._ocultar_en_bandeja()
                 event.ignore()
                 return
-        
+
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            # El usuario vuelve de Ajustes del sistema: puede haber concedido
+            # un permiso, así que se comprueba sin obligarle a reiniciar.
+            QTimer.singleShot(0, self._revisar_permisos_pendientes)
+
         super().changeEvent(event)
     
     def closeEvent(self, event):
@@ -2326,6 +2346,9 @@ class OrganizadorAvanzado(QMainWindow):
 
         layout.addWidget(sistema_group)
 
+        # --- Permisos ------------------------------------------------------
+        layout.addWidget(self._crear_centro_permisos())
+
         # --- Organización --------------------------------------------------
         organizacion_group = QGroupBox("Organización")
         organizacion_layout = QVBoxLayout(organizacion_group)
@@ -2751,13 +2774,80 @@ class OrganizadorAvanzado(QMainWindow):
 
         self._agregar_log(f"Tema cambiado a: {self.combo_temas.currentText()}")
     
+    def _crear_centro_permisos(self) -> QGroupBox:
+        """Construye el centro de permisos: estado en vivo y botón para resolver.
+
+        Responde de un vistazo a la pregunta «¿por qué no me funciona esto?»,
+        que hasta ahora obligaba a leer el registro.
+        """
+        grupo = QGroupBox("Permisos")
+        layout = QVBoxLayout(grupo)
+        layout.setSpacing(8)
+
+        self._filas_permisos = {}
+
+        for capacidad in permisos.CATALOGO:
+            fila = QWidget()
+            fila_layout = QHBoxLayout(fila)
+            fila_layout.setContentsMargins(0, 2, 0, 2)
+            fila_layout.setSpacing(10)
+
+            punto = QLabel("●")
+            punto.setProperty("rol", "punto")
+            punto.setFixedWidth(16)
+            fila_layout.addWidget(punto)
+
+            textos = QVBoxLayout()
+            textos.setSpacing(1)
+
+            nombre = QLabel(capacidad.nombre)
+            nombre.setProperty("rol", "etiqueta")
+            textos.addWidget(nombre)
+
+            detalle = QLabel("")
+            detalle.setProperty("rol", "secundaria")
+            detalle.setWordWrap(True)
+            textos.addWidget(detalle)
+
+            fila_layout.addLayout(textos, 1)
+
+            boton = QPushButton("Conceder…")
+            boton.setProperty("rol", "plano")
+            boton.setToolTip(f"Sirve para {capacidad.para_que}")
+            boton.clicked.connect(
+                lambda _=False, c=capacidad.id: self._accion_permiso(c)
+            )
+            fila_layout.addWidget(boton, 0, Qt.AlignTop)
+
+            layout.addWidget(fila)
+            self._filas_permisos[capacidad.id] = (punto, detalle, boton)
+
+        nota = QLabel(
+            "Los permisos son opcionales salvo el acceso a la carpeta. Si falta "
+            "alguno, la aplicación funciona con menos funciones y lo indica."
+        )
+        nota.setProperty("rol", "discreta")
+        nota.setWordWrap(True)
+        layout.addWidget(nota)
+
+        # Primer pintado del estado (la comprobación de red se omite aquí
+        # porque implica una llamada de red que el usuario no ha pedido).
+        QTimer.singleShot(0, self._actualizar_centro_permisos)
+        return grupo
+
     def _toggle_menu_contextual(self, activo):
         """Toggle integración menú contextual."""
         if not self.gestor_menu_contextual:
             return
-        
+
         try:
             if activo:
+                # Antes de intentarlo: si el sistema necesita un permiso, se
+                # pide. Es preferible pedirlo a registrar a ciegas y fallar.
+                if not self._asegurar_permiso("acceso_total_disco"):
+                    self._revertir_switch_menu_contextual()
+                    return
+
                 exito, mensaje = self.gestor_menu_contextual.registrar_menu_contextual("carpetas")
                 if exito:
                     self._agregar_log("Menú contextual registrado")
@@ -2767,12 +2857,14 @@ class OrganizadorAvanzado(QMainWindow):
                             "Ya puedes organizar con clic derecho sobre una carpeta.",
                             tipo="success", duracion=4,
                         )
+                    # Un registro correcto pero con el Finder sin refrescar deja
+                    # la acción invisible: hay que decirlo, no ocultarlo.
+                    if "Aviso:" in mensaje:
+                        self._agregar_log(mensaje.split("Aviso:", 1)[1].strip())
                 else:
-                    self._agregar_log(f"Error: {mensaje}")
-                    self.chk_menu_contextual.blockSignals(True)
-                    self.chk_menu_contextual.setChecked(False)
-                    self.chk_menu_contextual.blockSignals(False)
-                    QMessageBox.warning(self, "Error", f"No se pudo registrar el menú contextual:\n{mensaje}")
+                    self._agregar_log(f"No se pudo registrar: {mensaje}")
+                    self._revertir_switch_menu_contextual()
+                    self._mostrar_permiso_o_error("Menú contextual", mensaje)
             else:
                 exito, mensaje = self.gestor_menu_contextual.desregistrar_menu_contextual()
                 if exito:
@@ -2781,9 +2873,176 @@ class OrganizadorAvanzado(QMainWindow):
                     self._agregar_log(f"Error: {mensaje}")
         except Exception as e:
             self._agregar_log(f"Error configurando menú contextual: {e}")
-            self.chk_menu_contextual.setChecked(False)
+            self._revertir_switch_menu_contextual()
             QMessageBox.critical(self, "Error", f"Error: {e}")
-    
+
+    def _revertir_switch_menu_contextual(self):
+        """Devuelve el interruptor a su posición real sin re-disparar el aviso."""
+        if not hasattr(self, "chk_menu_contextual"):
+            return
+        self.chk_menu_contextual.blockSignals(True)
+        self.chk_menu_contextual.setChecked(False)
+        self.chk_menu_contextual.blockSignals(False)
+
+    # ------------------------------------------------------------ permisos
+
+    def _asegurar_permiso(self, capacidad_id: str) -> bool:
+        """Comprueba un permiso y, si falta, lo pide **antes** de fallar.
+
+        Devuelve True si la operación puede seguir. Si falta el permiso, muestra
+        qué hace falta, para qué sirve y un botón que lleva al sitio exacto
+        donde concederlo.
+        """
+        try:
+            resultado = self.permisos.comprobar(capacidad_id)
+        except KeyError:
+            return True
+
+        if resultado.disponible:
+            return True
+
+        capacidad = resultado.capacidad
+        texto = f"Hace falta para {capacidad.para_que}."
+        if resultado.detalle:
+            texto = f"{resultado.detalle}\n\n{texto}"
+        if capacidad.degradacion:
+            texto += f"\n\n{capacidad.degradacion}"
+
+        caja = QMessageBox(self)
+        caja.setIcon(QMessageBox.Warning)
+        caja.setWindowTitle("Permiso necesario")
+        caja.setText(capacidad.nombre)
+        caja.setInformativeText(texto)
+
+        boton_pedir = None
+        if resultado.accion:
+            boton_pedir = caja.addButton(resultado.accion, QMessageBox.AcceptRole)
+        caja.addButton("Ahora no", QMessageBox.RejectRole)
+        caja.exec()
+
+        if boton_pedir is not None and caja.clickedButton() is boton_pedir:
+            self._solicitar_permiso(capacidad_id)
+        return False
+
+    def _accion_permiso(self, capacidad_id: str):
+        """Qué hace el botón de una fila del centro de permisos.
+
+        La conexión a internet no se «concede»: se comprueba. El resto de
+        permisos sí llevan al sitio donde se conceden.
+        """
+        if capacidad_id == "red":
+            self._actualizar_centro_permisos(incluir_red=True)
+            return
+        self._solicitar_permiso(capacidad_id)
+
+    def _solicitar_permiso(self, capacidad_id: str):
+        """Abre el sitio donde se concede el permiso y queda a la espera."""
+        try:
+            resultado = self.permisos.solicitar(capacidad_id)
+        except KeyError:
+            return
+
+        self._permisos_pendientes.add(capacidad_id)
+        self._actualizar_centro_permisos()
+
+        if resultado.detalle:
+            QMessageBox.information(self, resultado.capacidad.nombre, resultado.detalle)
+
+    def _mostrar_permiso_o_error(self, titulo: str, mensaje: str):
+        """Explica un fallo, y ofrece pedir el permiso si es lo que falta."""
+        caja = QMessageBox(self)
+        caja.setIcon(QMessageBox.Warning)
+        caja.setWindowTitle(titulo)
+        caja.setText("No se pudo completar la operación")
+        caja.setInformativeText(mensaje)
+        caja.addButton(QMessageBox.Ok)
+        caja.exec()
+
+    def _revisar_permisos_pendientes(self):
+        """Detecta permisos concedidos fuera de la app sin necesidad de reiniciar.
+
+        Se llama cuando la ventana recupera el foco: el usuario suele salir a
+        Ajustes del sistema, conceder el permiso y volver.
+        """
+        if not getattr(self, "_permisos_pendientes", None):
+            return
+
+        concedidos = []
+        for capacidad_id in list(self._permisos_pendientes):
+            try:
+                if self.permisos.comprobar(capacidad_id).disponible:
+                    concedidos.append(capacidad_id)
+            except KeyError:
+                self._permisos_pendientes.discard(capacidad_id)
+
+        if not concedidos:
+            return
+
+        for capacidad_id in concedidos:
+            self._permisos_pendientes.discard(capacidad_id)
+
+        nombres = ", ".join(
+            permisos.CAPACIDADES_POR_ID[c].nombre
+            for c in concedidos
+            if c in permisos.CAPACIDADES_POR_ID
+        )
+        self._agregar_log(f"Permiso concedido: {nombres}")
+        if self.notificador:
+            self.notificador.mostrar(
+                "Permiso concedido", nombres, tipo="success", duracion=4
+            )
+        self._actualizar_centro_permisos()
+
+    def _actualizar_centro_permisos(self, incluir_red: bool = False):
+        """Repinta el estado del centro de permisos de Ajustes.
+
+        La conexión a internet se deja sin comprobar salvo que la pida el
+        usuario: comprobarla implica una llamada de red, y no tiene sentido
+        hacer tráfico cada vez que se abre Ajustes.
+        """
+        filas = getattr(self, "_filas_permisos", None)
+        if not filas:
+            return
+        for capacidad_id, widgets in filas.items():
+            punto, detalle, boton = widgets
+
+            if capacidad_id == "red" and not incluir_red:
+                punto.setProperty("estado", "inactivo")
+                punto.style().unpolish(punto)
+                punto.style().polish(punto)
+                detalle.setText("Todavía sin comprobar.")
+                boton.setText("Comprobar")
+                boton.setVisible(True)
+                continue
+
+            try:
+                resultado = self.permisos.comprobar(capacidad_id)
+            except KeyError:
+                continue
+            punto.setProperty("estado", self._estado_a_color(resultado.estado))
+            punto.style().unpolish(punto)
+            punto.style().polish(punto)
+
+            if resultado.detalle:
+                detalle.setText(resultado.detalle)
+            else:
+                detalle.setText(resultado.estado.etiqueta)
+
+            # El botón solo tiene sentido mientras falte el permiso.
+            boton.setText("Conceder…")
+            boton.setVisible(not resultado.disponible)
+
+    @staticmethod
+    def _estado_a_color(estado) -> str:
+        """Traduce un estado de permiso al color del punto indicador."""
+        if estado.disponible:
+            return "activo"
+        if estado is permisos.EstadoPermiso.DENEGADO:
+            return "error"
+        if estado is permisos.EstadoPermiso.PENDIENTE:
+            return "aviso"
+        return "inactivo"
+
     def _verificar_actualizaciones_silencioso(self):
         """Verifica actualizaciones en segundo plano sin mostrar mensaje si no hay."""
         if not self.gestor_actualizaciones:
@@ -3589,21 +3848,30 @@ class OrganizadorAvanzado(QMainWindow):
             QMessageBox.warning(self, "Error", f"No se pudo establecer la carpeta:\n{e}")
 
     def _comprobar_permisos_gui(self, carpeta: Path) -> Optional[str]:
-        """Devuelve un aviso legible si no se puede trabajar con la carpeta."""
+        """Devuelve un aviso legible si no se puede trabajar con la carpeta.
+
+        Delega en el motor de permisos, que comprueba la escritura de verdad
+        creando un archivo temporal. ``os.access`` puede mentir cuando hay
+        listas de control de acceso o un entorno aislado, así que no basta.
+        """
+        gestor = permisos.obtener_gestor_permisos(Path(carpeta))
+        ok, mensaje = gestor.requerir("carpeta_descargas")
+        if ok:
+            # La carpeta de referencia del gestor pasa a ser la nueva.
+            self.permisos.carpeta_descargas = Path(carpeta)
+            return None
+
+        sugerencia = gestor.comprobar("carpeta_descargas").accion
+        if sugerencia:
+            mensaje = f"{mensaje}\n\nSugerencia: {sugerencia.lower()}."
+        return mensaje
+
+    def _sincronizar_carpeta_permisos(self):
+        """Mantiene el motor de permisos apuntando a la carpeta actual."""
         try:
-            if not carpeta.exists() or not carpeta.is_dir():
-                return f"La carpeta no existe:\n{carpeta}"
-            if not os.access(carpeta, os.R_OK) or not os.access(carpeta, os.W_OK):
-                if sys.platform == "darwin":
-                    return (
-                        f"macOS bloquea el acceso a:\n{carpeta}\n\n"
-                        "Ajustes del sistema → Privacidad y seguridad → "
-                        "Archivos y carpetas, y concede acceso a DescargasOrdenadas."
-                    )
-                return f"Sin permisos de lectura/escritura sobre:\n{carpeta}"
+            self.permisos.carpeta_descargas = Path(self.organizador.carpeta_descargas)
         except Exception as e:
-            return f"No se puede comprobar el acceso a la carpeta:\n{e}"
-        return None
+            logger.debug(f"No se pudo sincronizar la carpeta de permisos: {e}")
 
     def _reset_carpeta_descargas(self):
         """Restablece la carpeta de descargas a la predeterminada del sistema."""

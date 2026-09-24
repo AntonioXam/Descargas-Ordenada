@@ -27,7 +27,8 @@ import subprocess
 from pathlib import Path
 from typing import Tuple
 
-from .app_paths import obtener_recurso
+from . import permission_manager as permisos
+from .app_paths import crear_directorio, obtener_recurso
 
 logger = logging.getLogger('organizador.context_menu')
 
@@ -61,15 +62,26 @@ class GestorMenuContextual:
         iniciar_py = (Path(__file__).resolve().parent / "INICIAR.py").as_posix()
         return f'"{sys.executable}" "{iniciar_py}" --organizar-carpeta'
 
-    def registrar_menu_contextual(self, tipo="carpetas") -> Tuple[bool, str]:
-        """Registra la integración en el menú contextual del sistema."""
+    def registrar_menu_contextual(
+        self, tipo: str = "carpetas", todos_los_usuarios: bool = False
+    ) -> Tuple[bool, str]:
+        """Registra la integración en el menú contextual del sistema.
+
+        Args:
+            tipo: ``"carpetas"``, ``"archivos"`` o ``"ambos"``.
+            todos_los_usuarios: solo en Windows. Por defecto se registra para el
+                usuario actual, que **no requiere permisos de administrador**.
+                Para todos los usuarios del equipo hace falta elevación, así que
+                es una opción explícita.
+        """
         try:
             if sys.platform == "win32":
                 if tipo in ["carpetas", "ambos"]:
-                    self._registrar_carpetas()
+                    self._registrar_carpetas(todos_los_usuarios)
                 if tipo in ["archivos", "ambos"]:
-                    self._registrar_archivos()
-                return True, f"Menú contextual registrado para {tipo}"
+                    self._registrar_archivos(todos_los_usuarios)
+                alcance = "todos los usuarios" if todos_los_usuarios else "tu usuario"
+                return True, f"Menú contextual registrado para {tipo} ({alcance})"
 
             if sys.platform == "darwin":
                 return self._registrar_macos()
@@ -101,14 +113,18 @@ class GestorMenuContextual:
         import uuid
 
         raiz = Path.home() / "Library" / "Services" / f"{NOMBRE_MENU}.workflow"
-        try:
-            contenido = raiz / "Contents"
-            contenido.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
+        contenido = raiz / "Contents"
+        if not crear_directorio(contenido):
+            # No se intenta y se avisa después: se comprueba el permiso primero
+            # para poder decir exactamente qué falta y dónde concederlo.
+            ok, explicacion = permisos.requerir("acceso_total_disco")
+            if not ok:
+                return False, explicacion
             return False, (
-                "macOS ha bloqueado la creación de la acción rápida.\n\n"
-                "Ve a Ajustes del sistema → Privacidad y seguridad → Acceso total "
-                "al disco y concede permiso a DescargasOrdenadas."
+                "No se pudo crear la carpeta de la acción rápida:\n"
+                f"{contenido}\n\n"
+                "Concede Acceso total al disco a DescargasOrdenadas e inténtalo "
+                "de nuevo."
             )
 
         # El script recibe las carpetas seleccionadas y lanza la organización
@@ -220,7 +236,18 @@ class GestorMenuContextual:
         )
 
         # macOS guarda los servicios en caché: hay que pedirle que los relea
-        self._refrescar_servicios_macos()
+        fallos_refresco = self._refrescar_servicios_macos()
+
+        aviso = ""
+        if fallos_refresco:
+            # Silenciar esto dejaba al usuario sin saber por qué no le aparece
+            # la acción rápida en el Finder.
+            aviso = (
+                "\n\nAviso: no se pudo avisar al Finder del cambio "
+                f"({'; '.join(fallos_refresco)}). La acción rápida ya está "
+                "instalada, pero puede que no aparezca hasta que reinicies la "
+                "sesión."
+            )
 
         return True, (
             "Acción rápida instalada.\n\n"
@@ -228,12 +255,22 @@ class GestorMenuContextual:
             f"{NOMBRE_MENU}.\n\n"
             "Si no aparece, cierra y vuelve a abrir la ventana de Finder.\n"
             "La primera vez macOS pedirá permiso para acceder a la carpeta: acéptalo."
+            + aviso
         )
 
-    def _refrescar_servicios_macos(self):
-        """Fuerza a macOS a releer las Acciones rápidas instaladas."""
+    def _refrescar_servicios_macos(self) -> list:
+        """Fuerza a macOS a releer las Acciones rápidas instaladas.
+
+        Devuelve la lista de pasos que **no** se pudieron completar. Importa
+        saberlo: si el refresco falla, la acción rápida existe pero el Finder
+        puede no mostrarla hasta reiniciar la sesión, y hasta ahora eso ocurría
+        en silencio dejando al usuario sin explicación.
+        """
+        fallos = []
+
         try:
             from PySide6.QtCore import QSettings
+
             # El propio Finder mantiene la lista de servicios: pedirle que la
             # recargue evita tener que cerrar sesión para que aparezca.
             try:
@@ -242,19 +279,29 @@ class GestorMenuContextual:
                     QSettings.NativeFormat,
                 )
                 ajustes.sync()
-            except Exception:
-                pass
+            except Exception as e:
+                fallos.append(f"no se pudo tocar la lista de servicios ({e})")
         except ImportError:
-            pass
+            fallos.append("Qt no está disponible para refrescar los servicios")
 
         for comando in (
             ["/System/Library/CoreServices/pbs", "-flush"],
             ["/usr/bin/killall", "-HUP", "Finder"],
         ):
             try:
-                subprocess.run(comando, capture_output=True, timeout=10, check=False)
+                resultado = subprocess.run(
+                    comando, capture_output=True, timeout=10, check=False
+                )
+                if resultado.returncode != 0:
+                    fallos.append(
+                        f"{Path(comando[0]).name} devolvió {resultado.returncode}"
+                    )
             except Exception as e:
-                logger.debug(f"No se pudo ejecutar {comando[0]}: {e}")
+                fallos.append(f"no se pudo ejecutar {Path(comando[0]).name} ({e})")
+
+        if fallos:
+            logger.warning("Refresco del Finder incompleto: " + "; ".join(fallos))
+        return fallos
 
     def _desregistrar_macos(self) -> Tuple[bool, str]:
         """Elimina la acción rápida de Finder."""
@@ -439,11 +486,13 @@ class GestorMenuContextual:
         finally:
             winreg.CloseKey(key_command)
 
-    def _registrar_carpetas(self):
+    def _registrar_carpetas(self, todos_los_usuarios: bool = False):
         """Registra el menú contextual en carpetas y en el fondo de carpeta.
 
-        HKEY_CURRENT_USER no requiere permisos de administrador; además, si se
-        puede, se escribe en HKEY_CLASSES_ROOT para todos los usuarios.
+        Por defecto se escribe **solo en HKEY_CURRENT_USER**, que no necesita
+        permisos de administrador y funciona para el usuario actual. Registrar
+        para todos los usuarios del equipo exige elevación, así que es una
+        decisión explícita y no un intento silencioso.
         """
         rutas = [
             r"Directory\shell\DescargasOrdenadas",
@@ -451,20 +500,31 @@ class GestorMenuContextual:
         ]
         for key_path in rutas:
             self._escribir_clave_windows(winreg.HKEY_CURRENT_USER, r"Software\Classes\\" + key_path)
-            try:
-                self._escribir_clave_windows(winreg.HKEY_CLASSES_ROOT, key_path)
-            except PermissionError:
-                logger.debug("Sin permisos de administrador: solo se registra por usuario")
 
-    def _registrar_archivos(self):
+        if todos_los_usuarios:
+            for key_path in rutas:
+                try:
+                    self._escribir_clave_windows(winreg.HKEY_CLASSES_ROOT, key_path)
+                except PermissionError as e:
+                    logger.warning(
+                        "No se pudo registrar para todos los usuarios (requiere "
+                        f"administrador): {e}"
+                    )
+                    return
+
+    def _registrar_archivos(self, todos_los_usuarios: bool = False):
         """Registra el menú contextual para archivos (abre la carpeta contenedora)."""
         self._escribir_clave_windows(
             winreg.HKEY_CURRENT_USER, r"Software\Classes\*\shell\DescargasOrdenadas"
         )
-        try:
-            self._escribir_clave_windows(winreg.HKEY_CLASSES_ROOT, r"*\shell\DescargasOrdenadas")
-        except PermissionError:
-            logger.debug("Sin permisos de administrador: solo se registra por usuario")
+        if todos_los_usuarios:
+            try:
+                self._escribir_clave_windows(winreg.HKEY_CLASSES_ROOT, r"*\shell\DescargasOrdenadas")
+            except PermissionError as e:
+                logger.warning(
+                    "No se pudo registrar para todos los usuarios (requiere "
+                    f"administrador): {e}"
+                )
 
     def desregistrar_menu_contextual(self) -> Tuple[bool, str]:
         """Elimina la integración con el menú contextual."""

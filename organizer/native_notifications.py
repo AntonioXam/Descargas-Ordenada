@@ -34,6 +34,8 @@ class NotificadorNativo:
         self.app_name = app_name
         self.icono_path = icono_path
         self.habilitado = True
+        # Motivo del último fallo al notificar ('' si el último intento fue bien).
+        self._ultimo_fallo = ""
         
         if not self.icono_path:
             iconos = [
@@ -50,6 +52,8 @@ class NotificadorNativo:
         if not self.habilitado:
             return
 
+        self._ultimo_fallo = ""
+
         if _usar_metodo_nativo():
             self._notificar_sistema(titulo, mensaje)
             return
@@ -57,7 +61,7 @@ class NotificadorNativo:
         if not PLYER_AVAILABLE:
             self._notificar_sistema(titulo, mensaje)
             return
-        
+
         try:
             notification.notify(
                 title=f"{self.app_name} - {titulo}",
@@ -67,30 +71,73 @@ class NotificadorNativo:
                 timeout=duracion
             )
         except Exception as e:
-            logger.debug(f"Error mostrando notificación: {e}")
+            logger.debug(f"plyer no pudo notificar: {e}")
             # plyer falló (p.ej. en macOS no tiene implementación): usar el método nativo
             self._notificar_sistema(titulo, mensaje)
+
+    def ultimo_fallo(self) -> str:
+        """Motivo del último fallo al notificar, o '' si fue bien."""
+        return self._ultimo_fallo
     
-    def _notificar_sistema(self, titulo, mensaje):
-        """Fallback nativo cuando plyer no está disponible o falla."""
+    def _notificar_sistema(self, titulo, mensaje) -> bool:
+        """Método nativo del sistema, sin depender de plyer.
+
+        Devuelve si se pudo enviar. Un fallo aquí no debe pasar inadvertido: si
+        las notificaciones no funcionan, el usuario tiene que poder saberlo (el
+        centro de permisos lo muestra), en lugar de no recibir avisos sin
+        explicación.
+        """
         try:
             if sys.platform == "darwin":
                 # Escapar comillas para el AppleScript
-                titulo = titulo.replace('"', '\\"')
-                mensaje = mensaje.replace('"', '\\"')
+                titulo_escapado = titulo.replace('"', '\\"')
+                mensaje_escapado = mensaje.replace('"', '\\"')
                 script = (
-                    f'display notification "{mensaje}" '
-                    f'with title "DescargasOrdenadas" subtitle "{titulo}"'
+                    f'display notification "{mensaje_escapado}" '
+                    f'with title "DescargasOrdenadas" subtitle "{titulo_escapado}"'
                 )
-                subprocess.run(['osascript', '-e', script],
-                               check=True, capture_output=True)
-            elif sys.platform.startswith("linux"):
+                subprocess.run(
+                    ['osascript', '-e', script], check=True, capture_output=True
+                )
+                self._ultimo_fallo = ""
+                return True
+
+            if sys.platform.startswith("linux"):
                 subprocess.run(
                     ['notify-send', 'DescargasOrdenadas', titulo, mensaje],
                     check=True, capture_output=True
                 )
+                self._ultimo_fallo = ""
+                return True
+
+            if sys.platform == "win32":
+                # Sin Windows 10/11 a mano, el aviso nativo se envía con
+                # PowerShell; antes este caso no existía y el respaldo no hacía
+                # nada en Windows.
+                script = (
+                    "Add-Type -AssemblyName System.Windows.Forms;"
+                    "$n = New-Object System.Windows.Forms.NotifyIcon;"
+                    "$n.Icon = [System.Drawing.SystemIcons]::Information;"
+                    f'$n.BalloonTipTitle = "{titulo}";'
+                    f'$n.BalloonTipText = "{mensaje}";'
+                    "$n.Visible = $true; $n.ShowBalloonTip(5000);"
+                    "Start-Sleep -Seconds 6; $n.Dispose()"
+                )
+                subprocess.run(
+                    ['powershell', '-WindowStyle', 'Hidden', '-Command', script],
+                    check=True, capture_output=True,
+                )
+                return True
+        except FileNotFoundError as e:
+            self._ultimo_fallo = f"no se encontró el comando de notificaciones ({e})"
+        except subprocess.CalledProcessError as e:
+            detalle = (e.stderr or b"").decode(errors="replace").strip()[:200]
+            self._ultimo_fallo = f"el comando falló ({detalle or e.returncode})"
         except Exception as e:
-            logger.debug(f"Fallback de notificación no disponible: {e}")
+            self._ultimo_fallo = str(e)
+
+        logger.warning(f"No se pudo mostrar la notificación: {self._ultimo_fallo}")
+        return False
     
     def notificar_organizacion(self, cantidad_archivos, categorias):
         """Notificación de organización de archivos."""

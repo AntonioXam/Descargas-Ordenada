@@ -744,6 +744,46 @@ def test_sistema_de_permisos():
     shutil.rmtree(base, ignore_errors=True)
 
 
+def test_permisos_conectados():
+    """Las operaciones privilegiadas pasan por el motor y fallan de forma visible."""
+    from organizer.context_menu import GestorMenuContextual
+    from organizer.native_notifications import NotificadorNativo
+
+    gestor = GestorMenuContextual()
+
+    # Windows: por defecto se registra solo para el usuario (sin administrador).
+    import inspect
+    firma = inspect.signature(gestor.registrar_menu_contextual)
+    assert "todos_los_usuarios" in firma.parameters, (
+        "Falta el parámetro para elegir el alcance del registro"
+    )
+    assert firma.parameters["todos_los_usuarios"].default is False, (
+        "Por defecto no debe requerir privilegios de administrador"
+    )
+
+    # El refresco del Finder debe informar de los pasos que fallan, no callarse.
+    fallos = gestor._refrescar_servicios_macos()
+    assert isinstance(fallos, list), (
+        f"Debe devolver la lista de fallos, no {type(fallos).__name__}"
+    )
+    if sys.platform != "darwin":
+        assert fallos, "Fuera de macOS el refresco debe reportar que no pudo hacer nada"
+
+    # Una notificación imposible de enviar debe dejar rastro consultable.
+    notificador = NotificadorNativo()
+    notificador.deshabilitar()
+    assert notificador.ultimo_fallo() == "", "Deshabilitado no debe registrar fallo"
+
+    notificador.habilitar()
+    if not shutil.which("notify-send") and sys.platform.startswith("linux"):
+        notificador.mostrar("Prueba", "Mensaje")
+        assert notificador.ultimo_fallo(), (
+            "Sin notify-send debe quedar registrado el motivo del fallo"
+        )
+
+    print("✅ Los permisos están conectados y los fallos dejan rastro")
+
+
 def main():
     print("🍄 Ejecutando pruebas funcionales...")
     test_organizacion_basica()
@@ -771,6 +811,7 @@ def main():
     test_manejador_de_errores()
     test_error_por_consola_sin_gui()
     test_sistema_de_permisos()
+    test_permisos_conectados()
     print("\n🎉 Todas las pruebas pasaron correctamente")
 
 
