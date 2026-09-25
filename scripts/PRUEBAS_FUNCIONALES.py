@@ -1234,6 +1234,82 @@ def test_actualizacion_no_escribe_dentro_de_la_app():
     print("✅ La actualización no escribe dentro de la aplicación")
 
 
+def test_scripts_de_actualizacion_esperan_y_reabren():
+    """Los scripts esperan a que la app cierre, instalan y reabren UNA vez.
+
+    Regresiones reales reportadas tras la 7.0.0:
+
+    - En macOS la app no se reabría: el script abría el .pkg con ``open`` y
+      terminaba, sin esperar al Instalador ni volver a lanzar la aplicación
+    - En Windows «se volvía loco» al reabrir: el .bat lanzaba el instalador con
+      ``/RESTARTAPPLICATIONS`` (Inno reabre la app) y además la reabría él
+      mismo, así que arrancaban dos copias en carrera
+    - El bucle de espera de Windows usaba ``timeout``, que sin consola y con la
+      entrada redirigida falla al instante: no esperaba nada
+    """
+    from organizer.actualizaciones_mejorado import GestorActualizacionesMejorado
+    from unittest.mock import patch
+
+    gestor = GestorActualizacionesMejorado()
+    temporal = gestor._directorio_temporal()
+
+    # La rama de macOS se genera siempre igual; se fuerza el sistema para que
+    # la prueba sea la misma en Linux y macOS (en Linux el script es el del .deb)
+    with patch("organizer.actualizaciones_mejorado.sys.platform", "darwin"):
+        unix_script = gestor._script_actualizacion_unix(
+            temporal / "DescargasOrdenadas-v0.0.0.pkg"
+        )
+    unix = unix_script.read_text(encoding="utf-8")
+
+    # macOS: esperar al Instalador y reabrir al terminar
+    assert "open -W" in unix, (
+        "El script de macOS debe esperar al Instalador con «open -W»"
+    )
+    assert "Reabriendo la aplicación actualizada" in unix, (
+        "El script de macOS debe volver a abrir la aplicación al terminar"
+    )
+    # El bucle de espera debe mirar al PID de la app, no a un patrón de texto
+    # que también casa con la ruta del propio script
+    assert "PID_APP=" in unix and 'kill -0 "$PID_APP"' in unix, (
+        "La espera debe ser por PID: «pgrep -f DescargasOrdenadas» se encontraba "
+        "a sí mismo por la ruta del script"
+    )
+    assert "pgrep -f DescargasOrdenadas" not in unix
+
+    # Windows: una sola reapertura y espera fiable
+    win_script = gestor._script_actualizacion_windows(temporal / "Setup.exe")
+    win = win_script.read_text(encoding="latin-1")
+
+    assert "/NORESTARTAPPLICATIONS" in win, (
+        "El instalador no debe reabrir la app por su cuenta: la reabre el script"
+    )
+    # Ojo: «/NORESTARTAPPLICATIONS» contiene la subcadena «RESTARTAPPLICATIONS»,
+    # así que hay que buscar el flag suelto, no la subcadena.
+    assert " /RESTARTAPPLICATIONS" not in win, (
+        "No debe pedirse a Inno que reabra la app: lo hace el script"
+    )
+    assert "ping -n 2 127.0.0.1" in win, (
+        "La espera debe usar ping: «timeout» falla sin consola"
+    )
+    assert "timeout /t" not in win
+    # «Program Files (x86)» entre paréntesis rompería el bloque if/else de cmd:
+    # se usa una variable intermedia (PF/PF86) definida fuera del bloque
+    assert 'set "PF86=%ProgramFiles(x86)%"' in win
+    assert '"%PF86%\\DescargasOrdenadas' in win
+    assert '"%PF%\\DescargasOrdenadas' in win
+    assert win.count('start "" "') == 2, (
+        "Debe haber exactamente un lanzamiento por rama (PF y PF86)"
+    )
+
+    for script in (unix_script, win_script):
+        try:
+            script.unlink()
+        except OSError:
+            pass
+
+    print("✅ Los scripts de actualización esperan y reabren una sola vez")
+
+
 def test_paneles_de_ajustes_macos():
     """Los enlaces a los paneles de macOS son correctos y tienen alternativa.
 
@@ -1385,6 +1461,7 @@ def main():
     test_tokens_de_diseno()
     test_aviso_actualizacion_no_obsoleto()
     test_actualizacion_no_escribe_dentro_de_la_app()
+    test_scripts_de_actualizacion_esperan_y_reabren()
     test_paneles_de_ajustes_macos()
     test_transparencia_opcional()
     test_notificaciones_no_se_reportan_como_faltantes()

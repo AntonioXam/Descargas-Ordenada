@@ -3438,11 +3438,11 @@ class OrganizadorAvanzado(QMainWindow):
             aviso.setText(f"DescargasOrdenadas v{version} se instalará ahora.")
             if sys.platform == "darwin":
                 # En macOS el Instalador pide la contraseña con su propio
-                # diálogo, así que no se puede prometer que se reabra sola.
+                # diálogo; el script espera a que termine y reabre la app.
                 aviso.setInformativeText(
                     "La aplicación se cerrará y se abrirá el Instalador de macOS.\n\n"
-                    "Escribe tu contraseña y sigue los pasos. Cuando termine, "
-                    "vuelve a abrir DescargasOrdenadas desde Aplicaciones."
+                    "Escribe tu contraseña y sigue los pasos: al terminar, la "
+                    "aplicación se abrirá sola de nuevo."
                 )
                 etiqueta_instalar = "Instalar ahora"
             else:

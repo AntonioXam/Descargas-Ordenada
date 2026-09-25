@@ -4,6 +4,51 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [7.0.2] - 2026-09-25
+
+**La actualización vuelve a reabrir la aplicación, en los tres sistemas.**
+Fallos reales reportados tras actualizar a la 7.0.1: en macOS la app no volvía
+a abrirse sola y en Windows «se volvía loco» al reabrir. No hay cambios de
+interfaz.
+
+### 🍎 macOS: la aplicación no se reabría
+El script abría el `.pkg` con `open` y terminaba ahí: nunca esperaba a que el
+Instalador del sistema acabara ni volvía a lanzar la aplicación, así que había
+que abrirla a mano desde Aplicaciones. Ahora se usa `open -W` (espera al
+Instalador) y, al terminar, se reabre la app.
+
+### 🪟 Windows: dos copias en carrera al reabrir
+Dos fallos encadenados:
+
+- El instalador se lanzaba con `/RESTARTAPPLICATIONS`, que hace a Inno Setup
+  reabrir la aplicación, **y además** el script la reabría al final. Ahora se
+  usa `/NORESTARTAPPLICATIONS`: la reapertura la hace solo el script, una vez
+- El bucle de espera usaba `timeout`, que sin consola y con la entrada
+  redirigida falla al instante («Input redirection is not supported»): el
+  instalador se lanzaba con la aplicación todavía en marcha. Ahora se usa
+  `ping -n 2 127.0.0.1`
+- De paso, `%ProgramFiles(x86)%` iba dentro del bloque `if`: los paréntesis
+  rompen el bloque en `cmd`. Se usan variables `%PF%`/`%PF86%` definidas fuera
+
+### ⏳ La espera al cierre era frágil
+El script esperaba a que desapareciera «DescargasOrdenadas» con
+`pgrep -f`: como su propia ruta contiene ese nombre, se encontraba a sí mismo.
+Ahora se espera al PID exacto de la aplicación.
+
+### 🧪 Pruebas
+- **37 pruebas funcionales** (era 36): nueva prueba que verifica que los
+  scripts esperan de verdad y que solo hay **una** reapertura, en los dos
+  sistemas
+- Las pruebas del script de Windows cubren los tres fallos anteriores: el flag
+  de Inno, la espera con `ping` y las variables de «Program Files»
+
+### 📝 Documentación
+`docs/ACTUALIZACIONES.md` describía el método antiguo (un `.zip` con copia de
+archivos). Ahora describe el flujo real: instalador nativo, cierre, instalación
+y reapertura automática.
+
+---
+
 ## [7.0.1] - 2026-09-25
 
 **Corrección de un fallo que solo se veía en macOS.** No hay cambios de

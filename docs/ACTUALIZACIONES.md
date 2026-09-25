@@ -39,23 +39,22 @@ Si hay una versión nueva, verás un mensaje:
 
 Si eliges "Descargar e Instalar":
 
-1. **Descarga** el archivo .zip desde GitHub
+1. **Descarga** el instalador de tu sistema desde GitHub
+   - Windows: `.exe`; macOS: `.pkg`; Linux: `.deb`
    - Verás una barra de progreso
-   - Se descarga en una carpeta temporal
+   - Se descarga en una carpeta temporal tuya, nunca dentro de la aplicación
 
-2. **Crea un Backup** automático
-   - Tu versión actual se guarda como respaldo
-   - Por si necesitas volver atrás
+2. **Cierra** la aplicación
+   - Es imprescindible en Windows: el `.exe` en uso no se puede reemplazar
 
 3. **Instala** la nueva versión
-   - Descomprime los archivos
-   - Copia a la carpeta actual
-   - **Preserva tu configuración** (.config/)
+   - Windows: el instalador se ejecuta en silencio
+   - macOS: se abre el Instalador del sistema y pide tu contraseña
+   - Linux: el gestor de paquetes pide permisos
 
 4. **Reinicia** automáticamente
-   - Cierra la aplicación actual
-   - Espera 2 segundos
-   - Abre la nueva versión
+   - Al terminar la instalación, la aplicación se abre sola
+   - Solo se lanza **una** copia: el instalador no reabre nada por su cuenta
 
 ### 4️⃣ Listo! 🎉
 

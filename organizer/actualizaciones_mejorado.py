@@ -526,6 +526,16 @@ class GestorActualizacionesMejorado:
         Windows no permite reemplazar un .exe en uso, así que el único orden
         fiable es: cerrar → instalar encima → reabrir. El script se ejecuta
         desacoplado de la app para sobrevivir a su cierre.
+
+        Dos detalles que causaron fallos reales:
+
+        - La espera usa ``ping``, no ``timeout``: el script se lanza sin consola
+          y con la entrada redirigida, y en esa situación ``timeout`` falla al
+          instante («Input redirection is not supported»), así que el bucle no
+          esperaba nada y el instalador se lanzaba con la aplicación abierta.
+        - El instalador se lanza con ``/NORESTARTAPPLICATIONS``: si Inno reabre
+          la aplicación y además la reabre este script, se lanzan dos copias a
+          la vez. La reapertura la hace solo el script, al final.
         """
         # El script y su registro viven en la carpeta temporal del usuario: en
         # ``Program Files`` no se puede escribir sin permisos de administrador.
@@ -540,21 +550,27 @@ class GestorActualizacionesMejorado:
             "setlocal",
             f'set "INSTALADOR={ruta_instalador}"',
             f'set "LOG={log}"',
+            "rem «Program Files (x86)» lleva paréntesis y rompería los bloques",
+            'set "PF=%ProgramFiles%"',
+            'set "PF86=%ProgramFiles(x86)%"',
             "rem Esperar a que la aplicación termine (máximo 60 s)",
             "for /L %%i in (1,1,60) do (",
             '  tasklist /FI "IMAGENAME eq DescargasOrdenadas.exe" | find /I "DescargasOrdenadas.exe" >nul',
             "  if errorlevel 1 goto instalar",
-            "  timeout /t 1 /nobreak >nul",
+            "  ping -n 2 127.0.0.1 >nul",
             ")",
             ":instalar",
             'echo [%date% %time%] Lanzando instalador >> "%LOG%"',
-            f'"%INSTALADOR%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS >> "%LOG%" 2>&1',
+            (
+                '"%INSTALADOR%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART '
+                '/CLOSEAPPLICATIONS /NORESTARTAPPLICATIONS >> "%LOG%" 2>&1'
+            ),
             'echo [%date% %time%] Instalador terminado >> "%LOG%"',
-            "rem Reabrir la aplicación actualizada (la ruta puede estar en uno u otro)",
-            'if exist "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" (',
-            '  start "" "%ProgramFiles%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            "rem Reabrir la aplicación actualizada (una sola vez, aquí)",
+            'if exist "%PF%\\DescargasOrdenadas\\DescargasOrdenadas.exe" (',
+            '  start "" "%PF%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
             ") else (",
-            '  start "" "%ProgramFiles(x86)%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
+            '  start "" "%PF86%\\DescargasOrdenadas\\DescargasOrdenadas.exe" --minimizado',
             ")",
             'del "%~f0"',
             "endlocal",
@@ -562,13 +578,32 @@ class GestorActualizacionesMejorado:
         script.write_text("\r\n".join(lineas) + "\r\n", encoding="latin-1", errors="replace")
         return script
 
+    def _ruta_bundle_macos(self) -> Optional[str]:
+        """Ruta del paquete .app desde el que se está ejecutando la app.
+
+        Se obtiene del propio ejecutable (``.../DescargasOrdenadas.app/Contents/
+        MacOS/DescargasOrdenadas``). Devuelve ``None`` si no se corre desde un
+        paquete (por ejemplo, en desarrollo).
+        """
+        try:
+            partes = Path(sys.executable).resolve().parts
+            if "Contents" in partes:
+                bundle = Path(*partes[: partes.index("Contents")])
+                if bundle.suffix == ".app":
+                    return str(bundle)
+        except Exception:
+            pass
+        return None
+
     def _script_actualizacion_unix(self, ruta_instalador: Path) -> Path:
         """Script para macOS/Linux: espera el cierre, instala y reabre.
 
         En macOS **no** se usa el comando ``installer``, porque exige ser root y
         fallaba siempre: se abre el .pkg con ``open``, que lanza el Instalador
-        del sistema y pide la contraseña con su propio diálogo. Por eso en macOS
-        la aplicación no se reabre sola (el Instalador tiene el control).
+        del sistema y pide la contraseña con su propio diálogo. Con ``open -W``
+        se espera a que el Instalador termine y después se reabre la aplicación:
+        antes se abría el instalador y el script terminaba, así que la app no
+        volvía a abrirse sola.
 
         En Linux, el .deb se instala con el gestor del sistema pidiendo permisos
         de forma explícita (pkexec o sudo en una terminal).
@@ -585,13 +620,21 @@ class GestorActualizacionesMejorado:
             # siempre. Abrir el .pkg con ``open`` lanza el Instalador de macOS,
             # que pide la contraseña con su propio diálogo: es la vía correcta
             # y no necesita privilegios previos.
+            #
+            # ``-W`` espera a que el Instalador se cierre: sin él, el script
+            # reabría la aplicación mientras la instalación seguía en marcha.
+            bundle = self._ruta_bundle_macos() or "/Applications/DescargasOrdenadas.app"
             instalacion = (
-                'echo "[$(date)] Abriendo el Instalador de macOS" >>"$LOG"\n'
-                f'/usr/bin/open "{ruta_instalador}" >>"$LOG" 2>&1'
+                'echo "[$(date)] Abriendo el Instalador de macOS '
+                '(se espera a que termine)" >>"$LOG"\n'
+                f'/usr/bin/open -W "{ruta_instalador}" >>"$LOG" 2>&1'
             )
             reabrir_linea = (
-                'echo "[$(date)] El Instalador sigue abierto; no se reabre sola" '
-                '>>"$LOG"'
+                'echo "[$(date)] Reabriendo la aplicación actualizada" >>"$LOG"\n'
+                f'BUNDLE="{bundle}"\n'
+                'if [ ! -d "$BUNDLE" ]; then '
+                'BUNDLE="/Applications/DescargasOrdenadas.app"; fi\n'
+                '/usr/bin/open "$BUNDLE" --args --minimizado >>"$LOG" 2>&1'
             )
         else:
             instalacion = (
@@ -606,9 +649,13 @@ class GestorActualizacionesMejorado:
             "#!/usr/bin/env bash",
             "# DescargasOrdenadas: actualiza sin dejar dos copias abiertas",
             f'LOG="{log}"',
+            f"PID_APP={os.getpid()}",
             'echo "[$(date)] Esperando a que la aplicación se cierre" >>"$LOG"',
             "for _ in $(seq 1 60); do",
-            "  if ! pgrep -f DescargasOrdenadas >/dev/null 2>&1; then break; fi",
+            # Se espera al PID de la propia aplicación, no a un patrón de texto:
+            # buscar «DescargasOrdenadas» con pgrep -f encontraba al propio
+            # script (su ruta contiene ese nombre) y esperaba de más.
+            '  if ! kill -0 "$PID_APP" 2>/dev/null; then break; fi',
             "  sleep 1",
             "done",
             'echo "[$(date)] Instalando la nueva versión" >>"$LOG"',
@@ -695,12 +742,12 @@ class GestorActualizacionesMejorado:
             _cerrar()
 
         if sys.platform == "darwin":
-            # En macOS el Instalador pide la contraseña con su propio diálogo,
-            # así que no se puede reabrir la aplicación automáticamente.
+            # El Instalador pide la contraseña con su propio diálogo. El script
+            # espera con «open -W» a que termine y después reabre la aplicación.
             return True, (
                 "La aplicación se cerrará y se abrirá el Instalador de macOS.\n\n"
-                "Escribe tu contraseña y sigue los pasos. Cuando termine, vuelve "
-                "a abrir DescargasOrdenadas desde Aplicaciones."
+                "Escribe tu contraseña y sigue los pasos: al terminar, la "
+                "aplicación se abrirá sola de nuevo."
             )
         return True, (
             "La aplicación se cerrará, el instalador se ejecutará en segundo plano "
