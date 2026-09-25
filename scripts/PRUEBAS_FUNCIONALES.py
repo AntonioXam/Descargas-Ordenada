@@ -1269,6 +1269,9 @@ def test_paneles_de_ajustes_macos():
 
     # Abrir un panel inventado no debe abrir nada y debe dar instrucciones
     abierto, texto = pm.abrir_ajustes_del_sistema("capacidad_sin_panel")
+    assert abierto is False, (
+        "Un panel sin ancla conocida no debe abrir los Ajustes reales"
+    )
     assert isinstance(abierto, bool) and texto, (abierto, texto)
 
     print("✅ Paneles de Ajustes de macOS correctos y con respaldo")

@@ -4,6 +4,27 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [Sin publicar]
+
+### 🐛 Correcciones
+- **Una capacidad de permiso desconocida ya no abre los Ajustes del sistema.**
+  `abrir_ajustes_del_sistema` abría el panel genérico de Privacidad aunque el
+  identificador no existiera en el catálogo. Además de ser engañoso, hacía que
+  la prueba del motor de permisos abriera Ajustes de verdad en macOS: la suite
+  fallaba en un Mac y pasaba en Linux, por eso no se había visto
+
+### 🧪 Pruebas
+- **Las pruebas funcionales se ejecutan en cada push a `main` y en cada pull
+  request** (Linux y macOS), no solo al publicar una etiqueta. El fallo anterior
+  únicamente aparecía en macOS
+
+### 📝 Documentación
+- README al día: versión 7.0, badges, los temas reales (claro, oscuro y
+  automático), la transparencia (apagada por defecto desde la 6.0.2), el nombre
+  real de la acción principal y las rutas que existen
+
+---
+
 ## [7.0.0] - 2026-09-24
 
 **Identidad visual nueva.** Se abandona el aspecto de tarjetas redondeadas
@@ -61,7 +82,7 @@ cosas se colocan. Cada decisión sale de ahí:
   leían como un bloque continuo
 
 ### 🧪 Pruebas
-35 pruebas funcionales. Las de responsive y de tokens se derivan ahora de los
+36 pruebas funcionales. Las de responsive y de tokens se derivan ahora de los
 umbrales y de la lista real de tokens, así que no hay que reescribirlas cada vez
 que se ajusta el diseño.
 

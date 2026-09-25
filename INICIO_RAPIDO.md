@@ -23,17 +23,17 @@ INICIAR.bat
 ## ⚙️ Configuración Básica
 
 ### Auto-Organización
-1. Marca **"Modo BÁSICO"** o **"Modo DETALLADO"**
+1. Marca **"Básico"** o **"Detallado"**
 2. Elige el **intervalo** (30s, 1min, 5min, etc.)
 3. ¡Ya está! Se organiza automáticamente
 
 ### Cambiar Tema
-1. Ve a **"⚙️ Configuración"**
-2. Elige tu tema favorito (5 opciones)
+1. Ve a **"Ajustes"**
+2. Elige **Automático (sistema)**, **Claro** u **Oscuro**
 3. Se aplica al instante
 
 ### Inicio Automático
-1. Ve a **"⚙️ Configuración"**
+1. Ve a **"Ajustes"**
 2. Marca **"Inicio automático"**
 3. La app se abrirá al encender el PC, Mac o Linux
 

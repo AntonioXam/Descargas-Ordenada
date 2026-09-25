@@ -1,5 +1,10 @@
 # 🍄 DescargasOrdenadas v3.0 - Mejoras Implementadas
 
+> **Documento histórico.** Refleja el estado de la versión 3.0. Desde entonces,
+> `organizer/gui.py` dejó de ser una interfaz en uso y se conserva solo como
+> respaldo de `organizer/gui_avanzada.py`, que es la interfaz vigente. Para los
+> cambios por versión, consulta `CHANGELOG.md`.
+
 ## 📋 Resumen de Mejoras
 
 Este documento detalla las mejoras implementadas para solucionar los problemas identificados por el usuario.

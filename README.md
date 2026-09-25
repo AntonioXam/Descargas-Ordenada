@@ -1,9 +1,9 @@
-# DescargasOrdenadas v6.0
+# DescargasOrdenadas v7.0
 
 **Organiza automáticamente tu carpeta de descargas** con una interfaz moderna tipo Apple, menú contextual en los tres sistemas y actualización integrada.
 
-![Versión](https://img.shields.io/badge/versión-5.0.0-blue)
-![Python](https://img.shields.io/badge/python-3.8+-blue)
+![Versión](https://img.shields.io/badge/versión-7.0.0-blue)
+![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
 ---
@@ -95,16 +95,26 @@ aplicación, se detecta al volver a ella: no hay que reiniciar nada.
 En **Windows no hace falta ser administrador**: el menú contextual se registra
 solo para tu usuario, que no requiere permisos especiales.
 
-Si quieres prescindir de la transparencia (por rendimiento, por gusto o para
-diagnosticar), arranca con `DESCARGASORDENADAS_SIN_TRANSPARENCIA=1`.
+La transparencia está **apagada por defecto**: en un Mac real dejaba restos del
+fotograma anterior al cambiar de sección, así que se activa a propósito con
+`DESCARGASORDENADAS_TRANSPARENCIA=1`. Para forzar que esté apagada, usa
+`DESCARGASORDENADAS_SIN_TRANSPARENCIA=1`.
 
 ---
 
 ## ✨ Características Principales
 
+### 🆕 Novedades v7.0
+- **Identidad propia «mesa de clasificación»** - Se acabaron las tarjetas: listas alineadas, una línea fina como jerarquía y el carmesí de la seta como sello en la sección activa y en una sola acción por pantalla
+- **Números que se alinean** - Recuentos, tamaños, intervalos y rutas van en monoespaciada con cifras tabulares
+- **Raíl lateral** - La barra lateral pasa a ser un raíl con los nombres de las secciones y una barra carmesí marcando dónde estás
+- **Más ancho de lectura** - El contenido baja de 980 a 760 px para que etiqueta y valor no queden a 750 px de distancia
+- **Estado y títulos con jerarquía** - El estado de la app deja de competir en tamaño con el título de la sección
+- **Correcciones** - El permiso de notificaciones ya no se pide cuando no consta que falte; la transparencia pasa a estar apagada por defecto (dejaba restos entre fotogramas en macOS); «Deshacer» deja de ser una acción de peligro
+
 ### 🆕 Novedades v6.0
 - **Permisos que se piden, no que se sufren** - Asistente de primer arranque y centro de permisos con estado en vivo
-- **Transparencia que se ve** - *Vibrancy* real en macOS y efecto Mica en Windows 11, que antes estaban activados pero tapados por el fondo de Qt
+- **Transparencia real (opcional)** - *Vibrancy* en macOS y efecto Mica en Windows 11, que antes estaban activados pero tapados por el fondo de Qt
 - **Iconos propios** - 23 iconos SVG dibujados para la aplicación, en lugar de los genéricos del sistema
 - **Adaptable de verdad** - La barra lateral pasa a flotante en ventanas estrechas y la ventana puede encogerse a 620×520 (antes no bajaba de 760×560)
 - **Nada falla en silencio** - Los errores se explican en una ventana legible y quedan guardados en `errores.log`
@@ -157,7 +167,7 @@ diagnosticar), arranca con `DESCARGASORDENADAS_SIN_TRANSPARENCIA=1`.
 
 ### 🎯 Funcionalidades v3.1
 - 🔔 **Notificaciones Nativas** - Alertas del sistema
-- 🎨 **5 Temas** - Azul, Verde, Púrpura, Naranja, Gris
+- 🎨 **Temas claro y oscuro** - Con modo automático según el sistema
 - 💾 **100% Portable** - Copia y funciona en cualquier PC
 - 🖱️ **Menú Contextual** - Click derecho en carpetas
 - 🔄 **Actualizaciones Automáticas** - Se descarga e instala sola desde GitHub (sin necesidad de cuenta)
@@ -179,11 +189,10 @@ Descargas-Ordenada/
 │
 ├── 🚀 INICIAR.bat                 ← EJECUTA ESTO
 ├── 🔧 INSTALAR_DEPENDENCIAS.bat  ← Solo primera vez
-├── 📄 INICIAR.py                 ← Script principal
-├── 📖 LEEME.txt                  ← Guía rápida
+├── 📄 organizer/INICIAR.py        ← Script principal
 │
 ├── 📚 docs/                      ← Documentación completa
-├── 🛠️ scripts/                   ← Scripts auxiliares
+├── 🛠️ scripts/                   ← Scripts auxiliares y pruebas
 ├── 🍄 organizer/                 ← Código de la aplicación
 ├── 📦 resources/                 ← Iconos y recursos
 └── ⚙️ .config/                   ← Tu configuración
@@ -212,13 +221,13 @@ python organizer/INICIAR.py --auto --modo detallado --recursivo
 
 ### Organización Manual
 1. Abre la aplicación (INICIAR.bat)
-2. Click en **"✨ Organizar archivos nuevos"**
+2. Pulsa **"Organizar ahora"**
 3. ¡Listo! Tus archivos están organizados
 
 ### Organización Automática
 1. Abre la aplicación
-2. Elige el intervalo (ej: "⚡ 1 minuto")
-3. Activa **"📁 Modo BÁSICO"** o **"🔧 Modo DETALLADO"**
+2. Elige el intervalo (ej: "1 minuto")
+3. Activa **"Básico"** o **"Detallado"**
 4. La aplicación organizará automáticamente cada X tiempo
 
 ### Inicio con el sistema
@@ -231,23 +240,21 @@ python organizer/INICIAR.py --auto --modo detallado --recursivo
 
 | Tema | Descripción |
 |------|-------------|
-| 🔵 **Azul Oscuro** | Moderno y profesional (predeterminado) |
-| 🟢 **Verde Oscuro** | Natural y relajante |
-| 🟣 **Púrpura** | Elegante y distintivo |
-| 🟠 **Naranja** | Energético y cálido |
-| ⚫ **Gris** | Clásico y minimalista |
+| ☀️ **Claro** | Papel cálido con tinta oscura |
+| 🌙 **Oscuro** | Fondo profundo con el mismo carmesí de marca |
+| 🔄 **Automático** | Sigue el tema del sistema (predeterminado) |
 
 ---
 
 ## 📊 Requisitos
 
 ### Sistema
-- Windows 10/11
+- Windows 10/11, macOS (11 o posterior) o Linux con escritorio
 - 100 MB de espacio libre
 - Conexión a internet (para actualizaciones)
 
 ### Dependencias (se instalan automáticamente)
-- Python 3.8+
+- Python 3.9+
 - PySide6 ≥6.5.0
 - Pillow ≥10.0.0
 - watchdog ≥3.0.0
@@ -265,8 +272,7 @@ python organizer/INICIAR.py --auto --modo detallado --recursivo
 INSTALAR_DEPENDENCIAS.bat
 
 # Verificar instalación
-cd scripts
-python PRUEBAS_v3.1.py
+python scripts/PRUEBAS_FUNCIONALES.py
 ```
 
 ### Los textos se ven cortados
@@ -274,8 +280,8 @@ python PRUEBAS_v3.1.py
 - Resolución mínima recomendada: 1024x768
 
 ### Más ayuda
-- Lee la guía completa: `docs\GUIA_COMPLETA_v3.1.txt`
-- Consulta la documentación: `docs\README.md.backup`
+- Lee la guía completa: `docs/COMO_USAR.md`
+- Consulta las mejoras por versión: `CHANGELOG.md`
 
 ---
 
@@ -329,6 +335,6 @@ MIT License - Creado por Champi 🍄
 
 **Mantén tu carpeta de descargas siempre organizada automáticamente** 🍄✨
 
-**Versión:** 3.4.0  
+**Versión:** 7.0.0  
 **Fecha:** Septiembre 2026  
 **Estado:** ✅ Funcional y estable

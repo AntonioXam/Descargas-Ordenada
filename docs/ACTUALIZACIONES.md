@@ -68,9 +68,9 @@ Tu aplicación está actualizada y funcionando con todas tus preferencias guarda
 Si quieres comprobar si hay actualizaciones en cualquier momento:
 
 1. Abre la aplicación
-2. Ve a la pestaña **"⚙️ Configuración"**
-3. Haz scroll hasta **"🔄 Actualizaciones"**
-4. Click en **"🔍 Buscar Actualizaciones"**
+2. Ve a la sección **"Ajustes"**
+3. Haz scroll hasta **"Actualizaciones"**
+4. Pulsa **"Buscar actualizaciones"**
 
 ---
 

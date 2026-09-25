@@ -461,7 +461,17 @@ def abrir_ajustes_del_sistema(capacidad_id: str) -> tuple[bool, str]:
     Devuelve (abierto, mensaje). Si no se puede abrir automáticamente se
     devuelven las instrucciones para llegar a mano: es mejor dar indicaciones
     que decir que se ha abierto algo que en realidad no se ha abierto.
+
+    Una capacidad que no esté en el catálogo no abre nada: no hay sección
+    conocida que la resuelva y abrir los Ajustes a ciegas solo confunde
+    (además, en las pruebas tendría efectos reales en el equipo).
     """
+    if capacidad_id not in CAPACIDADES_POR_ID:
+        return False, (
+            "No se conoce la sección de Ajustes donde se concede este permiso.\n\n"
+            "Concede el permiso manualmente y vuelve a intentarlo."
+        )
+
     try:
         if _es_macos():
             for url in _PANELES_MACOS.get(capacidad_id, []):
