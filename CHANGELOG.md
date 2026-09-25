@@ -4,24 +4,33 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
-## [Sin publicar]
+## [7.0.1] - 2026-09-25
+
+**Corrección de un fallo que solo se veía en macOS.** No hay cambios de
+interfaz: esta versión existe para que el permiso se maneje bien y para que el
+fallo no pueda volver sin que nadie se entere.
 
 ### 🐛 Correcciones
 - **Una capacidad de permiso desconocida ya no abre los Ajustes del sistema.**
   `abrir_ajustes_del_sistema` abría el panel genérico de Privacidad aunque el
   identificador no existiera en el catálogo. Además de ser engañoso, hacía que
   la prueba del motor de permisos abriera Ajustes de verdad en macOS: la suite
-  fallaba en un Mac y pasaba en Linux, por eso no se había visto
+  fallaba en un Mac y pasaba en Linux, por eso no se había visto. Ahora esa
+  capacidad no abre nada y explica que hay que concederlo a mano
 
 ### 🧪 Pruebas
 - **Las pruebas funcionales se ejecutan en cada push a `main` y en cada pull
   request** (Linux y macOS), no solo al publicar una etiqueta. El fallo anterior
   únicamente aparecía en macOS
+- Se refuerza la prueba de los paneles de macOS: además de que devuelva
+  instrucciones, ahora exige que **no** se abra nada cuando no hay ancla
 
 ### 📝 Documentación
-- README al día: versión 7.0, badges, los temas reales (claro, oscuro y
+- README al día: versión 7.0.1, badges, los temas reales (claro, oscuro y
   automático), la transparencia (apagada por defecto desde la 6.0.2), el nombre
   real de la acción principal y las rutas que existen
+- El conteo de pruebas del CHANGELOG de la 7.0.0 vuelve a coincidir con las
+  pruebas reales (36)
 
 ---
 
