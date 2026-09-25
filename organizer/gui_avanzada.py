@@ -4177,7 +4177,7 @@ class OrganizadorAvanzado(QMainWindow):
         if sys.platform == "win32":
             try:
                 import subprocess
-                
+
                 # Determinar ruta del proyecto
                 if getattr(sys, 'frozen', False):
                     # Si es ejecutable empaquetado
@@ -4187,7 +4187,7 @@ class OrganizadorAvanzado(QMainWindow):
                     proyecto_dir = Path(sys.argv[0]).parent
                     bat_sin_consola = proyecto_dir / "windows" / "DescargasOrdenadas_SinConsola.bat"
                     bat_principal = proyecto_dir / "windows" / "DescargasOrdenadas.bat"
-                    
+
                     if bat_sin_consola.exists():
                         comando = [str(bat_sin_consola), "--minimizado"]
                     elif bat_principal.exists():
@@ -4198,52 +4198,37 @@ class OrganizadorAvanzado(QMainWindow):
                         if python_exe.endswith('python.exe'):
                             python_exe = python_exe.replace('python.exe', 'pythonw.exe')
                         comando = [python_exe, sys.argv[0], "--minimizado"]
-                
+
                 self._agregar_log(f"Reiniciando con comando: {' '.join(comando)}")
-                
-                # Iniciar proceso sin consola
-                if str(comando[0]).endswith('.bat'):
-                    # Para archivos .bat, usar diferentes flags
-                    subprocess.Popen(
-                        comando,
-                        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-                        stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        shell=True
-                    )
-                else:
-                    # Para ejecutables Python
-                    subprocess.Popen(
-                        comando,
-                        creationflags=subprocess.CREATE_NO_WINDOW,
-                        stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                
-                self._agregar_log("Reiniciando sin consola...")
 
                 # La nueva copia debe arrancar DESPUÉS de que esta libere el
-                # bloqueo de instancia única; si no, se cerraría sola. Se usa
-                # un .bat intermedio que espera y luego lanza la app.
+                # bloqueo de instancia única; si no, se cerraría sola y la
+                # aplicación se quedaría cerrada. Se usa un .bat intermedio que
+                # espera y luego lanza la app. **No** se lanza nada antes: una
+                # primera copia competiría por el bloqueo con esta, que aún
+                # sigue viva, y acabarían dos relanzamientos en carrera.
                 espera = Path(tempfile.gettempdir()) / "descargasordenadas_reinicio.bat"
                 destino = " ".join(f'"{parte}"' for parte in self._comando_reinicio_sin_consola())
                 espera.write_text(
                     "@echo off\r\n"
-                    "timeout /t 2 /nobreak >nul\r\n"
+                    "rem Espera con ping: «timeout» falla sin consola\r\n"
+                    "ping -n 3 127.0.0.1 >nul\r\n"
                     f"start \"\" {destino}\r\n"
                     "del \"%~f0\"\r\n",
                     encoding="latin-1", errors="replace",
                 )
+                # CREATE_NO_WINDOW a secas: combinado con DETACHED_PROCESS se
+                # ignora (lo documenta Microsoft) y el .bat asomaría una consola
+                # durante todo el reinicio.
                 subprocess.Popen(
                     ["cmd", "/c", str(espera)],
-                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     close_fds=True,
                 )
+                self._agregar_log("Reiniciando sin consola...")
                 # Cerrar esta instancia (libera el bloqueo) sin diálogos
                 self.cerrar_completamente = True
                 QTimer.singleShot(400, lambda: self._salir_completamente())

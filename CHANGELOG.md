@@ -4,6 +4,38 @@ Todos los cambios notables de este proyecto se documentarán en este archivo.
 
 ---
 
+## [7.0.3] - 2026-09-25
+
+**En Windows ya no aparece una consola durante el reinicio ni la
+actualización.** Fallo real reportado tras la 7.0.2: al reiniciar la aplicación
+se veía una terminal que se quedaba durante toda la operación. No hay cambios
+de interfaz.
+
+### 🪟 La consola que se quedaba abierta
+La causa era la combinación de banderas `CREATE_NO_WINDOW | DETACHED_PROCESS`
+al lanzar los `.bat` de reinicio y actualización: Microsoft documenta que
+`CREATE_NO_WINDOW` **se ignora** cuando se combina con `DETACHED_PROCESS`, así
+que el `cmd` abría su propia ventana. Ahora se usa `CREATE_NO_WINDOW` a secas.
+
+### 🪟 El reinicio lanzaba la aplicación dos veces
+El botón «Reiniciar sin consola» lanzaba la aplicación directamente **y además**
+el `.bat` intermedio la volvía a lanzar. La primera copia competía por el
+bloqueo de instancia única con la que todavía estaba viva y el resultado eran
+dos relanzamientos en carrera. Ahora solo lanza el `.bat`, que espera a que el
+bloqueo se libere y entonces abre la aplicación una única vez.
+
+### 🪟 La espera del `.bat` no esperaba
+Los `.bat` de reinicio usaban `timeout`, que sin consola y con la entrada
+redirigida falla al instante: el relanzamiento no esperaba y volvía a chocar
+con el bloqueo. Ahora usan `ping -n 3 127.0.0.1`.
+
+### 🧪 Pruebas
+- **38 pruebas funcionales** (era 37): nueva prueba que verifica que no se usa
+  la combinación de banderas que abre consola, que los `.bat` no usan
+  `timeout` y que el reinicio lanza un único proceso intermedio
+
+---
+
 ## [7.0.2] - 2026-09-25
 
 **La actualización vuelve a reabrir la aplicación, en los tres sistemas.**

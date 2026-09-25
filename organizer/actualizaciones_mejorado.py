@@ -694,9 +694,12 @@ class GestorActualizacionesMejorado:
                 if ruta.suffix.lower() != ".exe":
                     return False, f"El instalador de Windows debe ser .exe y es: {ruta.name}"
                 script = self._script_actualizacion_windows(ruta)
+                # CREATE_NO_WINDOW a secas. Combinado con DETACHED_PROCESS se
+                # ignora (lo documenta Microsoft), así que el .bat acababa en
+                # una consola visible durante toda la espera.
                 subprocess.Popen(
                     ["cmd", "/c", str(script)],
-                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -924,12 +927,18 @@ class GestorActualizacionesMejorado:
                         temp_script = carpeta_temp / "reiniciar_descargasordenadas.bat"
                         with open(temp_script, 'w') as f:
                             f.write('@echo off\n')
-                            f.write('timeout /t 2 /nobreak >nul\n')
+                            # «ping» en lugar de «timeout»: el script puede
+                            # ejecutarse sin consola y «timeout» falla al
+                            # instante con la entrada redirigida.
+                            f.write('ping -n 3 127.0.0.1 >nul\n')
                             f.write(f'cd /d "{base_dir}"\n')
                             f.write('start "" "INICIAR.bat"\n')
                             f.write('del "%~f0"\n')
 
-                        subprocess.Popen([str(temp_script)], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                        subprocess.Popen(
+                            ["cmd", "/c", str(temp_script)],
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
                     else:
                         # Fallback multiplataforma: relanzar con el mismo Python
                         iniciar_py = Path(__file__).parent / "INICIAR.py"

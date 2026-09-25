@@ -1,8 +1,8 @@
-# DescargasOrdenadas v7.0.2
+# DescargasOrdenadas v7.0.3
 
 **Organiza automáticamente tu carpeta de descargas** con una interfaz moderna tipo Apple, menú contextual en los tres sistemas y actualización integrada.
 
-![Versión](https://img.shields.io/badge/versión-7.0.2-blue)
+![Versión](https://img.shields.io/badge/versión-7.0.3-blue)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 ![Estado](https://img.shields.io/badge/estado-funcionando-brightgreen)
 
@@ -335,6 +335,6 @@ MIT License - Creado por Champi 🍄
 
 **Mantén tu carpeta de descargas siempre organizada automáticamente** 🍄✨
 
-**Versión:** 7.0.2  
+**Versión:** 7.0.3  
 **Fecha:** Septiembre 2026  
 **Estado:** ✅ Funcional y estable

@@ -1310,6 +1310,55 @@ def test_scripts_de_actualizacion_esperan_y_reabren():
     print("✅ Los scripts de actualización esperan y reabren una sola vez")
 
 
+def test_lanzamientos_sin_consola_windows():
+    """Los .bat de Windows no deben asomar ninguna consola.
+
+    Regresión reportada en Windows: al reiniciar (botón «Reiniciar sin
+    consola») o al actualizar, aparecía una terminal que se quedaba durante
+    toda la espera. El motivo era la combinación de banderas
+    ``CREATE_NO_WINDOW | DETACHED_PROCESS``: Microsoft documenta que
+    ``CREATE_NO_WINDOW`` se **ignora** al combinarse con ``DETACHED_PROCESS``,
+    así que el ``cmd`` del .bat abría su ventana.
+
+    De paso se comprueba que no se lance la aplicación dos veces y que la
+    espera no use ``timeout`` (falla sin consola y con la entrada redirigida).
+    """
+    fuente_gui = (project_root / "organizer" / "gui_avanzada.py").read_text(
+        encoding="utf-8"
+    )
+    fuente_act = (
+        project_root / "organizer" / "actualizaciones_mejorado.py"
+    ).read_text(encoding="utf-8")
+
+    for nombre, fuente in (("gui_avanzada.py", fuente_gui),
+                           ("actualizaciones_mejorado.py", fuente_act)):
+        codigo = _codigo_efectivo(fuente)
+        assert "CREATE_NO_WINDOW | DETACHED_PROCESS" not in codigo, (
+            f"{nombre}: CREATE_NO_WINDOW se ignora con DETACHED_PROCESS y "
+            "aparece una consola"
+        )
+
+    # El reinicio escribe un .bat que espera y luego lanza: la espera debe ser
+    # con ping, y los .bat no pueden quedar con «timeout» (falla sin consola)
+    codigo_gui = _codigo_efectivo(fuente_gui)
+    assert "ping -n 3 127.0.0.1" in codigo_gui, (
+        "El .bat de reinicio debe esperar con ping"
+    )
+    assert "timeout /t" not in codigo_gui
+
+    codigo_act = _codigo_efectivo(fuente_act)
+    assert "timeout /t" not in codigo_act, (
+        "El .bat de reinicio de actualizaciones no debe usar timeout"
+    )
+    # Un solo lanzamiento: el bucle de espera y el «start» final en el .bat,
+    # sin lanzar además la app desde Python antes de tiempo
+    assert codigo_gui.count('subprocess.Popen(\n                    ["cmd", "/c", str(espera)]') == 1, (
+        "El reinicio debe lanzar un único proceso intermedio"
+    )
+
+    print("✅ Los lanzamientos de Windows no abren consola ni duplican")
+
+
 def test_paneles_de_ajustes_macos():
     """Los enlaces a los paneles de macOS son correctos y tienen alternativa.
 
@@ -1462,6 +1511,7 @@ def main():
     test_aviso_actualizacion_no_obsoleto()
     test_actualizacion_no_escribe_dentro_de_la_app()
     test_scripts_de_actualizacion_esperan_y_reabren()
+    test_lanzamientos_sin_consola_windows()
     test_paneles_de_ajustes_macos()
     test_transparencia_opcional()
     test_notificaciones_no_se_reportan_como_faltantes()
